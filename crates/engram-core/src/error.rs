@@ -14,6 +14,11 @@ pub enum CoreError {
     RebuildFailed(String),
     SocketError(String),
     DispatchError(String),
+    ConfigReadOnly,
+    ExportFailed(String),
+    ImportVersionMismatch(u64),
+    ImportFailed(String),
+    InitFailed(String),
     Storage(StorageError),
     Hnsw(HnswError),
     Api(ApiError),
@@ -43,6 +48,21 @@ impl fmt::Display for CoreError {
             }
             Self::DispatchError(message) => {
                 write!(formatter, "[6007] dispatch error: {message}")
+            }
+            Self::ConfigReadOnly => {
+                write!(formatter, "[6008] config is read-only")
+            }
+            Self::ExportFailed(message) => {
+                write!(formatter, "[6009] export failed: {message}")
+            }
+            Self::ImportVersionMismatch(version) => {
+                write!(formatter, "[6010] import version mismatch: expected 1, got {version}")
+            }
+            Self::ImportFailed(message) => {
+                write!(formatter, "[6011] import failed: {message}")
+            }
+            Self::InitFailed(message) => {
+                write!(formatter, "[6012] init failed: {message}")
             }
             Self::Storage(error) => error.fmt(formatter),
             Self::Hnsw(error) => error.fmt(formatter),

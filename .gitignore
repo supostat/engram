@@ -9,11 +9,9 @@
 .mcp.json
 CLAUDE.md
 
-# dev-workflow (session data)
-.dev-vault/daily/
-.dev-vault/branches/
-.dev-vault/.edit-log.json
-.dev-vault/.intelligence.json
+# MCP server
+mcp-server/node_modules/
+mcp-server/dist/
 # dev-workflow (stack-detected)
 *.swo
 *~

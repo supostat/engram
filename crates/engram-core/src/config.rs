@@ -224,7 +224,7 @@ impl Default for Config {
     }
 }
 
-fn expand_tilde(path: &str) -> String {
+pub fn expand_tilde(path: &str) -> String {
     if let Some(rest) = path.strip_prefix("~/")
         && let Some(home) = home_directory() {
             return format!("{home}/{rest}");
@@ -232,7 +232,7 @@ fn expand_tilde(path: &str) -> String {
     path.to_string()
 }
 
-fn home_directory() -> Option<String> {
+pub fn home_directory() -> Option<String> {
     std::env::var("HOME").ok()
 }
 

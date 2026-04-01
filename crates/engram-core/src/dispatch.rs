@@ -2,8 +2,12 @@ use std::sync::Arc;
 
 use serde_json::Value;
 
+use crate::config_handler;
 use crate::consolidate_handler;
 use crate::error::CoreError;
+use crate::export_handler;
+use crate::import_handler;
+use crate::insights_handler;
 use crate::judge_handler;
 use crate::search_handler;
 use crate::server::ServerState;
@@ -29,6 +33,10 @@ pub async fn route(
         "memory_consolidate_apply" => {
             consolidate_handler::handle_apply(state, params).await
         }
+        "memory_config" => config_handler::handle(state, params).await,
+        "memory_export" => export_handler::handle(state, params).await,
+        "memory_import" => import_handler::handle(state, params).await,
+        "memory_insights" => insights_handler::handle(state, params).await,
         unknown => Err(CoreError::DispatchError(format!(
             "unknown method: {unknown}"
         ))),

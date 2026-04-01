@@ -11,4 +11,4 @@ pub mod schema;
 pub use database::Database;
 pub use error::StorageError;
 pub use fts::FtsResult;
-pub use memory::Memory;
+pub use memory::{Memory, row_to_memory};

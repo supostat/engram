@@ -28,7 +28,7 @@ pub struct Memory {
     pub superseded_by: Option<String>,
 }
 
-pub(crate) fn row_to_memory(row: &rusqlite::Row) -> rusqlite::Result<Memory> {
+pub fn row_to_memory(row: &rusqlite::Row) -> rusqlite::Result<Memory> {
     Ok(Memory {
         id: row.get("id")?,
         memory_type: row.get("memory_type")?,

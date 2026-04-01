@@ -69,6 +69,9 @@ enum Command {
         action: ConsolidateAction,
     },
 
+    /// Initialize Engram: create config, database, print MCP setup
+    Init,
+
     /// Show version
     Version,
 }
@@ -108,14 +111,25 @@ async fn main() {
 }
 
 async fn run(parsed: EngramCli) -> Result<(), engram_core::CoreError> {
-    let config = load_config(&parsed.config)?;
     match parsed.command {
+        Command::Init => engram_core::init_handler::execute(),
+        command => run_with_config(parsed.config, command, parsed.format).await,
+    }
+}
+
+async fn run_with_config(
+    config_path: Option<String>,
+    command: Command,
+    format: OutputFormat,
+) -> Result<(), engram_core::CoreError> {
+    let config = load_config(&config_path)?;
+    match command {
         Command::Server => server::run(config).await,
         Command::Version => {
-            print_version(&parsed.format);
+            print_version(&format);
             Ok(())
         }
-        command => execute_command(config, command, &parsed.format).await,
+        command => execute_command(config, command, &format).await,
     }
 }
 
@@ -169,7 +183,7 @@ fn build_dispatch_args(command: Command) -> (String, serde_json::Value) {
         } => build_judge_args(memory_id, query, score),
         Command::Status => ("memory_status".into(), json!({})),
         Command::Consolidate { action } => build_consolidate_args(action),
-        Command::Server | Command::Version => unreachable!(),
+        Command::Server | Command::Version | Command::Init => unreachable!(),
     }
 }
 

@@ -1,9 +1,14 @@
 pub mod cli;
 pub mod config;
+pub mod config_handler;
 pub mod consolidate_handler;
 pub mod dispatch;
 pub mod error;
+pub mod export_handler;
+pub mod import_handler;
+pub mod init_handler;
 pub mod indexes;
+pub mod insights_handler;
 pub mod judge_handler;
 pub mod output;
 pub mod persistence;
