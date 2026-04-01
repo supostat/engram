@@ -1,0 +1,21 @@
+[workspace]
+members = [
+    "crates/engram-hnsw",
+    "crates/engram-router",
+    "crates/engram-storage",
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2024"
+license = "MIT"
+repository = "https://github.com/anthropics/engram"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+
+[profile.bench]
+opt-level = 3
+lto = true

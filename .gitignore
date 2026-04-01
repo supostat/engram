@@ -1,0 +1,10 @@
+/target
+*.rs.bk
+*.swp
+.DS_Store
+
+# Claude Code / dev-workflow
+.claude/
+.dev-vault/
+.mcp.json
+CLAUDE.md
