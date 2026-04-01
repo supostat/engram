@@ -1,0 +1,27 @@
+[package]
+name = "engram-core"
+version = "0.1.0"
+edition.workspace = true
+description = "Core binary and shared infrastructure for Engram memory system"
+
+[[bin]]
+name = "engram"
+path = "src/main.rs"
+
+[dependencies]
+engram-consolidate = { path = "../engram-consolidate" }
+engram-storage = { path = "../engram-storage" }
+engram-hnsw = { path = "../engram-hnsw" }
+engram-embeddings = { path = "../engram-embeddings" }
+engram-llm-client = { path = "../engram-llm-client" }
+engram-judge = { path = "../engram-judge" }
+engram-router = { path = "../engram-router" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+clap = { version = "4", features = ["derive"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "io-util", "signal", "sync", "time"] }
+toml = "0.8"
+uuid = { version = "1", features = ["v4"] }
+
+[dev-dependencies]
+tempfile = "3"

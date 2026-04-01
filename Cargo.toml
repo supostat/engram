@@ -1,5 +1,7 @@
 [workspace]
 members = [
+    "crates/engram-consolidate",
+    "crates/engram-core",
     "crates/engram-embeddings",
     "crates/engram-hnsw",
     "crates/engram-judge",

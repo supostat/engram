@@ -1,0 +1,21 @@
+[database]
+path = "~/.engram/memories.db"
+
+[embedding]
+provider = "voyage"
+model = "voyage-code-3"
+dimension = 1024
+
+[llm]
+provider = "openai"
+model = "gpt-4o-mini"
+
+[server]
+socket_path = "~/.engram/engram.sock"
+reindex_interval_secs = 3600
+
+[hnsw]
+max_connections = 16
+ef_construction = 200
+ef_search = 40
+dimension = 1024

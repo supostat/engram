@@ -1,0 +1,12 @@
+[package]
+name = "engram-consolidate"
+version = "0.1.0"
+edition.workspace = true
+description = "Memory consolidation: preview, analyze, apply"
+
+[dependencies]
+engram-storage = { path = "../engram-storage" }
+engram-llm-client = { path = "../engram-llm-client" }
+rusqlite = { version = "0.39", features = ["bundled"] }
+
+[dev-dependencies]

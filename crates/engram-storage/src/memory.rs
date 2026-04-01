@@ -155,6 +155,21 @@ impl Database {
         Ok(())
     }
 
+    pub fn set_superseded_by(
+        &self,
+        id: &str,
+        superseded_by: &str,
+    ) -> Result<(), StorageError> {
+        let affected = self.connection().execute(
+            "UPDATE memories SET superseded_by = ?1 WHERE id = ?2",
+            params![superseded_by, id],
+        )?;
+        if affected == 0 {
+            return Err(StorageError::NotFound(format!("memory id={id}")));
+        }
+        Ok(())
+    }
+
     pub fn delete_memory(&self, id: &str) -> Result<(), StorageError> {
         let affected = self
             .connection()

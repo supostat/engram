@@ -166,6 +166,24 @@ fn test_touch_memory_not_found() {
 }
 
 #[test]
+fn test_set_superseded_by() {
+    let database = Database::in_memory().unwrap();
+    database.insert_memory(&make_memory("m1")).unwrap();
+    database.insert_memory(&make_memory("m2")).unwrap();
+
+    database.set_superseded_by("m1", "m2").unwrap();
+    let loaded = database.get_memory("m1").unwrap();
+    assert_eq!(loaded.superseded_by.as_deref(), Some("m2"));
+}
+
+#[test]
+fn test_set_superseded_by_not_found() {
+    let database = Database::in_memory().unwrap();
+    let result = database.set_superseded_by("nonexistent", "m2");
+    assert!(matches!(result, Err(StorageError::NotFound(_))));
+}
+
+#[test]
 fn test_bulk_insert_with_duplicates() {
     let database = Database::in_memory().unwrap();
     database.insert_memory(&make_memory("m1")).unwrap();
