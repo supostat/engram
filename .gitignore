@@ -8,3 +8,16 @@
 .dev-vault/
 .mcp.json
 CLAUDE.md
+
+# dev-workflow (session data)
+.dev-vault/daily/
+.dev-vault/branches/
+.dev-vault/.edit-log.json
+.dev-vault/.intelligence.json
+# dev-workflow (stack-detected)
+*.swo
+*~
+coverage/
+.env
+.env.*
+target/
