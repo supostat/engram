@@ -1,0 +1,9 @@
+[package]
+name = "engram-judge"
+version = "0.1.0"
+edition.workspace = true
+description = "Heuristic and LLM-based memory relevance scoring"
+
+[dependencies]
+engram-llm-client = { path = "../engram-llm-client" }
+serde_json = "1"

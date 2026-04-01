@@ -1,6 +1,9 @@
 [workspace]
 members = [
+    "crates/engram-embeddings",
     "crates/engram-hnsw",
+    "crates/engram-judge",
+    "crates/engram-llm-client",
     "crates/engram-router",
     "crates/engram-storage",
 ]

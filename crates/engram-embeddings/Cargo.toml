@@ -1,0 +1,8 @@
+[package]
+name = "engram-embeddings"
+version = "0.1.0"
+edition.workspace = true
+description = "Three-field embedding system with HyDE auto-detection and caching"
+
+[dependencies]
+engram-llm-client = { path = "../engram-llm-client" }

@@ -1,0 +1,10 @@
+[package]
+name = "engram-llm-client"
+version = "0.1.0"
+edition.workspace = true
+description = "LLM provider traits with Voyage and OpenAI implementations"
+
+[dependencies]
+reqwest = { version = "0.12", features = ["blocking", "json"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
