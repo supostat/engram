@@ -8,7 +8,9 @@ use crate::error::CoreError;
 
 const ENGRAM_DIRECTORY: &str = ".engram";
 const CONFIG_FILENAME: &str = "engram.toml";
+const AGENT_MD_FILENAME: &str = "AGENT.md";
 const DATABASE_RELATIVE_PATH: &str = ".engram/memories.db";
+const AGENT_MD_CONTENT: &str = include_str!("../../../AGENT.md");
 
 const DEFAULT_CONFIG_TEMPLATE: &str = r#"[database]
 path = "~/.engram/memories.db"
@@ -46,6 +48,7 @@ pub fn execute() -> Result<(), CoreError> {
     create_engram_directory(&engram_directory)?;
     write_default_config(&engram_directory)?;
     initialize_database(&engram_directory)?;
+    write_agent_instructions(&engram_directory)?;
     print_mcp_snippets();
     Ok(())
 }
@@ -93,6 +96,14 @@ fn initialize_database(engram_directory: &str) -> Result<(), CoreError> {
     Ok(())
 }
 
+fn write_agent_instructions(engram_directory: &str) -> Result<(), CoreError> {
+    let agent_md_path = Path::new(engram_directory).join(AGENT_MD_FILENAME);
+    fs::write(&agent_md_path, AGENT_MD_CONTENT)
+        .map_err(|error| CoreError::InitFailed(format!("failed to write AGENT.md: {error}")))?;
+    println!("Agent instructions written to {}", agent_md_path.display());
+    Ok(())
+}
+
 fn print_mcp_snippets() {
     println!();
     println!("Claude Desktop — add to claude_desktop_config.json:");
@@ -122,4 +133,7 @@ fn print_mcp_snippets() {
     println!("Set API keys via environment variables:");
     println!("  export ENGRAM_VOYAGE_API_KEY=your-voyage-key");
     println!("  export ENGRAM_OPENAI_API_KEY=your-openai-key");
+    println!();
+    println!("Add to your project's CLAUDE.md:");
+    println!("  Engram memory system: ~/.engram/AGENT.md");
 }
