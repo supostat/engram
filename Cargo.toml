@@ -14,7 +14,9 @@ resolver = "2"
 [workspace.package]
 edition = "2024"
 license = "MIT"
-repository = "https://github.com/anthropics/engram"
+repository = "https://github.com/supostat/engram"
+authors = ["Engram Contributors"]
+homepage = "https://github.com/supostat/engram"
 
 [profile.release]
 opt-level = 3

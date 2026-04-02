@@ -8,10 +8,7 @@ use crate::error::CoreError;
 use crate::server::ServerState;
 use crate::timestamp::current_utc_timestamp;
 
-pub async fn handle(
-    state: &Arc<ServerState>,
-    _params: Value,
-) -> Result<Value, CoreError> {
+pub async fn handle(state: &Arc<ServerState>, _params: Value) -> Result<Value, CoreError> {
     let state_clone = Arc::clone(state);
     tokio::task::spawn_blocking(move || {
         let database = state_clone.database.lock().unwrap();
@@ -30,9 +27,7 @@ pub async fn handle(
     .map_err(|error| CoreError::SocketError(error.to_string()))?
 }
 
-fn query_active_memories(
-    database: &engram_storage::Database,
-) -> Result<Vec<Memory>, CoreError> {
+fn query_active_memories(database: &engram_storage::Database) -> Result<Vec<Memory>, CoreError> {
     let mut statement = database
         .connection()
         .prepare("SELECT * FROM memories WHERE superseded_by IS NULL")

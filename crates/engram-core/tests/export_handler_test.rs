@@ -33,7 +33,12 @@ async fn export_empty_database_returns_zero_count() {
     let data = result.expect("export should succeed");
     assert_eq!(data["version"], 1);
     assert_eq!(data["count"], 0);
-    assert!(data["memories"].as_array().expect("memories array").is_empty());
+    assert!(
+        data["memories"]
+            .as_array()
+            .expect("memories array")
+            .is_empty()
+    );
     assert!(data["exported_at"].is_string());
 }
 
@@ -93,7 +98,10 @@ async fn export_excludes_superseded_memories() {
     let replacement = dispatch::route("memory_store", &state, store_replacement)
         .await
         .expect("store replacement should succeed");
-    let replacement_id = replacement["id"].as_str().expect("replacement id").to_string();
+    let replacement_id = replacement["id"]
+        .as_str()
+        .expect("replacement id")
+        .to_string();
 
     {
         let database = state.database.lock().unwrap();

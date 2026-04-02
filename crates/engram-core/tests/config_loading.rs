@@ -245,7 +245,10 @@ fn build_text_generator_local_provider_name() {
     match result {
         Err(error) => {
             let error_message = format!("{error}");
-            assert!(!error_message.contains("not supported"), "should not be 'not supported' error");
+            assert!(
+                !error_message.contains("not supported"),
+                "should not be 'not supported' error"
+            );
         }
         Ok(_) => panic!("expected error for nonexistent model path"),
     }

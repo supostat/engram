@@ -35,8 +35,7 @@ fn output_json_format_is_pretty_printed() {
     assert!(formatted.contains('\n'));
     assert!(formatted.contains("\"key\""));
     assert!(formatted.contains("\"value\""));
-    let reparsed: Value =
-        serde_json::from_str(&formatted).expect("valid json");
+    let reparsed: Value = serde_json::from_str(&formatted).expect("valid json");
     assert_eq!(reparsed["key"], "value");
     assert_eq!(reparsed["count"], 42);
 }
@@ -67,11 +66,9 @@ fn output_jsonl_format_renders_one_line_per_array_item() {
     let formatted = format_output(&value, &OutputFormat::Jsonl);
     let lines: Vec<&str> = formatted.lines().collect();
     assert_eq!(lines.len(), 2);
-    let first: Value =
-        serde_json::from_str(lines[0]).expect("valid jsonl line");
+    let first: Value = serde_json::from_str(lines[0]).expect("valid jsonl line");
     assert_eq!(first["id"], "a");
-    let second: Value =
-        serde_json::from_str(lines[1]).expect("valid jsonl line");
+    let second: Value = serde_json::from_str(lines[1]).expect("valid jsonl line");
     assert_eq!(second["id"], "b");
 }
 
@@ -80,8 +77,7 @@ fn output_jsonl_format_renders_object_as_single_line() {
     let value = json!({"status": "ok"});
     let formatted = format_output(&value, &OutputFormat::Jsonl);
     assert_eq!(formatted.lines().count(), 1);
-    let reparsed: Value =
-        serde_json::from_str(&formatted).expect("valid jsonl");
+    let reparsed: Value = serde_json::from_str(&formatted).expect("valid jsonl");
     assert_eq!(reparsed["status"], "ok");
 }
 
@@ -94,8 +90,7 @@ async fn cli_store_and_search_full_cycle() {
         "action": "set maximum connections to fifty per instance",
         "result": "database connections are stable under load testing",
     });
-    let store_result =
-        dispatch::route("memory_store", &state, store_params).await;
+    let store_result = dispatch::route("memory_store", &state, store_params).await;
     let stored = store_result.expect("store should succeed");
     let stored_id = stored["id"].as_str().expect("stored id");
     assert!(!stored_id.is_empty());
@@ -104,21 +99,17 @@ async fn cli_store_and_search_full_cycle() {
         "query": "database connection pooling configured high throughput",
         "limit": 10,
     });
-    let search_result =
-        dispatch::route("memory_search", &state, search_params).await;
+    let search_result = dispatch::route("memory_search", &state, search_params).await;
     let results = search_result.expect("search should succeed");
     let results_array = results.as_array().expect("results array");
-    let found = results_array
-        .iter()
-        .any(|entry| entry["id"] == stored_id);
+    let found = results_array.iter().any(|entry| entry["id"] == stored_id);
     assert!(found, "stored memory must appear in search results");
 }
 
 #[tokio::test]
 async fn cli_status_shows_counts() {
     let state = build_deterministic_state();
-    let result =
-        dispatch::route("memory_status", &state, json!({})).await;
+    let result = dispatch::route("memory_status", &state, json!({})).await;
     let data = result.expect("status should succeed");
     assert_eq!(data["memory_count"], 0);
     assert_eq!(data["indexed_count"], 0);
@@ -134,8 +125,7 @@ async fn cli_status_shows_counts() {
         .await
         .expect("store should succeed");
 
-    let result =
-        dispatch::route("memory_status", &state, json!({})).await;
+    let result = dispatch::route("memory_status", &state, json!({})).await;
     let data = result.expect("status should succeed after insert");
     assert_eq!(data["memory_count"], 1);
     assert_eq!(data["indexed_count"], 1);
@@ -165,8 +155,7 @@ async fn cli_build_state_creates_valid_state() {
         .to_string();
     config.database.path = database_path;
     let state = cli::build_state(&config).expect("build state");
-    let result =
-        dispatch::route("memory_status", &state, json!({})).await;
+    let result = dispatch::route("memory_status", &state, json!({})).await;
     let data = result.expect("status should succeed");
     assert_eq!(data["memory_count"], 0);
 }

@@ -7,7 +7,9 @@ use engram_core::init_handler;
 static SERIAL_TEST: Mutex<()> = Mutex::new(());
 
 fn with_temp_home(test_body: impl FnOnce(&str)) {
-    let _lock = SERIAL_TEST.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let _lock = SERIAL_TEST
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     let temp = tempdir().expect("failed to create temp dir");
     let original_home = std::env::var("HOME").ok();
     let temp_path = temp.path().to_str().expect("temp path must be valid utf-8");
@@ -29,8 +31,7 @@ fn init_creates_config_file() {
             std::path::Path::new(&config_path).exists(),
             "config file should exist at {config_path}"
         );
-        let content = std::fs::read_to_string(&config_path)
-            .expect("should read config file");
+        let content = std::fs::read_to_string(&config_path).expect("should read config file");
         assert!(content.contains("[database]"));
         assert!(content.contains("[embedding]"));
         assert!(content.contains("[llm]"));
@@ -65,8 +66,7 @@ fn init_skips_if_config_exists() {
         let result = init_handler::execute();
         assert!(result.is_ok(), "execute should succeed: {result:?}");
 
-        let content = std::fs::read_to_string(&config_path)
-            .expect("should read config");
+        let content = std::fs::read_to_string(&config_path).expect("should read config");
         assert_eq!(
             content, original_content,
             "config should not be overwritten"

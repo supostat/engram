@@ -15,10 +15,7 @@ struct InsightsParams {
     id: Option<String>,
 }
 
-pub async fn handle(
-    state: &Arc<ServerState>,
-    params: Value,
-) -> Result<Value, CoreError> {
+pub async fn handle(state: &Arc<ServerState>, params: Value) -> Result<Value, CoreError> {
     let parsed: InsightsParams = serde_json::from_value(params)
         .map_err(|error| CoreError::DispatchError(error.to_string()))?;
     match parsed.action.as_str() {
@@ -46,20 +43,17 @@ async fn handle_list(state: &Arc<ServerState>) -> Result<Value, CoreError> {
     .map_err(|error| CoreError::SocketError(error.to_string()))?
 }
 
-async fn handle_delete(
-    state: &Arc<ServerState>,
-    id: Option<String>,
-) -> Result<Value, CoreError> {
-    let insight_id = id.ok_or_else(|| {
-        CoreError::DispatchError("delete requires 'id' parameter".into())
-    })?;
+async fn handle_delete(state: &Arc<ServerState>, id: Option<String>) -> Result<Value, CoreError> {
+    let insight_id =
+        id.ok_or_else(|| CoreError::DispatchError("delete requires 'id' parameter".into()))?;
     let state_clone = Arc::clone(state);
     tokio::task::spawn_blocking(move || {
         let database = state_clone.database.lock().unwrap();
         let memory = database.get_memory(&insight_id)?;
         if memory.memory_type != "insight" {
             return Err(CoreError::DispatchError(format!(
-                "memory {} is not an insight", insight_id
+                "memory {} is not an insight",
+                insight_id
             )));
         }
         database.delete_memory(&insight_id)?;
@@ -69,9 +63,7 @@ async fn handle_delete(
     .map_err(|error| CoreError::SocketError(error.to_string()))?
 }
 
-fn query_active_insights(
-    database: &engram_storage::Database,
-) -> Result<Vec<Memory>, CoreError> {
+fn query_active_insights(database: &engram_storage::Database) -> Result<Vec<Memory>, CoreError> {
     let mut statement = database
         .connection()
         .prepare(
@@ -90,4 +82,3 @@ fn query_active_insights(
     }
     Ok(insights)
 }
-

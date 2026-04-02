@@ -152,9 +152,7 @@ async fn run_with_config(
     }
 }
 
-fn load_config(
-    path: &Option<String>,
-) -> Result<Config, engram_core::CoreError> {
+fn load_config(path: &Option<String>) -> Result<Config, engram_core::CoreError> {
     match path {
         Some(explicit_path) => Config::load_from_path(explicit_path),
         None => Config::load(),
@@ -163,10 +161,7 @@ fn load_config(
 
 fn print_version(format: &OutputFormat) {
     let version = env!("CARGO_PKG_VERSION");
-    let output = engram_core::output::format_output(
-        &json!({ "version": version }),
-        format,
-    );
+    let output = engram_core::output::format_output(&json!({ "version": version }), format);
     println!("{output}");
 }
 
@@ -260,9 +255,7 @@ fn build_judge_args(
     ("memory_judge".into(), params)
 }
 
-fn build_consolidate_args(
-    action: ConsolidateAction,
-) -> (String, serde_json::Value) {
+fn build_consolidate_args(action: ConsolidateAction) -> (String, serde_json::Value) {
     match action {
         ConsolidateAction::Preview {
             stale_days,
@@ -292,17 +285,11 @@ fn build_train_args(action: TrainAction) -> (String, serde_json::Value) {
     match action {
         TrainAction::Generate => ("memory_train_generate".into(), json!({})),
         TrainAction::List => ("memory_train_list".into(), json!({})),
-        TrainAction::Delete { id } => (
-            "memory_train_delete".into(),
-            json!({"id": id}),
-        ),
+        TrainAction::Delete { id } => ("memory_train_delete".into(), json!({"id": id})),
     }
 }
 
-fn consolidation_params(
-    stale_days: Option<u32>,
-    min_score: Option<f64>,
-) -> serde_json::Value {
+fn consolidation_params(stale_days: Option<u32>, min_score: Option<f64>) -> serde_json::Value {
     let mut params = json!({});
     if let Some(days) = stale_days {
         params["stale_days"] = json!(days);

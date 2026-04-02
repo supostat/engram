@@ -37,19 +37,13 @@ fn rebuild_failed_display() {
 #[test]
 fn socket_error_display() {
     let error = CoreError::SocketError("connection refused".into());
-    assert_eq!(
-        error.to_string(),
-        "[6006] socket error: connection refused"
-    );
+    assert_eq!(error.to_string(), "[6006] socket error: connection refused");
 }
 
 #[test]
 fn dispatch_error_display() {
     let error = CoreError::DispatchError("unknown method".into());
-    assert_eq!(
-        error.to_string(),
-        "[6007] dispatch error: unknown method"
-    );
+    assert_eq!(error.to_string(), "[6007] dispatch error: unknown method");
 }
 
 #[test]

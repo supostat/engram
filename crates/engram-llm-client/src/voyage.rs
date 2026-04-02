@@ -1,6 +1,6 @@
-use crate::error::{map_http_status_to_error, ApiError};
+use crate::error::{ApiError, map_http_status_to_error};
 use crate::provider::EmbeddingProvider;
-use crate::retry::{execute_with_retry, RetryConfig};
+use crate::retry::{RetryConfig, execute_with_retry};
 
 pub const DEFAULT_VOYAGE_MODEL: &str = "voyage-code-3";
 pub const DEFAULT_VOYAGE_DIMENSION: usize = 1024;
@@ -57,9 +57,7 @@ pub fn parse_embedding_response(body: &str) -> Result<Vec<f32>, ApiError> {
 
     let embedding = parsed["data"][0]["embedding"]
         .as_array()
-        .ok_or_else(|| {
-            ApiError::EmbeddingApiUnavailable("missing embedding in response".into())
-        })?;
+        .ok_or_else(|| ApiError::EmbeddingApiUnavailable("missing embedding in response".into()))?;
 
     embedding
         .iter()
@@ -86,14 +84,12 @@ impl EmbeddingProvider for VoyageEmbeddingProvider {
                 .bearer_auth(&self.api_key)
                 .json(&body)
                 .send()
-                .map_err(|error| {
-                    ApiError::EmbeddingApiUnavailable(error.to_string())
-                })?;
+                .map_err(|error| ApiError::EmbeddingApiUnavailable(error.to_string()))?;
 
             let status = response.status().as_u16();
-            let response_body = response.text().map_err(|error| {
-                ApiError::EmbeddingApiUnavailable(error.to_string())
-            })?;
+            let response_body = response
+                .text()
+                .map_err(|error| ApiError::EmbeddingApiUnavailable(error.to_string()))?;
 
             if status != 200 {
                 return Err(map_embedding_error(status, response_body));

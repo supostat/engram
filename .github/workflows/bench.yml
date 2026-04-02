@@ -1,0 +1,36 @@
+name: Benchmarks
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "crates/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  benchmark:
+    name: Benchmark regression check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Checkout base branch and save baseline
+        run: |
+          git checkout "${{ github.event.pull_request.base.sha }}"
+          cargo bench --all -- --save-baseline base
+          git checkout "${{ github.event.pull_request.head.sha }}"
+
+      - name: Run PR benchmarks against baseline
+        run: cargo bench --all -- --baseline base

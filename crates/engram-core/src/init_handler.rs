@@ -64,27 +64,20 @@ fn config_already_exists() -> bool {
 }
 
 fn resolve_engram_directory() -> Result<String, CoreError> {
-    let home = home_directory().ok_or_else(|| {
-        CoreError::InitFailed("HOME environment variable not set".into())
-    })?;
+    let home = home_directory()
+        .ok_or_else(|| CoreError::InitFailed("HOME environment variable not set".into()))?;
     Ok(format!("{home}/{ENGRAM_DIRECTORY}"))
 }
 
 fn create_engram_directory(path: &str) -> Result<(), CoreError> {
-    fs::create_dir_all(path).map_err(|error| {
-        CoreError::InitFailed(format!(
-            "failed to create {path}: {error}"
-        ))
-    })
+    fs::create_dir_all(path)
+        .map_err(|error| CoreError::InitFailed(format!("failed to create {path}: {error}")))
 }
 
 fn write_default_config(engram_directory: &str) -> Result<(), CoreError> {
     let config_path = Path::new(engram_directory).join(CONFIG_FILENAME);
-    fs::write(&config_path, DEFAULT_CONFIG_TEMPLATE).map_err(|error| {
-        CoreError::InitFailed(format!(
-            "failed to write config: {error}"
-        ))
-    })
+    fs::write(&config_path, DEFAULT_CONFIG_TEMPLATE)
+        .map_err(|error| CoreError::InitFailed(format!("failed to write config: {error}")))
 }
 
 fn initialize_database(engram_directory: &str) -> Result<(), CoreError> {
@@ -93,9 +86,7 @@ fn initialize_database(engram_directory: &str) -> Result<(), CoreError> {
         .parent()
         .unwrap_or(Path::new(engram_directory));
     fs::create_dir_all(database_directory).map_err(|error| {
-        CoreError::InitFailed(format!(
-            "failed to create database directory: {error}"
-        ))
+        CoreError::InitFailed(format!("failed to create database directory: {error}"))
     })?;
     let _database = Database::open(&database_path)?;
     println!("Database initialized at {database_path}");
@@ -105,24 +96,28 @@ fn initialize_database(engram_directory: &str) -> Result<(), CoreError> {
 fn print_mcp_snippets() {
     println!();
     println!("Claude Desktop — add to claude_desktop_config.json:");
-    println!(r#"{{
+    println!(
+        r#"{{
   "mcpServers": {{
     "engram": {{
       "command": "npx",
       "args": ["@engram/mcp-server"]
     }}
   }}
-}}"#);
+}}"#
+    );
     println!();
     println!("Claude Code — add to settings:");
-    println!(r#"{{
+    println!(
+        r#"{{
   "mcpServers": {{
     "engram": {{
       "command": "npx",
       "args": ["@engram/mcp-server"]
     }}
   }}
-}}"#);
+}}"#
+    );
     println!();
     println!("Set API keys via environment variables:");
     println!("  export ENGRAM_VOYAGE_API_KEY=your-voyage-key");

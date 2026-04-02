@@ -57,10 +57,7 @@ fn build_input_array(token_ids: &[u32]) -> Result<Array2<i64>, ApiError> {
         .map_err(|error| ApiError::LocalInferenceFailed(error.to_string()))
 }
 
-fn run_inference(
-    session: &Mutex<Session>,
-    input: &Array2<i64>,
-) -> Result<u32, ApiError> {
+fn run_inference(session: &Mutex<Session>, input: &Array2<i64>) -> Result<u32, ApiError> {
     let tensor_ref = TensorRef::from_array_view(input.view())
         .map_err(|error| ApiError::LocalInferenceFailed(error.to_string()))?;
 
@@ -76,9 +73,7 @@ fn run_inference(
         .try_extract_array::<f32>()
         .map_err(|error| ApiError::LocalInferenceFailed(error.to_string()))?;
 
-    let last_token_logits = logits
-        .slice(ndarray::s![0, -1_isize, ..])
-        .to_owned();
+    let last_token_logits = logits.slice(ndarray::s![0, -1_isize, ..]).to_owned();
 
     let next_token_id = last_token_logits
         .iter()
@@ -93,10 +88,7 @@ fn run_inference(
     Ok(next_token_id)
 }
 
-fn decode_tokens(
-    tokenizer: &Tokenizer,
-    token_ids: &[u32],
-) -> Result<String, ApiError> {
+fn decode_tokens(tokenizer: &Tokenizer, token_ids: &[u32]) -> Result<String, ApiError> {
     tokenizer
         .decode(token_ids, true)
         .map_err(|error| ApiError::LocalInferenceFailed(error.to_string()))

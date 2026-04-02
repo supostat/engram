@@ -5,10 +5,7 @@ use serde_json::{Value, json};
 use crate::error::CoreError;
 use crate::server::ServerState;
 
-pub async fn handle(
-    state: &Arc<ServerState>,
-    _params: Value,
-) -> Result<Value, CoreError> {
+pub async fn handle(state: &Arc<ServerState>, _params: Value) -> Result<Value, CoreError> {
     let state_clone = Arc::clone(state);
     tokio::task::spawn_blocking(move || {
         let database = state_clone.database.lock().unwrap();

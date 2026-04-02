@@ -10,8 +10,20 @@
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
+    "test": "tsc --noEmit",
     "start": "node dist/index.js"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/supostat/engram"
+  },
+  "license": "MIT",
+  "author": "Engram Contributors",
+  "homepage": "https://github.com/supostat/engram#readme",
+  "bugs": {
+    "url": "https://github.com/supostat/engram/issues"
+  },
+  "keywords": ["mcp", "memory", "engram", "semantic-search", "ai-agent"],
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
     "zod": "^3.25.0"

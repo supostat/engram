@@ -26,7 +26,13 @@ pub fn apply(
     };
     let timestamp = current_utc_timestamp();
     for recommendation in recommendations {
-        apply_single(database, recommendation, performed_by, &timestamp, &mut result);
+        apply_single(
+            database,
+            recommendation,
+            performed_by,
+            &timestamp,
+            &mut result,
+        );
     }
     Ok(result)
 }
@@ -42,7 +48,14 @@ fn apply_single(
         RecommendedAction::Merge {
             source_id,
             target_id,
-        } => apply_merge(database, source_id, target_id, performed_by, timestamp, result),
+        } => apply_merge(
+            database,
+            source_id,
+            target_id,
+            performed_by,
+            timestamp,
+            result,
+        ),
         RecommendedAction::Delete { memory_id } => {
             apply_delete(database, memory_id, performed_by, timestamp, result);
         }
@@ -103,9 +116,7 @@ fn apply_delete(
         return;
     }
     if let Err(error) = database.delete_memory(memory_id) {
-        result
-            .errors
-            .push(format!("delete {memory_id}: {error}"));
+        result.errors.push(format!("delete {memory_id}: {error}"));
         return;
     }
     result.deleted += 1;
@@ -119,16 +130,11 @@ fn apply_archive(
     result: &mut ApplyResult,
 ) {
     if let Err(error) = database.set_memory_indexed(memory_id, false) {
-        result
-            .errors
-            .push(format!("archive {memory_id}: {error}"));
+        result.errors.push(format!("archive {memory_id}: {error}"));
         return;
     }
     if let Err(error) = database.log_consolidation(
-        &generate_log_id(
-            timestamp,
-            result.archived + result.deleted + result.merged,
-        ),
+        &generate_log_id(timestamp, result.archived + result.deleted + result.merged),
         "archive",
         &[memory_id.to_string()],
         Some("stale: low score with no usage"),
@@ -147,9 +153,7 @@ fn current_utc_timestamp() -> String {
         .unwrap_or_default();
     let seconds = duration.as_secs();
     let (year, month, day, hour, minute, second) = unix_to_utc_components(seconds);
-    format!(
-        "{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}Z"
-    )
+    format!("{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}Z")
 }
 
 fn unix_to_utc_components(timestamp: u64) -> (u64, u64, u64, u64, u64, u64) {

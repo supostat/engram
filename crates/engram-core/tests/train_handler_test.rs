@@ -57,12 +57,7 @@ fn insert_test_memory(state: &Arc<ServerState>, id: &str, memory_type: &str) {
 #[tokio::test]
 async fn train_list_empty() {
     let state = build_deterministic_state();
-    let result = dispatch::route(
-        "memory_train_list",
-        &state,
-        json!({}),
-    )
-    .await;
+    let result = dispatch::route("memory_train_list", &state, json!({})).await;
     let data = result.expect("list should succeed");
     assert_eq!(data["count"], 0);
     assert!(data["insights"].as_array().expect("array").is_empty());
@@ -75,12 +70,7 @@ async fn train_list_returns_insights_only() {
     insert_test_memory(&state, "insight-001", "insight");
     insert_test_memory(&state, "pattern-001", "pattern");
 
-    let result = dispatch::route(
-        "memory_train_list",
-        &state,
-        json!({}),
-    )
-    .await;
+    let result = dispatch::route("memory_train_list", &state, json!({})).await;
     let data = result.expect("list should succeed");
     assert_eq!(data["count"], 1);
     let insights = data["insights"].as_array().expect("array");
@@ -106,12 +96,8 @@ async fn train_delete_non_insight() {
     let state = build_deterministic_state();
     insert_test_memory(&state, "decision-001", "decision");
 
-    let result = dispatch::route(
-        "memory_train_delete",
-        &state,
-        json!({"id": "decision-001"}),
-    )
-    .await;
+    let result =
+        dispatch::route("memory_train_delete", &state, json!({"id": "decision-001"})).await;
     let error = result.expect_err("delete non-insight should fail");
     assert!(error.to_string().contains("not an insight"));
 }
@@ -138,12 +124,7 @@ async fn train_delete_success() {
 #[tokio::test]
 async fn train_generate_missing_binary() {
     let state = build_deterministic_state();
-    let result = dispatch::route(
-        "memory_train_generate",
-        &state,
-        json!({}),
-    )
-    .await;
+    let result = dispatch::route("memory_train_generate", &state, json!({})).await;
     let error = result.expect_err("generate with missing binary should fail");
     assert!(error.to_string().contains("[6013] trainer failed:"));
 }
@@ -257,12 +238,7 @@ fn parse_trainer_message_artifact() {
 #[tokio::test]
 async fn train_delete_missing_params() {
     let state = build_deterministic_state();
-    let result = dispatch::route(
-        "memory_train_delete",
-        &state,
-        json!({}),
-    )
-    .await;
+    let result = dispatch::route("memory_train_delete", &state, json!({})).await;
     let error = result.expect_err("delete with missing params should fail");
     assert!(error.to_string().contains("dispatch error"));
 }
@@ -295,8 +271,10 @@ fn parse_trainer_output_empty() {
 #[test]
 fn parse_trainer_output_malformed_line() {
     let input = concat!(
-        r#"{"type":"progress","stage":"start","percent":0.0}"#, "\n",
-        r#"{"broken json"#, "\n",
+        r#"{"type":"progress","stage":"start","percent":0.0}"#,
+        "\n",
+        r#"{"broken json"#,
+        "\n",
         r#"{"type":"complete","insights_generated":1,"duration_secs":1.0}"#,
     );
     let error = parse_trainer_output(input).expect_err("malformed line should fail");
@@ -307,8 +285,10 @@ fn parse_trainer_output_malformed_line() {
 #[test]
 fn parse_trainer_output_multiple_messages() {
     let input = concat!(
-        r#"{"type":"progress","stage":"analyzing","percent":50.0}"#, "\n",
-        r#"{"type":"insight","id":"ins-100","context":"c","action":"a","result":"r","insight_type":"pattern"}"#, "\n",
+        r#"{"type":"progress","stage":"analyzing","percent":50.0}"#,
+        "\n",
+        r#"{"type":"insight","id":"ins-100","context":"c","action":"a","result":"r","insight_type":"pattern"}"#,
+        "\n",
         r#"{"type":"complete","insights_generated":1,"duration_secs":2.5}"#,
     );
     let messages = parse_trainer_output(input).expect("valid multi-line should parse");

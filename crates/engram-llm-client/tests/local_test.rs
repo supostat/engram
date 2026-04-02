@@ -64,10 +64,8 @@ fn local_generator_missing_tokenizer_returns_error() {
     let mut file = std::fs::File::create(&fake_model).unwrap();
     file.write_all(b"not a real onnx model").unwrap();
 
-    let result = LocalTextGenerator::new(
-        fake_model.to_str().unwrap(),
-        "/nonexistent/tokenizer.json",
-    );
+    let result =
+        LocalTextGenerator::new(fake_model.to_str().unwrap(), "/nonexistent/tokenizer.json");
 
     let Err(error) = result else {
         panic!("expected LocalModelLoadFailed error");

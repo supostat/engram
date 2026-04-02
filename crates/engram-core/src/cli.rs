@@ -21,25 +21,20 @@ pub async fn execute(
     Ok(())
 }
 
-pub fn build_state(
-    config: &crate::config::Config,
-) -> Result<Arc<ServerState>, CoreError> {
+pub fn build_state(config: &crate::config::Config) -> Result<Arc<ServerState>, CoreError> {
     let state = initialize_state(config)?;
     Ok(Arc::new(state))
 }
 
-fn save_indexes_if_mutating(
-    method: &str,
-    state: &Arc<ServerState>,
-) -> Result<(), CoreError> {
+fn save_indexes_if_mutating(method: &str, state: &Arc<ServerState>) -> Result<(), CoreError> {
     let mutating = matches!(
         method,
         "memory_store"
-        | "memory_consolidate_apply"
-        | "memory_import"
-        | "memory_insights"
-        | "memory_train_generate"
-        | "memory_train_delete"
+            | "memory_consolidate_apply"
+            | "memory_import"
+            | "memory_insights"
+            | "memory_train_generate"
+            | "memory_train_delete"
     );
     if !mutating {
         return Ok(());

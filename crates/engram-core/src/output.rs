@@ -40,9 +40,7 @@ fn format_as_text(value: &Value) -> String {
     }
 }
 
-fn format_object_as_text(
-    map: &serde_json::Map<String, Value>,
-) -> String {
+fn format_object_as_text(map: &serde_json::Map<String, Value>) -> String {
     map.iter()
         .map(|(key, value)| format!("{key}: {}", scalar_to_text(value)))
         .collect::<Vec<_>>()
@@ -61,9 +59,7 @@ fn scalar_to_text(value: &Value) -> String {
     match value {
         Value::String(string) => string.clone(),
         Value::Null => String::new(),
-        Value::Array(_) | Value::Object(_) => {
-            serde_json::to_string(value).unwrap_or_default()
-        }
+        Value::Array(_) | Value::Object(_) => serde_json::to_string(value).unwrap_or_default(),
         other => other.to_string(),
     }
 }

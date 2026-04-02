@@ -131,14 +131,17 @@ impl Config {
 
     pub fn load_from_path(path: &str) -> Result<Self, CoreError> {
         let content = fs::read_to_string(path).map_err(|_| CoreError::ConfigNotFound)?;
-        let mut config: Config =
-            toml::from_str(&content).map_err(|error| CoreError::ConfigParseError(error.to_string()))?;
+        let mut config: Config = toml::from_str(&content)
+            .map_err(|error| CoreError::ConfigParseError(error.to_string()))?;
         config.apply_env_overrides();
         Ok(config)
     }
 
     pub fn build_embedding_provider(&self) -> Result<Box<dyn EmbeddingProvider>, CoreError> {
-        let dimension = self.embedding.dimension.unwrap_or(DEFAULT_EMBEDDING_DIMENSION);
+        let dimension = self
+            .embedding
+            .dimension
+            .unwrap_or(DEFAULT_EMBEDDING_DIMENSION);
         match self.embedding.provider.as_str() {
             "voyage" => {
                 let api_key = self
@@ -212,9 +215,10 @@ impl Config {
             self.trainer.trainer_binary = value;
         }
         if let Ok(value) = std::env::var("ENGRAM_TRAINER_TIMEOUT")
-            && let Ok(secs) = value.parse::<u64>() {
-                self.trainer.trainer_timeout_secs = secs;
-            }
+            && let Ok(secs) = value.parse::<u64>()
+        {
+            self.trainer.trainer_timeout_secs = secs;
+        }
         if let Ok(value) = std::env::var("ENGRAM_MODELS_PATH") {
             self.trainer.models_path = value;
         }
@@ -223,13 +227,15 @@ impl Config {
 
     fn apply_provider_api_key_overrides(&mut self) {
         if self.embedding.provider == "voyage"
-            && let Ok(value) = std::env::var("ENGRAM_VOYAGE_API_KEY") {
-                self.embedding.api_key = Some(value);
-            }
+            && let Ok(value) = std::env::var("ENGRAM_VOYAGE_API_KEY")
+        {
+            self.embedding.api_key = Some(value);
+        }
         if self.llm.provider == "openai"
-            && let Ok(value) = std::env::var("ENGRAM_OPENAI_API_KEY") {
-                self.llm.api_key = Some(value);
-            }
+            && let Ok(value) = std::env::var("ENGRAM_OPENAI_API_KEY")
+        {
+            self.llm.api_key = Some(value);
+        }
     }
 }
 
@@ -268,9 +274,10 @@ impl Default for Config {
 
 pub fn expand_tilde(path: &str) -> String {
     if let Some(rest) = path.strip_prefix("~/")
-        && let Some(home) = home_directory() {
-            return format!("{home}/{rest}");
-        }
+        && let Some(home) = home_directory()
+    {
+        return format!("{home}/{rest}");
+    }
     path.to_string()
 }
 
@@ -288,7 +295,12 @@ impl EmbeddingProvider for DeterministicEmbeddingProvider {
         for (index, byte) in text.bytes().enumerate() {
             embedding[index % self.dimension] += byte as f32 / 255.0;
         }
-        let norm: f32 = embedding.iter().map(|v| v * v).sum::<f32>().sqrt().max(1e-10);
+        let norm: f32 = embedding
+            .iter()
+            .map(|v| v * v)
+            .sum::<f32>()
+            .sqrt()
+            .max(1e-10);
         for value in &mut embedding {
             *value /= norm;
         }

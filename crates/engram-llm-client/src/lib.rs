@@ -11,5 +11,5 @@ pub use error::ApiError;
 pub use local::LocalTextGenerator;
 pub use openai::OpenAITextGenerator;
 pub use provider::{EmbeddingProvider, TextGenerator};
-pub use retry::{compute_backoff, execute_with_retry, RetryConfig};
+pub use retry::{RetryConfig, compute_backoff, execute_with_retry};
 pub use voyage::VoyageEmbeddingProvider;

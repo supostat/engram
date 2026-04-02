@@ -2,6 +2,10 @@
 name = "engram-core"
 version = "0.1.0"
 edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+homepage.workspace = true
 description = "Core binary and shared infrastructure for Engram memory system"
 
 [[bin]]

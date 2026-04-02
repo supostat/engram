@@ -21,10 +21,7 @@ struct StoreParams {
     project: Option<String>,
 }
 
-pub async fn handle(
-    state: &Arc<ServerState>,
-    params: Value,
-) -> Result<Value, CoreError> {
+pub async fn handle(state: &Arc<ServerState>, params: Value) -> Result<Value, CoreError> {
     let parsed: StoreParams = serde_json::from_value(params)
         .map_err(|error| CoreError::DispatchError(error.to_string()))?;
     validate_field_length("context", &parsed.context)?;
@@ -54,9 +51,11 @@ async fn compute_embedding(
         let mut embedder = state_clone.embedder.lock().unwrap();
         embedder
             .embed_fields(&context, &action, &result, provider.as_ref(), text_gen_ref)
-            .map_err(|error| CoreError::Api(engram_llm_client::ApiError::EmbeddingApiUnavailable(
-                error.to_string(),
-            )))
+            .map_err(|error| {
+                CoreError::Api(engram_llm_client::ApiError::EmbeddingApiUnavailable(
+                    error.to_string(),
+                ))
+            })
     })
     .await
     .map_err(|error| CoreError::SocketError(error.to_string()))?

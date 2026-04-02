@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::UnixListener;
-use tokio::signal::unix::{signal, SignalKind};
+use tokio::signal::unix::{SignalKind, signal};
 
 use engram_embeddings::Embedder;
 use engram_router::Router;
@@ -70,14 +70,10 @@ fn bind_listener(socket_path: &str) -> Result<UnixListener, CoreError> {
         std::fs::create_dir_all(parent)
             .map_err(|error| CoreError::SocketError(error.to_string()))?;
     }
-    UnixListener::bind(socket_path)
-        .map_err(|error| CoreError::SocketError(error.to_string()))
+    UnixListener::bind(socket_path).map_err(|error| CoreError::SocketError(error.to_string()))
 }
 
-async fn accept_loop(
-    listener: UnixListener,
-    state: Arc<ServerState>,
-) -> Result<(), CoreError> {
+async fn accept_loop(listener: UnixListener, state: Arc<ServerState>) -> Result<(), CoreError> {
     let mut sigterm =
         signal(SignalKind::terminate()).map_err(|e| CoreError::SocketError(e.to_string()))?;
     spawn_background_reindex(Arc::clone(&state));
@@ -106,9 +102,7 @@ fn spawn_background_reindex(state: Arc<ServerState>) {
         return;
     }
     tokio::spawn(async move {
-        let mut interval = tokio::time::interval(
-            std::time::Duration::from_secs(interval_secs),
-        );
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(interval_secs));
         interval.tick().await; // skip first immediate tick
         loop {
             interval.tick().await;
@@ -147,12 +141,7 @@ fn query_unindexed_ids(database: &Database) -> Result<Vec<String>, CoreError> {
     let rows = statement
         .query_map([], |row| row.get::<_, String>(0))
         .map_err(|e| CoreError::Storage(engram_storage::StorageError::from(e)))?;
-    let mut ids = Vec::new();
-    for row in rows {
-        if let Ok(id) = row {
-            ids.push(id);
-        }
-    }
+    let ids: Vec<String> = rows.flatten().collect();
     Ok(ids)
 }
 
@@ -198,18 +187,11 @@ async fn handle_client(
     Ok(())
 }
 
-async fn process_request_line(
-    line: &str,
-    state: &Arc<ServerState>,
-) -> JsonResponse {
+async fn process_request_line(line: &str, state: &Arc<ServerState>) -> JsonResponse {
     let request: JsonRequest = match serde_json::from_str(line) {
         Ok(parsed) => parsed,
         Err(error) => {
-            return JsonResponse::error(
-                String::new(),
-                4000,
-                format!("invalid json: {error}"),
-            );
+            return JsonResponse::error(String::new(), 4000, format!("invalid json: {error}"));
         }
     };
     let request_id = request.id.clone();
@@ -252,8 +234,9 @@ fn save_indexes_on_shutdown(state: &Arc<ServerState>) -> Result<(), CoreError> {
 
 fn expand_tilde(path: &str) -> String {
     if let Some(rest) = path.strip_prefix("~/")
-        && let Ok(home) = std::env::var("HOME") {
-            return format!("{home}/{rest}");
-        }
+        && let Ok(home) = std::env::var("HOME")
+    {
+        return format!("{home}/{rest}");
+    }
     path.to_string()
 }

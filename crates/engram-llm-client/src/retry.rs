@@ -19,8 +19,7 @@ impl Default for RetryConfig {
 }
 
 pub fn compute_backoff(config: &RetryConfig, attempt: u32) -> u64 {
-    let backoff = config.initial_backoff_ms as f64
-        * config.backoff_multiplier.powi(attempt as i32);
+    let backoff = config.initial_backoff_ms as f64 * config.backoff_multiplier.powi(attempt as i32);
     if !backoff.is_finite() {
         return config.max_backoff_ms;
     }

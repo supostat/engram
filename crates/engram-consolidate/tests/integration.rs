@@ -1,10 +1,10 @@
-use engram_consolidate::analyze::{analyze, RecommendedAction};
+use engram_consolidate::analyze::{RecommendedAction, analyze};
 use engram_consolidate::apply::apply;
 use engram_consolidate::error::ConsolidateError;
-use engram_consolidate::preview::{preview, DuplicateGroup, PreviewResult};
+use engram_consolidate::preview::{DuplicateGroup, PreviewResult, preview};
 use engram_llm_client::{ApiError, TextGenerator};
-use engram_storage::memory::Memory;
 use engram_storage::Database;
+use engram_storage::memory::Memory;
 
 struct MockTextGenerator {
     response: String,
@@ -171,8 +171,7 @@ fn test_analyze_with_mock_llm_produces_merge() {
     };
 
     let generator = MockTextGenerator::responding("MERGE");
-    let analysis =
-        analyze(&database, &preview_result, Some(&generator)).unwrap();
+    let analysis = analyze(&database, &preview_result, Some(&generator)).unwrap();
     assert_eq!(analysis.analyzed_count, 2);
     assert!(!analysis.recommendations.is_empty());
 
@@ -293,7 +292,10 @@ fn test_apply_archive_sets_indexed_false() {
     assert!(result.errors.is_empty());
 
     let archived = database.get_memory("stale1").unwrap();
-    assert!(!archived.indexed, "archived memory should have indexed=false");
+    assert!(
+        !archived.indexed,
+        "archived memory should have indexed=false"
+    );
 }
 
 #[test]
@@ -354,16 +356,13 @@ fn test_error_display_codes() {
     let index_stale = ConsolidateError::IndexStale;
     assert!(index_stale.to_string().contains("[5002]"));
 
-    let invalid_params =
-        ConsolidateError::InvalidMergeParams("bad input".to_string());
+    let invalid_params = ConsolidateError::InvalidMergeParams("bad input".to_string());
     assert!(invalid_params.to_string().contains("[5003]"));
 
-    let analysis_failed =
-        ConsolidateError::AnalysisFailed("timeout".to_string());
+    let analysis_failed = ConsolidateError::AnalysisFailed("timeout".to_string());
     assert!(analysis_failed.to_string().contains("[5004]"));
 
-    let apply_failed =
-        ConsolidateError::ApplyFailed("db locked".to_string());
+    let apply_failed = ConsolidateError::ApplyFailed("db locked".to_string());
     assert!(apply_failed.to_string().contains("[5005]"));
 }
 

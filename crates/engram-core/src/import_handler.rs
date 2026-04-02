@@ -33,10 +33,7 @@ struct ImportedMemory {
     last_used_at: Option<String>,
 }
 
-pub async fn handle(
-    state: &Arc<ServerState>,
-    params: Value,
-) -> Result<Value, CoreError> {
+pub async fn handle(state: &Arc<ServerState>, params: Value) -> Result<Value, CoreError> {
     let parsed: ImportParams = serde_json::from_value(params)
         .map_err(|error| CoreError::DispatchError(error.to_string()))?;
     if parsed.version != 1 {

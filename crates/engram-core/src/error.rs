@@ -59,7 +59,10 @@ impl fmt::Display for CoreError {
                 write!(formatter, "[6009] export failed: {message}")
             }
             Self::ImportVersionMismatch(version) => {
-                write!(formatter, "[6010] import version mismatch: expected 1, got {version}")
+                write!(
+                    formatter,
+                    "[6010] import version mismatch: expected 1, got {version}"
+                )
             }
             Self::ImportFailed(message) => {
                 write!(formatter, "[6011] import failed: {message}")

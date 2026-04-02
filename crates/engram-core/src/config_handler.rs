@@ -11,10 +11,7 @@ struct ConfigParams {
     action: String,
 }
 
-pub async fn handle(
-    state: &Arc<ServerState>,
-    params: Value,
-) -> Result<Value, CoreError> {
+pub async fn handle(state: &Arc<ServerState>, params: Value) -> Result<Value, CoreError> {
     let parsed: ConfigParams = serde_json::from_value(params)
         .map_err(|error| CoreError::DispatchError(error.to_string()))?;
     match parsed.action.as_str() {

@@ -49,8 +49,7 @@ pub fn analyze(
     let mut analyzed_count: usize = 0;
 
     for group in &preview_result.duplicates {
-        let group_recommendations =
-            analyze_duplicate_group(database, group, text_generator)?;
+        let group_recommendations = analyze_duplicate_group(database, group, text_generator)?;
         analyzed_count += 1 + group.duplicate_ids.len();
         recommendations.extend(group_recommendations);
     }
@@ -93,11 +92,7 @@ fn analyze_with_llm(
         let response = text_generator
             .generate(&prompt)
             .map_err(|error| ConsolidateError::AnalysisFailed(error.to_string()))?;
-        let recommendation = parse_llm_response(
-            &group.primary_id,
-            duplicate_id,
-            &response,
-        );
+        let recommendation = parse_llm_response(&group.primary_id, duplicate_id, &response);
         recommendations.push(recommendation);
     }
     Ok(recommendations)
@@ -112,16 +107,18 @@ fn build_merge_prompt(
          Memory A (id={}):\n  context: {}\n  action: {}\n  result: {}\n\n\
          Memory B (id={}):\n  context: {}\n  action: {}\n  result: {}\n\n\
          Respond with exactly one word: MERGE or KEEP_BOTH",
-        primary.id, primary.context, primary.action, primary.result,
-        duplicate.id, duplicate.context, duplicate.action, duplicate.result,
+        primary.id,
+        primary.context,
+        primary.action,
+        primary.result,
+        duplicate.id,
+        duplicate.context,
+        duplicate.action,
+        duplicate.result,
     )
 }
 
-fn parse_llm_response(
-    primary_id: &str,
-    duplicate_id: &str,
-    response: &str,
-) -> Recommendation {
+fn parse_llm_response(primary_id: &str, duplicate_id: &str, response: &str) -> Recommendation {
     let normalized = response.trim().to_uppercase();
     let normalized_first_word = normalized.split_whitespace().next().unwrap_or("");
     if normalized_first_word == "MERGE" {
@@ -159,8 +156,7 @@ fn analyze_with_heuristic(
             Ok(memory) => memory,
             Err(_) => continue,
         };
-        let recommendation =
-            heuristic_merge_decision(&primary, &duplicate);
+        let recommendation = heuristic_merge_decision(&primary, &duplicate);
         recommendations.push(recommendation);
     }
     recommendations
@@ -171,8 +167,7 @@ fn heuristic_merge_decision(
     duplicate: &engram_storage::Memory,
 ) -> Recommendation {
     let primary_wins = primary.score > duplicate.score
-        || (primary.score == duplicate.score
-            && primary.used_count >= duplicate.used_count);
+        || (primary.score == duplicate.score && primary.used_count >= duplicate.used_count);
 
     if primary_wins {
         Recommendation {

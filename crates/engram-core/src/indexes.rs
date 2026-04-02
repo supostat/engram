@@ -13,7 +13,9 @@ pub struct IndexSet {
 }
 
 impl IndexSet {
-    pub fn new(build_params: impl Fn() -> Result<HnswParams, CoreError>) -> Result<Self, CoreError> {
+    pub fn new(
+        build_params: impl Fn() -> Result<HnswParams, CoreError>,
+    ) -> Result<Self, CoreError> {
         let context_index = HnswGraph::new(build_params()?);
         let action_index = HnswGraph::new(build_params()?);
         let result_index = HnswGraph::new(build_params()?);

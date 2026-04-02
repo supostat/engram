@@ -100,7 +100,9 @@ async fn judge_handler_explicit_score_updates_memory() {
     assert!((returned_score - 0.85).abs() < 0.001);
     assert_eq!(data["degraded"], false);
     let database = state.database.lock().unwrap();
-    let memory = database.get_memory("judge-test-001").expect("memory exists");
+    let memory = database
+        .get_memory("judge-test-001")
+        .expect("memory exists");
     assert!((memory.score - 0.85).abs() < 0.001);
 }
 
@@ -147,9 +149,14 @@ async fn store_handler_creates_memory() {
     assert_eq!(data["indexed"], true);
 
     let database = state.database.lock().unwrap();
-    let memory = database.get_memory(memory_id).expect("memory exists in database");
+    let memory = database
+        .get_memory(memory_id)
+        .expect("memory exists in database");
     assert_eq!(memory.memory_type, "decision");
-    assert_eq!(memory.context, "user configured the database connection for production deployment");
+    assert_eq!(
+        memory.context,
+        "user configured the database connection for production deployment"
+    );
     assert!(memory.indexed);
 }
 

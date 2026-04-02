@@ -26,3 +26,12 @@ trainer/*.egg-info/
 trainer/src/*.egg-info/
 __pycache__/
 *.pyc
+
+# dev-workflow (session data)
+.dev-vault/daily/
+.dev-vault/branches/
+.dev-vault/.edit-log.json
+.dev-vault/.intelligence.json
+# dev-workflow (stack-detected)
+*.tsbuildinfo
+.turbo/

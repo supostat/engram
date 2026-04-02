@@ -14,14 +14,15 @@ struct PreviewParams {
     min_score: Option<f64>,
 }
 
-pub async fn handle_preview(
-    state: &Arc<ServerState>,
-    params: Value,
-) -> Result<Value, CoreError> {
+pub async fn handle_preview(state: &Arc<ServerState>, params: Value) -> Result<Value, CoreError> {
     let parsed: PreviewParams = serde_json::from_value(params)
         .map_err(|error| CoreError::DispatchError(error.to_string()))?;
-    let stale_days = parsed.stale_days.unwrap_or(state.config.consolidation.stale_days);
-    let min_score = parsed.min_score.unwrap_or(state.config.consolidation.min_score);
+    let stale_days = parsed
+        .stale_days
+        .unwrap_or(state.config.consolidation.stale_days);
+    let min_score = parsed
+        .min_score
+        .unwrap_or(state.config.consolidation.min_score);
     validate_consolidation_params(stale_days, min_score)?;
     let state_clone = Arc::clone(state);
     let result = tokio::task::spawn_blocking(move || {
@@ -41,14 +42,15 @@ pub async fn handle_preview(
     Ok(result)
 }
 
-pub async fn handle_analyze(
-    state: &Arc<ServerState>,
-    params: Value,
-) -> Result<Value, CoreError> {
+pub async fn handle_analyze(state: &Arc<ServerState>, params: Value) -> Result<Value, CoreError> {
     let parsed: PreviewParams = serde_json::from_value(params)
         .map_err(|error| CoreError::DispatchError(error.to_string()))?;
-    let stale_days = parsed.stale_days.unwrap_or(state.config.consolidation.stale_days);
-    let min_score = parsed.min_score.unwrap_or(state.config.consolidation.min_score);
+    let stale_days = parsed
+        .stale_days
+        .unwrap_or(state.config.consolidation.stale_days);
+    let min_score = parsed
+        .min_score
+        .unwrap_or(state.config.consolidation.min_score);
     validate_consolidation_params(stale_days, min_score)?;
     let config = state.config.clone();
     let state_clone = Arc::clone(state);
@@ -74,14 +76,15 @@ struct ApplyParams {
     min_score: Option<f64>,
 }
 
-pub async fn handle_apply(
-    state: &Arc<ServerState>,
-    params: Value,
-) -> Result<Value, CoreError> {
+pub async fn handle_apply(state: &Arc<ServerState>, params: Value) -> Result<Value, CoreError> {
     let parsed: ApplyParams = serde_json::from_value(params)
         .map_err(|error| CoreError::DispatchError(error.to_string()))?;
-    let stale_days = parsed.stale_days.unwrap_or(state.config.consolidation.stale_days);
-    let min_score = parsed.min_score.unwrap_or(state.config.consolidation.min_score);
+    let stale_days = parsed
+        .stale_days
+        .unwrap_or(state.config.consolidation.stale_days);
+    let min_score = parsed
+        .min_score
+        .unwrap_or(state.config.consolidation.min_score);
     validate_consolidation_params(stale_days, min_score)?;
     let config = state.config.clone();
     let state_clone = Arc::clone(state);
@@ -106,9 +109,7 @@ pub async fn handle_apply(
     Ok(result)
 }
 
-fn serialize_duplicate_groups(
-    groups: &[engram_consolidate::DuplicateGroup],
-) -> Vec<Value> {
+fn serialize_duplicate_groups(groups: &[engram_consolidate::DuplicateGroup]) -> Vec<Value> {
     groups
         .iter()
         .map(|group| {
@@ -121,9 +122,7 @@ fn serialize_duplicate_groups(
         .collect()
 }
 
-fn serialize_recommendations(
-    recommendations: &[engram_consolidate::Recommendation],
-) -> Vec<Value> {
+fn serialize_recommendations(recommendations: &[engram_consolidate::Recommendation]) -> Vec<Value> {
     recommendations
         .iter()
         .map(|recommendation| {

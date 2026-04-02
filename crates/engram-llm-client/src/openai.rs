@@ -1,6 +1,6 @@
-use crate::error::{map_http_status_to_error, ApiError};
+use crate::error::{ApiError, map_http_status_to_error};
 use crate::provider::TextGenerator;
-use crate::retry::{execute_with_retry, RetryConfig};
+use crate::retry::{RetryConfig, execute_with_retry};
 
 pub const DEFAULT_OPENAI_MODEL: &str = "gpt-4o-mini";
 
@@ -53,9 +53,7 @@ pub fn parse_chat_response(body: &str) -> Result<String, ApiError> {
     parsed["choices"][0]["message"]["content"]
         .as_str()
         .map(String::from)
-        .ok_or_else(|| {
-            ApiError::LlmApiUnavailable("missing content in response".into())
-        })
+        .ok_or_else(|| ApiError::LlmApiUnavailable("missing content in response".into()))
 }
 
 impl TextGenerator for OpenAITextGenerator {
@@ -73,14 +71,12 @@ impl TextGenerator for OpenAITextGenerator {
                 .bearer_auth(&self.api_key)
                 .json(&body)
                 .send()
-                .map_err(|error| {
-                    ApiError::LlmApiUnavailable(error.to_string())
-                })?;
+                .map_err(|error| ApiError::LlmApiUnavailable(error.to_string()))?;
 
             let status = response.status().as_u16();
-            let response_body = response.text().map_err(|error| {
-                ApiError::LlmApiUnavailable(error.to_string())
-            })?;
+            let response_body = response
+                .text()
+                .map_err(|error| ApiError::LlmApiUnavailable(error.to_string()))?;
 
             if status != 200 {
                 return Err(map_llm_error(status, response_body));

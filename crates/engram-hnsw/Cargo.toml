@@ -2,6 +2,10 @@
 name = "engram-hnsw"
 version = "0.1.0"
 edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+homepage.workspace = true
 description = "HNSW approximate nearest neighbor search"
 
 [dev-dependencies]

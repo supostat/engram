@@ -157,10 +157,9 @@ fn query_stale_memory_ids(
         )
         .map_err(StorageError::from)?;
     let rows = statement
-        .query_map(
-            rusqlite::params![min_score, stale_days],
-            |row| row.get::<_, String>(0),
-        )
+        .query_map(rusqlite::params![min_score, stale_days], |row| {
+            row.get::<_, String>(0)
+        })
         .map_err(StorageError::from)?;
     let mut ids = Vec::new();
     for row in rows {
@@ -174,9 +173,7 @@ fn find_garbage(database: &Database) -> Result<Vec<String>, ConsolidateError> {
     Ok(orphan_ids)
 }
 
-fn query_orphan_memory_ids(
-    database: &Database,
-) -> Result<Vec<String>, ConsolidateError> {
+fn query_orphan_memory_ids(database: &Database) -> Result<Vec<String>, ConsolidateError> {
     let mut statement = database
         .connection()
         .prepare(

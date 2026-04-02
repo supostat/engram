@@ -1,12 +1,12 @@
 use engram_llm_client::error::ApiError;
 use engram_llm_client::openai::{
-    map_llm_error, parse_chat_response, OpenAITextGenerator, DEFAULT_OPENAI_MODEL,
+    DEFAULT_OPENAI_MODEL, OpenAITextGenerator, map_llm_error, parse_chat_response,
 };
 use engram_llm_client::provider::{EmbeddingProvider, TextGenerator};
-use engram_llm_client::retry::{compute_backoff, execute_with_retry, RetryConfig};
+use engram_llm_client::retry::{RetryConfig, compute_backoff, execute_with_retry};
 use engram_llm_client::voyage::{
-    map_embedding_error, parse_embedding_response, VoyageEmbeddingProvider, DEFAULT_VOYAGE_DIMENSION,
-    DEFAULT_VOYAGE_MODEL,
+    DEFAULT_VOYAGE_DIMENSION, DEFAULT_VOYAGE_MODEL, VoyageEmbeddingProvider, map_embedding_error,
+    parse_embedding_response,
 };
 use std::sync::atomic::{AtomicU32, Ordering};
 

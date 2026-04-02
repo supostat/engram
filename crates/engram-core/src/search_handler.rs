@@ -23,10 +23,7 @@ struct SearchParams {
     project: Option<String>,
 }
 
-pub async fn handle(
-    state: &Arc<ServerState>,
-    params: Value,
-) -> Result<Value, CoreError> {
+pub async fn handle(state: &Arc<ServerState>, params: Value) -> Result<Value, CoreError> {
     let parsed: SearchParams = serde_json::from_value(params)
         .map_err(|error| CoreError::DispatchError(error.to_string()))?;
     if parsed.query.len() > MAX_QUERY_LENGTH {
@@ -47,16 +44,14 @@ pub async fn handle(
 
 fn resolve_mode(params: &SearchParams) -> Mode {
     match &params.mode {
-        Some(mode_string) => Mode::parse(mode_string).unwrap_or_else(|_| Mode::detect(&params.query)),
+        Some(mode_string) => {
+            Mode::parse(mode_string).unwrap_or_else(|_| Mode::detect(&params.query))
+        }
         None => Mode::detect(&params.query),
     }
 }
 
-fn resolve_top_k(
-    params: &SearchParams,
-    state: &Arc<ServerState>,
-    mode: Mode,
-) -> usize {
+fn resolve_top_k(params: &SearchParams, state: &Arc<ServerState>, mode: Mode) -> usize {
     if let Some(limit) = params.limit {
         return limit;
     }
@@ -65,10 +60,7 @@ fn resolve_top_k(
     decision.top_k
 }
 
-async fn embed_query(
-    state: &Arc<ServerState>,
-    query: &str,
-) -> Result<Vec<f32>, CoreError> {
+async fn embed_query(state: &Arc<ServerState>, query: &str) -> Result<Vec<f32>, CoreError> {
     let config = state.config.clone();
     let query_owned = query.to_string();
     let state_clone = Arc::clone(state);
@@ -79,9 +71,11 @@ async fn embed_query(
         let mut embedder = state_clone.embedder.lock().unwrap();
         embedder
             .embed_query(&query_owned, provider.as_ref(), text_gen_ref)
-            .map_err(|error| CoreError::Api(engram_llm_client::ApiError::EmbeddingApiUnavailable(
-                error.to_string(),
-            )))
+            .map_err(|error| {
+                CoreError::Api(engram_llm_client::ApiError::EmbeddingApiUnavailable(
+                    error.to_string(),
+                ))
+            })
     })
     .await
     .map_err(|error| CoreError::SocketError(error.to_string()))?
@@ -96,7 +90,9 @@ async fn search_vector_index(
     let state_clone = Arc::clone(state);
     tokio::task::spawn_blocking(move || {
         let indexes = state_clone.indexes.lock().unwrap();
-        indexes.search(&embedding_owned, top_k).map_err(CoreError::Hnsw)
+        indexes
+            .search(&embedding_owned, top_k)
+            .map_err(CoreError::Hnsw)
     })
     .await
     .map_err(|error| CoreError::SocketError(error.to_string()))?

@@ -53,10 +53,7 @@ struct DeleteParams {
     id: String,
 }
 
-pub async fn handle_generate(
-    state: &Arc<ServerState>,
-    _params: Value,
-) -> Result<Value, CoreError> {
+pub async fn handle_generate(state: &Arc<ServerState>, _params: Value) -> Result<Value, CoreError> {
     let trainer_binary = resolve_trainer_binary(&state.config.trainer.trainer_binary);
     validate_trainer_exists(&trainer_binary)?;
     let timeout_secs = state.config.trainer.trainer_timeout_secs;
@@ -71,10 +68,7 @@ pub async fn handle_generate(
     }))
 }
 
-pub async fn handle_list(
-    state: &Arc<ServerState>,
-    _params: Value,
-) -> Result<Value, CoreError> {
+pub async fn handle_list(state: &Arc<ServerState>, _params: Value) -> Result<Value, CoreError> {
     let state_clone = Arc::clone(state);
     tokio::task::spawn_blocking(move || {
         let database = state_clone.database.lock().unwrap();
@@ -87,10 +81,7 @@ pub async fn handle_list(
     .map_err(|error| CoreError::SocketError(error.to_string()))?
 }
 
-pub async fn handle_delete(
-    state: &Arc<ServerState>,
-    params: Value,
-) -> Result<Value, CoreError> {
+pub async fn handle_delete(state: &Arc<ServerState>, params: Value) -> Result<Value, CoreError> {
     let parsed: DeleteParams = serde_json::from_value(params)
         .map_err(|error| CoreError::DispatchError(error.to_string()))?;
     let insight_id = parsed.id;
@@ -124,7 +115,11 @@ fn validate_trainer_exists(binary_path: &str) -> Result<(), CoreError> {
 fn which_binary(binary_path: &str) -> Option<std::path::PathBuf> {
     let path = std::path::Path::new(binary_path);
     if path.is_absolute() {
-        return if path.exists() { Some(path.to_path_buf()) } else { None };
+        return if path.exists() {
+            Some(path.to_path_buf())
+        } else {
+            None
+        };
     }
     std::env::var_os("PATH").and_then(|paths| {
         std::env::split_paths(&paths)
@@ -147,16 +142,10 @@ async fn spawn_trainer(
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
         .spawn()
-        .map_err(|error| CoreError::TrainerFailed(format!(
-            "{binary_path}: {error}"
-        )))?;
+        .map_err(|error| CoreError::TrainerFailed(format!("{binary_path}: {error}")))?;
 
     let timeout_duration = std::time::Duration::from_secs(timeout_secs);
-    let wait_result = tokio::time::timeout(
-        timeout_duration,
-        child.wait_with_output(),
-    )
-    .await;
+    let wait_result = tokio::time::timeout(timeout_duration, child.wait_with_output()).await;
 
     match wait_result {
         Ok(Ok(output)) => {
@@ -168,14 +157,10 @@ async fn spawn_trainer(
                 )));
             }
             String::from_utf8(output.stdout).map_err(|error| {
-                CoreError::TrainerMalformedOutput(format!(
-                    "non-utf8 stdout: {error}"
-                ))
+                CoreError::TrainerMalformedOutput(format!("non-utf8 stdout: {error}"))
             })
         }
-        Ok(Err(error)) => Err(CoreError::TrainerFailed(format!(
-            "{binary_path}: {error}"
-        ))),
+        Ok(Err(error)) => Err(CoreError::TrainerFailed(format!("{binary_path}: {error}"))),
         Err(_) => Err(CoreError::TrainerTimeout),
     }
 }
@@ -188,10 +173,7 @@ pub fn parse_trainer_output(output: &str) -> Result<Vec<TrainerMessage>, CoreErr
             continue;
         }
         let message: TrainerMessage = serde_json::from_str(trimmed).map_err(|error| {
-            CoreError::TrainerMalformedOutput(format!(
-                "line {}: {error}",
-                line_number + 1
-            ))
+            CoreError::TrainerMalformedOutput(format!("line {}: {error}", line_number + 1))
         })?;
         messages.push(message);
     }
@@ -202,10 +184,7 @@ async fn insert_generated_insights(
     state: &Arc<ServerState>,
     messages: &[TrainerMessage],
 ) -> Result<u64, CoreError> {
-    let insights: Vec<Memory> = messages
-        .iter()
-        .filter_map(build_insight_memory)
-        .collect();
+    let insights: Vec<Memory> = messages.iter().filter_map(build_insight_memory).collect();
     let count = insights.len() as u64;
     if insights.is_empty() {
         return Ok(0);
@@ -259,9 +238,7 @@ fn build_insight_memory(message: &TrainerMessage) -> Option<Memory> {
     }
 }
 
-fn query_active_insights(
-    database: &engram_storage::Database,
-) -> Result<Vec<Memory>, CoreError> {
+fn query_active_insights(database: &engram_storage::Database) -> Result<Vec<Memory>, CoreError> {
     let mut statement = database
         .connection()
         .prepare(
@@ -275,9 +252,7 @@ fn query_active_insights(
     let mut insights = Vec::new();
     for row in rows {
         insights.push(
-            row.map_err(|error| {
-                CoreError::Storage(engram_storage::StorageError::Sqlite(error))
-            })?,
+            row.map_err(|error| CoreError::Storage(engram_storage::StorageError::Sqlite(error)))?,
         );
     }
     Ok(insights)

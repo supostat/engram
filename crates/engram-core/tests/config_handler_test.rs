@@ -57,12 +57,7 @@ async fn config_set_returns_read_only_error() {
 #[tokio::test]
 async fn config_invalid_action_returns_dispatch_error() {
     let state = build_deterministic_state();
-    let result = dispatch::route(
-        "memory_config",
-        &state,
-        json!({"action": "delete"}),
-    )
-    .await;
+    let result = dispatch::route("memory_config", &state, json!({"action": "delete"})).await;
     let error = result.expect_err("invalid action should fail");
     assert!(error.to_string().contains("[6007]"));
     assert!(error.to_string().contains("invalid config action"));

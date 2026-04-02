@@ -5,13 +5,27 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "engram-trainer"
 version = "0.1.0"
+description = "Self-learning trainer for Engram memory system"
 requires-python = ">=3.9"
+license = {text = "MIT"}
+authors = [{name = "Engram Contributors"}]
+readme = "README.md"
+keywords = ["engram", "memory", "trainer", "onnx", "machine-learning"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+]
 dependencies = [
     "numpy",
     "scikit-learn",
     "onnx",
     "skl2onnx",
 ]
+
+[project.urls]
+Repository = "https://github.com/supostat/engram"
+Issues = "https://github.com/supostat/engram/issues"
 
 [project.scripts]
 engram-trainer = "engram_trainer.__main__:main"

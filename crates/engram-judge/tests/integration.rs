@@ -42,7 +42,10 @@ fn heuristic_score_full_keyword_match() {
     let input = make_input("rust memory safety", "allocate buffer", "success");
     let score = HeuristicJudge::score("rust memory", &input);
 
-    assert!(score.score > 0.3, "full keyword match should yield high keyword component");
+    assert!(
+        score.score > 0.3,
+        "full keyword match should yield high keyword component"
+    );
     assert!(!score.degraded);
 }
 

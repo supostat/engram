@@ -155,11 +155,7 @@ impl Database {
         Ok(())
     }
 
-    pub fn set_superseded_by(
-        &self,
-        id: &str,
-        superseded_by: &str,
-    ) -> Result<(), StorageError> {
+    pub fn set_superseded_by(&self, id: &str, superseded_by: &str) -> Result<(), StorageError> {
         let affected = self.connection().execute(
             "UPDATE memories SET superseded_by = ?1 WHERE id = ?2",
             params![superseded_by, id],

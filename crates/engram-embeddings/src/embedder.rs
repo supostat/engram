@@ -68,11 +68,7 @@ impl Embedder {
         self.cache.clear();
     }
 
-    fn prepare_text(
-        &self,
-        text: &str,
-        text_generator: Option<&dyn TextGenerator>,
-    ) -> String {
+    fn prepare_text(&self, text: &str, text_generator: Option<&dyn TextGenerator>) -> String {
         if hyde::should_use_hyde(text)
             && let Some(generator) = text_generator
             && let Ok(hypothesis) = hyde::generate_hypothesis(text, generator)
