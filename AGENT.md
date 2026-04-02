@@ -133,15 +133,27 @@ Before implementing a feature or debugging:
 memory_search({ query: "authentication middleware patterns", limit: 5 })
 ```
 
-### Feedback loop
+### Feedback loop (IMPORTANT)
 
-After search returns results, judge the ones you used:
+Engram uses two-phase feedback to learn which memories are useful:
+
+**Phase 1 (automatic):** Every `memory_search` result is tracked as "shown to agent". No action needed.
+
+**Phase 2 (your responsibility):** After using search results, call `memory_judge` for memories that actually helped:
 
 ```
 memory_judge({ memory_id: "abc-123", query: "auth middleware", score: 0.9 })
 ```
 
-This trains the Q-Learning router to improve ranking for future queries.
+**Scoring guide:**
+- `0.8-1.0` — directly solved the problem or informed the decision
+- `0.5-0.7` — useful context, partially relevant
+- `0.1-0.4` — tangentially related, not very helpful
+- Skip judge for irrelevant results (implicit low signal from no judge)
+
+**When to judge:** after completing a task where search results contributed. Judge 1-3 most helpful memories, not all results.
+
+This trains the Q-Learning router — future searches rank proven memories higher.
 
 ### Consolidation workflow
 
