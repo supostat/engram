@@ -72,8 +72,27 @@ enum Command {
     /// Initialize Engram: create config, database, print MCP setup
     Init,
 
+    /// Training operations
+    Train {
+        #[command(subcommand)]
+        action: TrainAction,
+    },
+
     /// Show version
     Version,
+}
+
+#[derive(Subcommand)]
+enum TrainAction {
+    /// Generate insights from memory patterns
+    Generate,
+    /// List active insights
+    List,
+    /// Delete an insight by ID
+    Delete {
+        #[arg(long)]
+        id: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -183,6 +202,7 @@ fn build_dispatch_args(command: Command) -> (String, serde_json::Value) {
         } => build_judge_args(memory_id, query, score),
         Command::Status => ("memory_status".into(), json!({})),
         Command::Consolidate { action } => build_consolidate_args(action),
+        Command::Train { action } => build_train_args(action),
         Command::Server | Command::Version | Command::Init => unreachable!(),
     }
 }
@@ -264,6 +284,17 @@ fn build_consolidate_args(
         } => (
             "memory_consolidate_apply".into(),
             consolidation_params(stale_days, min_score),
+        ),
+    }
+}
+
+fn build_train_args(action: TrainAction) -> (String, serde_json::Value) {
+    match action {
+        TrainAction::Generate => ("memory_train_generate".into(), json!({})),
+        TrainAction::List => ("memory_train_list".into(), json!({})),
+        TrainAction::Delete { id } => (
+            "memory_train_delete".into(),
+            json!({"id": id}),
         ),
     }
 }

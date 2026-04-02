@@ -8,6 +8,7 @@ use crate::error::CoreError;
 use crate::export_handler;
 use crate::import_handler;
 use crate::insights_handler;
+use crate::train_handler;
 use crate::judge_handler;
 use crate::search_handler;
 use crate::server::ServerState;
@@ -37,6 +38,13 @@ pub async fn route(
         "memory_export" => export_handler::handle(state, params).await,
         "memory_import" => import_handler::handle(state, params).await,
         "memory_insights" => insights_handler::handle(state, params).await,
+        "memory_train_generate" => {
+            train_handler::handle_generate(state, params).await
+        }
+        "memory_train_list" => train_handler::handle_list(state, params).await,
+        "memory_train_delete" => {
+            train_handler::handle_delete(state, params).await
+        }
         unknown => Err(CoreError::DispatchError(format!(
             "unknown method: {unknown}"
         ))),

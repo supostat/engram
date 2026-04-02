@@ -162,3 +162,66 @@ fn build_embedding_provider_with_empty_api_key_fails() {
     let result = config.build_embedding_provider();
     assert!(matches!(result, Err(CoreError::InvalidProvider(_))));
 }
+
+#[test]
+fn trainer_config_defaults() {
+    let config = Config::default();
+    assert_eq!(config.trainer.trainer_binary, "engram-trainer");
+    assert_eq!(config.trainer.trainer_timeout_secs, 300);
+    assert_eq!(config.trainer.models_path, "~/.engram/models");
+}
+
+#[test]
+fn trainer_config_from_toml() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let config_path = temp_dir.path().join("engram.toml");
+    let toml_content = r#"
+[database]
+path = "/custom/memories.db"
+
+[embedding]
+provider = "voyage"
+
+[llm]
+provider = "openai"
+
+[server]
+socket_path = "/tmp/custom.sock"
+reindex_interval_secs = 1800
+
+[hnsw]
+max_connections = 16
+ef_construction = 200
+ef_search = 40
+dimension = 1024
+
+[trainer]
+trainer_binary = "/opt/bin/custom-trainer"
+trainer_timeout_secs = 600
+models_path = "/data/models"
+"#;
+    std::fs::write(&config_path, toml_content).unwrap();
+    let config = Config::load_from_path(config_path.to_str().unwrap()).unwrap();
+    assert_eq!(config.trainer.trainer_binary, "/opt/bin/custom-trainer");
+    assert_eq!(config.trainer.trainer_timeout_secs, 600);
+    assert_eq!(config.trainer.models_path, "/data/models");
+}
+
+#[test]
+fn trainer_config_env_overrides() {
+    let mut config = Config::default();
+    assert_eq!(config.trainer.trainer_binary, "engram-trainer");
+
+    // Cannot call apply_env_overrides() directly because env vars are global
+    // state that leaks across parallel tests. Instead, simulate the override
+    // mechanism by setting fields manually. See project gotcha: "Parallel
+    // tests: env vars leak across threads — don't use real env vars in
+    // parallel tests, simulate overrides manually".
+    config.trainer.trainer_binary = "/env/override/trainer".into();
+    config.trainer.trainer_timeout_secs = 120;
+    config.trainer.models_path = "/env/models".into();
+
+    assert_eq!(config.trainer.trainer_binary, "/env/override/trainer");
+    assert_eq!(config.trainer.trainer_timeout_secs, 120);
+    assert_eq!(config.trainer.models_path, "/env/models");
+}

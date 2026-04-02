@@ -94,3 +94,27 @@ fn error_source_none_for_own_variants() {
     let core = CoreError::ConfigNotFound;
     assert!(core.source().is_none());
 }
+
+#[test]
+fn trainer_failed_display() {
+    let error = CoreError::TrainerFailed("/usr/bin/engram-trainer".into());
+    assert_eq!(
+        error.to_string(),
+        "[6013] trainer failed: /usr/bin/engram-trainer"
+    );
+}
+
+#[test]
+fn trainer_timeout_display() {
+    let error = CoreError::TrainerTimeout;
+    assert_eq!(error.to_string(), "[6014] trainer timeout");
+}
+
+#[test]
+fn trainer_malformed_output_display() {
+    let error = CoreError::TrainerMalformedOutput("invalid json at line 3".into());
+    assert_eq!(
+        error.to_string(),
+        "[6015] trainer malformed output: invalid json at line 3"
+    );
+}

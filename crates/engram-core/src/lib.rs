@@ -18,6 +18,7 @@ pub mod server;
 pub mod status_handler;
 pub mod store_handler;
 pub mod timestamp;
+pub mod train_handler;
 
 pub use config::Config;
 pub use error::CoreError;

@@ -22,6 +22,9 @@ pub enum CoreError {
     Storage(StorageError),
     Hnsw(HnswError),
     Api(ApiError),
+    TrainerFailed(String),
+    TrainerTimeout,
+    TrainerMalformedOutput(String),
     Consolidation(ConsolidateError),
 }
 
@@ -63,6 +66,15 @@ impl fmt::Display for CoreError {
             }
             Self::InitFailed(message) => {
                 write!(formatter, "[6012] init failed: {message}")
+            }
+            Self::TrainerFailed(message) => {
+                write!(formatter, "[6013] trainer failed: {message}")
+            }
+            Self::TrainerTimeout => {
+                write!(formatter, "[6014] trainer timeout")
+            }
+            Self::TrainerMalformedOutput(message) => {
+                write!(formatter, "[6015] trainer malformed output: {message}")
             }
             Self::Storage(error) => error.fmt(formatter),
             Self::Hnsw(error) => error.fmt(formatter),

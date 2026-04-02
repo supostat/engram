@@ -34,7 +34,12 @@ fn save_indexes_if_mutating(
 ) -> Result<(), CoreError> {
     let mutating = matches!(
         method,
-        "memory_store" | "memory_consolidate_apply" | "memory_import" | "memory_insights"
+        "memory_store"
+        | "memory_consolidate_apply"
+        | "memory_import"
+        | "memory_insights"
+        | "memory_train_generate"
+        | "memory_train_delete"
     );
     if !mutating {
         return Ok(());

@@ -19,3 +19,10 @@ coverage/
 .env
 .env.*
 target/
+
+# Python trainer
+trainer/.venv/
+trainer/*.egg-info/
+trainer/src/*.egg-info/
+__pycache__/
+*.pyc

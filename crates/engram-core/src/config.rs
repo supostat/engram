@@ -26,6 +26,9 @@ const DEFAULT_HNSW_EF_CONSTRUCTION: usize = 200;
 const DEFAULT_HNSW_EF_SEARCH: usize = 40;
 const DEFAULT_CONSOLIDATION_STALE_DAYS: u32 = 90;
 const DEFAULT_CONSOLIDATION_MIN_SCORE: f64 = 0.3;
+const DEFAULT_TRAINER_BINARY: &str = "engram-trainer";
+const DEFAULT_TRAINER_TIMEOUT_SECS: u64 = 300;
+const DEFAULT_MODELS_PATH: &str = "~/.engram/models";
 
 #[derive(Deserialize, Clone)]
 pub struct Config {
@@ -36,6 +39,8 @@ pub struct Config {
     pub hnsw: HnswConfig,
     #[serde(default)]
     pub consolidation: ConsolidationConfig,
+    #[serde(default)]
+    pub trainer: TrainerConfig,
 }
 
 #[derive(Deserialize, Clone)]
@@ -76,6 +81,23 @@ pub struct HnswConfig {
 pub struct ConsolidationConfig {
     pub stale_days: u32,
     pub min_score: f64,
+}
+
+#[derive(Deserialize, Clone)]
+pub struct TrainerConfig {
+    pub trainer_binary: String,
+    pub trainer_timeout_secs: u64,
+    pub models_path: String,
+}
+
+impl Default for TrainerConfig {
+    fn default() -> Self {
+        Self {
+            trainer_binary: DEFAULT_TRAINER_BINARY.into(),
+            trainer_timeout_secs: DEFAULT_TRAINER_TIMEOUT_SECS,
+            models_path: DEFAULT_MODELS_PATH.into(),
+        }
+    }
 }
 
 impl Default for ConsolidationConfig {
@@ -177,6 +199,16 @@ impl Config {
         if let Ok(value) = std::env::var("ENGRAM_LLM_MODEL") {
             self.llm.model = Some(value);
         }
+        if let Ok(value) = std::env::var("ENGRAM_TRAINER_BINARY") {
+            self.trainer.trainer_binary = value;
+        }
+        if let Ok(value) = std::env::var("ENGRAM_TRAINER_TIMEOUT")
+            && let Ok(secs) = value.parse::<u64>() {
+                self.trainer.trainer_timeout_secs = secs;
+            }
+        if let Ok(value) = std::env::var("ENGRAM_MODELS_PATH") {
+            self.trainer.models_path = value;
+        }
         self.apply_provider_api_key_overrides();
     }
 
@@ -220,6 +252,7 @@ impl Default for Config {
                 dimension: DEFAULT_EMBEDDING_DIMENSION,
             },
             consolidation: ConsolidationConfig::default(),
+            trainer: TrainerConfig::default(),
         }
     }
 }
