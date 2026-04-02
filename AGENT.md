@@ -17,7 +17,15 @@ Engram is a memory system for AI agents. Use it to store decisions, patterns, an
   "project": "my-project"
 }
 ```
-Types: `decision`, `pattern`, `bugfix`, `context`, `antipattern`.
+**Выбор memory_type:**
+
+| Тип | Когда использовать | Пример |
+|-----|-------------------|--------|
+| `decision` | Архитектурный/дизайн-выбор с обоснованием | "Выбрали REST вместо GraphQL потому что..." |
+| `pattern` | Переиспользуемое решение, применимое к будущим задачам | "Svelte 5 stores через .svelte.ts с $state runes" |
+| `bugfix` | Диагностика и исправление конкретного бага | "Токены истекали молча → добавили middleware" |
+| `context` | Факт о проекте, статус фазы, конфигурация | "Phase B завершена, 124 теста, 17 файлов" |
+| `antipattern` | Что НЕ делать и почему | "Не мокать БД в интеграционных тестах — прод миграция сломалась" |
 
 **memory_search** — Find relevant memories using hybrid vector + sparse search.
 ```json

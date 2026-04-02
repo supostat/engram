@@ -12,7 +12,14 @@ export const TOOL_DEFINITIONS = [
       result: z.string().describe("Result or outcome"),
       memory_type: z
         .enum(["decision", "pattern", "bugfix", "context", "antipattern"])
-        .default("decision"),
+        .default("decision")
+        .describe(
+          "decision: architecture/design choice with reasoning. " +
+          "pattern: reusable solution applicable to future tasks. " +
+          "bugfix: diagnosis and fix for a specific bug. " +
+          "context: project fact, setup info, or phase completion status. " +
+          "antipattern: what NOT to do, with reasoning why."
+        ),
       tags: z.string().optional().describe("Comma-separated tags"),
       project: z.string().optional().describe("Project identifier"),
     }),

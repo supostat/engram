@@ -123,7 +123,18 @@ async fn train_delete_success() {
 
 #[tokio::test]
 async fn train_generate_missing_binary() {
-    let state = build_deterministic_state();
+    let mut config = Config::default();
+    config.embedding.provider = "deterministic".into();
+    config.trainer.trainer_binary = "nonexistent-engram-trainer-binary".into();
+    let database = Database::in_memory().expect("in-memory database");
+    let indexes = IndexSet::new(|| config.build_hnsw_params()).expect("index set");
+    let state = Arc::new(ServerState {
+        database: Mutex::new(database),
+        indexes: Mutex::new(indexes),
+        embedder: Mutex::new(Embedder::new()),
+        router: Mutex::new(Router::new(0.1, 0.15)),
+        config,
+    });
     let result = dispatch::route("memory_train_generate", &state, json!({})).await;
     let error = result.expect_err("generate with missing binary should fail");
     assert!(error.to_string().contains("[6013] trainer failed:"));
