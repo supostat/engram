@@ -8,6 +8,8 @@
 .dev-vault/
 .mcp.json
 CLAUDE.md
+docs/setup.md
+scripts/rebuild.sh
 
 # MCP server
 mcp-server/node_modules/
