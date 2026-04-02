@@ -13,7 +13,7 @@ engram-consolidate = { path = "../engram-consolidate" }
 engram-storage = { path = "../engram-storage" }
 engram-hnsw = { path = "../engram-hnsw" }
 engram-embeddings = { path = "../engram-embeddings" }
-engram-llm-client = { path = "../engram-llm-client" }
+engram-llm-client = { path = "../engram-llm-client", features = ["local"] }
 engram-judge = { path = "../engram-judge" }
 engram-router = { path = "../engram-router" }
 serde = { version = "1", features = ["derive"] }

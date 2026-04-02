@@ -18,6 +18,14 @@ engram-trainer = "engram_trainer.__main__:main"
 
 [project.optional-dependencies]
 dev = ["pytest"]
+deep = [
+    "torch>=2.0",
+    "transformers>=4.30",
+    "peft>=0.4",
+    "optimum>=1.12",
+    "datasets>=2.14",
+    "onnxscript>=0.1",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]

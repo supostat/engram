@@ -8,3 +8,9 @@ description = "LLM provider traits with Voyage and OpenAI implementations"
 reqwest = { version = "0.12", features = ["blocking", "json"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+ort = { version = "2.0.0-rc.12", optional = true }
+tokenizers = { version = "0.21", optional = true, default-features = false, features = ["onig"] }
+ndarray = { version = "0.17", optional = true }
+
+[features]
+local = ["ort", "tokenizers", "ndarray"]

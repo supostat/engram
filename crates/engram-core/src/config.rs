@@ -5,7 +5,8 @@ use serde::Deserialize;
 
 use engram_hnsw::HnswParams;
 use engram_llm_client::{
-    EmbeddingProvider, OpenAITextGenerator, TextGenerator, VoyageEmbeddingProvider,
+    EmbeddingProvider, LocalTextGenerator, OpenAITextGenerator, TextGenerator,
+    VoyageEmbeddingProvider,
 };
 
 use crate::error::CoreError;
@@ -166,6 +167,14 @@ impl Config {
                     .filter(|key| !key.is_empty())
                     .ok_or_else(|| CoreError::InvalidProvider("openai requires api_key".into()))?;
                 let generator = OpenAITextGenerator::new(api_key.to_owned())?;
+                Ok(Box::new(generator))
+            }
+            "local" => {
+                let models_path = expand_tilde(&self.trainer.models_path);
+                let model_path = format!("{models_path}/text_generator.onnx");
+                let tokenizer_path = format!("{models_path}/tokenizer.json");
+                let generator = LocalTextGenerator::new(&model_path, &tokenizer_path)
+                    .map_err(|error| CoreError::InvalidProvider(error.to_string()))?;
                 Ok(Box::new(generator))
             }
             other => Err(CoreError::InvalidProvider(format!(

@@ -14,6 +14,7 @@ from engram_trainer.protocol import (
     emit_progress,
     emit_recommendation,
 )
+from engram_trainer.quality_gate import validate_text_generation
 from engram_trainer.ranker import RankingModel
 from engram_trainer.temporal import TemporalAnalyzer
 from engram_trainer.types import Insight
@@ -37,7 +38,22 @@ def run_medium(database_path: str, models_path: str):
 
 
 def run_deep(database_path: str, models_path: str):
-    run_medium(database_path, models_path)
+    start_time = time.monotonic()
+    insights_count = 0
+
+    emit_progress("loading", 0)
+    memories, q_table, feedback = _load_data(database_path)
+
+    insights_count += _run_clustering(memories)
+    insights_count += _run_temporal(memories)
+    insights_count += _run_causal(memories)
+    _run_model_training(memories, feedback, models_path)
+    _run_text_lora_training(memories, models_path)
+    _run_quality_gate(memories, models_path)
+    _run_meta_analysis(memories, q_table)
+
+    duration = time.monotonic() - start_time
+    emit_complete(insights_count, round(duration, 2))
 
 
 def _load_data(database_path: str):
@@ -109,6 +125,38 @@ def _run_model_training(
             emit_artifact(ranker_result.model_path, file_size)
     except Exception as error:
         emit_progress(f"ranker_training_failed: {error}", 70)
+
+
+def _run_text_lora_training(memories: list, models_path: str):
+    emit_progress("text_lora", 75)
+    try:
+        from engram_trainer.finetune import TextLoraTrainer
+
+        trainer = TextLoraTrainer(models_path)
+        finetune_result = trainer.train(memories)
+        if finetune_result is not None:
+            model_size = os.path.getsize(finetune_result.model_path)
+            emit_artifact(finetune_result.model_path, model_size)
+            tokenizer_size = os.path.getsize(
+                finetune_result.tokenizer_path,
+            )
+            emit_artifact(finetune_result.tokenizer_path, tokenizer_size)
+    except ImportError:
+        emit_progress("text_lora_skipped: torch not installed", 75)
+    except Exception as error:
+        emit_progress(f"text_lora_failed: {error}", 75)
+    emit_progress("text_lora_done", 85)
+
+
+def _run_quality_gate(memories: list, models_path: str):
+    emit_progress("quality_gate", 90)
+    try:
+        result = validate_text_generation(memories, models_path)
+        emit_metric("text_quality_rouge_l", result.avg_score)
+        if not result.passed:
+            emit_progress("quality_gate_failed: below threshold", 90)
+    except Exception as error:
+        emit_progress(f"quality_gate_failed: {error}", 90)
 
 
 def _run_meta_analysis(memories: list, q_table: list):

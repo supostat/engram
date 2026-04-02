@@ -7,6 +7,8 @@ pub enum ApiError {
     RateLimitExceeded(String),
     InvalidApiKey(String),
     HyDeGenerationFailed(String),
+    LocalModelLoadFailed(String),
+    LocalInferenceFailed(String),
 }
 
 impl ApiError {
@@ -37,6 +39,12 @@ impl fmt::Display for ApiError {
             }
             Self::HyDeGenerationFailed(message) => {
                 write!(formatter, "[2005] hyde generation failed: {message}")
+            }
+            Self::LocalModelLoadFailed(message) => {
+                write!(formatter, "[2006] local model load failed: {message}")
+            }
+            Self::LocalInferenceFailed(message) => {
+                write!(formatter, "[2007] local inference failed: {message}")
             }
         }
     }

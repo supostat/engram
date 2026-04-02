@@ -225,3 +225,28 @@ fn trainer_config_env_overrides() {
     assert_eq!(config.trainer.trainer_timeout_secs, 120);
     assert_eq!(config.trainer.models_path, "/env/models");
 }
+
+#[test]
+fn build_text_generator_local_missing_model() {
+    let mut config = Config::default();
+    config.llm.provider = "local".into();
+    config.trainer.models_path = "/nonexistent/path/to/models".into();
+    let result = config.build_text_generator();
+    assert!(matches!(result, Err(CoreError::InvalidProvider(_))));
+}
+
+#[test]
+fn build_text_generator_local_provider_name() {
+    let mut config = Config::default();
+    config.llm.provider = "local".into();
+    config.trainer.models_path = "/nonexistent/path/to/models".into();
+    let result = config.build_text_generator();
+    // "local" is accepted as valid provider — error is about missing file, not unknown provider
+    match result {
+        Err(error) => {
+            let error_message = format!("{error}");
+            assert!(!error_message.contains("not supported"), "should not be 'not supported' error");
+        }
+        Ok(_) => panic!("expected error for nonexistent model path"),
+    }
+}
