@@ -34,11 +34,37 @@ async fn config_get_returns_sanitized_config() {
     assert!(data["database"]["path"].is_string());
     assert!(data["embedding"]["provider"].is_string());
     assert!(data["embedding"].get("api_key").is_none());
+    assert_eq!(data["embedding"]["has_api_key"], false);
     assert!(data["llm"]["provider"].is_string());
     assert!(data["llm"].get("api_key").is_none());
+    assert_eq!(data["llm"]["has_api_key"], false);
     assert!(data["server"]["socket_path"].is_string());
     assert!(data["hnsw"]["max_connections"].is_u64());
     assert!(data["consolidation"]["stale_days"].is_u64());
+}
+
+#[tokio::test]
+async fn config_get_reports_api_key_presence() {
+    let mut config = Config::default();
+    config.embedding.provider = "deterministic".into();
+    config.embedding.api_key = Some("test-voyage-key".into());
+    config.llm.api_key = Some("test-openai-key".into());
+    let database = Database::in_memory().expect("in-memory database");
+    let indexes = IndexSet::new(|| config.build_hnsw_params()).expect("index set");
+    let state = Arc::new(ServerState {
+        database: Mutex::new(database),
+        indexes: Mutex::new(indexes),
+        embedder: Mutex::new(Embedder::new()),
+        router: Mutex::new(Router::new(0.1, 0.15)),
+        config,
+    });
+    let data = dispatch::route("memory_config", &state, json!({"action": "get"}))
+        .await
+        .expect("get should succeed");
+    assert_eq!(data["embedding"]["has_api_key"], true);
+    assert_eq!(data["llm"]["has_api_key"], true);
+    assert!(data["embedding"].get("api_key").is_none());
+    assert!(data["llm"].get("api_key").is_none());
 }
 
 #[tokio::test]

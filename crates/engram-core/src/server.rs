@@ -27,6 +27,7 @@ pub struct ServerState {
 
 pub async fn run(config: Config) -> Result<(), CoreError> {
     let state = initialize_state(&config)?;
+    warn_missing_api_keys(&config);
     let shared_state = Arc::new(state);
     let socket_path = expand_tilde(&config.server.socket_path);
     cleanup_stale_socket(&socket_path);
@@ -230,6 +231,32 @@ fn save_indexes_on_shutdown(state: &Arc<ServerState>) -> Result<(), CoreError> {
     let index_directory = resolve_index_directory(&database_path);
     let indexes = state.indexes.lock().unwrap();
     crate::persistence::save_to_disk(&index_directory, &indexes)
+}
+
+fn warn_missing_api_keys(config: &Config) {
+    let has_embedding_key = config
+        .embedding
+        .api_key
+        .as_deref()
+        .is_some_and(|k| !k.is_empty());
+    let has_llm_key = config
+        .llm
+        .api_key
+        .as_deref()
+        .is_some_and(|k| !k.is_empty());
+
+    if !has_embedding_key && config.embedding.provider != "deterministic" {
+        eprintln!(
+            "warning: {} embedding provider configured without api key (set ENGRAM_VOYAGE_API_KEY)",
+            config.embedding.provider
+        );
+    }
+    if !has_llm_key && config.llm.provider != "local" {
+        eprintln!(
+            "warning: {} llm provider configured without api key (set ENGRAM_OPENAI_API_KEY)",
+            config.llm.provider
+        );
+    }
 }
 
 fn expand_tilde(path: &str) -> String {

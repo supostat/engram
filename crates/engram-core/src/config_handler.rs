@@ -30,10 +30,12 @@ fn sanitized_config(config: &crate::config::Config) -> Value {
             "provider": config.embedding.provider,
             "model": config.embedding.model,
             "dimension": config.embedding.dimension,
+            "has_api_key": config.embedding.api_key.as_deref().is_some_and(|k| !k.is_empty()),
         },
         "llm": {
             "provider": config.llm.provider,
             "model": config.llm.model,
+            "has_api_key": config.llm.api_key.as_deref().is_some_and(|k| !k.is_empty()),
         },
         "server": {
             "socket_path": config.server.socket_path,

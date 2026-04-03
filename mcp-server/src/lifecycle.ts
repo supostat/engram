@@ -70,11 +70,35 @@ export class Lifecycle {
     const client = new SocketClient({ socketPath: this.socketPath });
     await client.connect();
     await client.call("memory_status", {});
+    await this.verifyApiKeys(client);
     this.client = client;
     this.state = LifecycleState.Connected;
     console.error("[engram-mcp] reconnected to existing engram-core");
     this.startHealthCheck();
     return client;
+  }
+
+  private async verifyApiKeys(client: SocketClient): Promise<void> {
+    const config = (await client.call("memory_config", {
+      action: "get",
+    })) as Record<string, Record<string, unknown>>;
+    const embedding = config?.embedding;
+    if (embedding && embedding.provider !== "deterministic" && !embedding.has_api_key) {
+      console.error(
+        "[engram-mcp] orphan core missing embedding api key, killing and respawning",
+      );
+      await client.close();
+      this.killOrphan();
+      throw new Error("orphan core missing embedding api key");
+    }
+  }
+
+  private killOrphan(): void {
+    try {
+      unlinkSync(this.socketPath);
+    } catch {
+      /* already gone */
+    }
   }
 
   private spawnProcess(): void {
