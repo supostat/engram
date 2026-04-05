@@ -1,0 +1,23 @@
+[package]
+name = "engram-tui"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+homepage.workspace = true
+description = "Terminal dashboard for engram memory system"
+readme = "README.md"
+keywords = ["tui", "dashboard", "engram", "ratatui"]
+categories = ["command-line-utilities"]
+
+[[bin]]
+name = "engram-tui"
+path = "src/main.rs"
+
+[dependencies]
+ratatui = "0.30"
+crossterm = "0.29"
+rusqlite = { version = "0.39", features = ["bundled"] }
+clap = { version = "4", features = ["derive"] }
+dirs = "6"

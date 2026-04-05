@@ -8,6 +8,7 @@ members = [
     "crates/engram-llm-client",
     "crates/engram-router",
     "crates/engram-storage",
+    "crates/engram-tui",
 ]
 resolver = "2"
 
