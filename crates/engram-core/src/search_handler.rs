@@ -21,6 +21,7 @@ struct SearchParams {
     limit: Option<usize>,
     mode: Option<String>,
     project: Option<String>,
+    tags: Option<Vec<String>>,
 }
 
 pub async fn handle(state: &Arc<ServerState>, params: Value) -> Result<Value, CoreError> {
@@ -39,7 +40,8 @@ pub async fn handle(state: &Arc<ServerState>, params: Value) -> Result<Value, Co
     let merged = merge_results(&vector_results, &sparse_results);
     let limited = limit_results(merged, top_k);
     let memories = load_memories(state, &limited).await?;
-    Ok(json!(memories))
+    let filtered = filter_by_tags(memories, &parsed.tags);
+    Ok(json!(filtered))
 }
 
 fn resolve_mode(params: &SearchParams) -> Mode {
@@ -165,6 +167,39 @@ fn limit_results(results: Vec<(String, f64)>, top_k: usize) -> Vec<(String, f64)
     results.into_iter().take(top_k).collect()
 }
 
+fn filter_by_tags(memories: Vec<Value>, required_tags: &Option<Vec<String>>) -> Vec<Value> {
+    let required = match required_tags {
+        Some(tags) if !tags.is_empty() => tags,
+        _ => return memories,
+    };
+    let required_lower: Vec<String> = required.iter().map(|tag| tag.to_lowercase()).collect();
+    memories
+        .into_iter()
+        .filter(|memory| memory_has_all_tags(memory, &required_lower))
+        .collect()
+}
+
+fn memory_has_all_tags(memory: &Value, required_lower: &[String]) -> bool {
+    let tags_value = match memory.get("tags") {
+        Some(value) if !value.is_null() => value,
+        _ => return false,
+    };
+    let stored_tags: Vec<String> = match tags_value.as_str() {
+        Some(raw) => match serde_json::from_str::<Vec<String>>(raw) {
+            Ok(parsed) => parsed,
+            Err(_) => return false,
+        },
+        None => match serde_json::from_value::<Vec<String>>(tags_value.clone()) {
+            Ok(parsed) => parsed,
+            Err(_) => return false,
+        },
+    };
+    let stored_lower: Vec<String> = stored_tags.iter().map(|tag| tag.to_lowercase()).collect();
+    required_lower
+        .iter()
+        .all(|required_tag| stored_lower.contains(required_tag))
+}
+
 async fn load_memories(
     state: &Arc<ServerState>,
     scored_results: &[(String, f64)],
@@ -190,6 +225,7 @@ async fn load_memories(
                 "action": memory.action,
                 "result": memory.result,
                 "memory_type": memory.memory_type,
+                "tags": memory.tags,
             }));
         }
         Ok::<Vec<Value>, CoreError>(results)

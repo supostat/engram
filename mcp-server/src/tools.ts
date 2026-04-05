@@ -20,7 +20,7 @@ export const TOOL_DEFINITIONS = [
           "context: project fact, setup info, or phase completion status. " +
           "antipattern: what NOT to do, with reasoning why."
         ),
-      tags: z.string().optional().describe("Comma-separated tags"),
+      tags: z.array(z.string()).optional().describe("Tags for categorization"),
       project: z.string().optional().describe("Project identifier"),
     }),
   },
@@ -31,6 +31,7 @@ export const TOOL_DEFINITIONS = [
       query: z.string().describe("Search query"),
       limit: z.number().default(10).describe("Maximum results"),
       project: z.string().optional().describe("Filter by project"),
+      tags: z.array(z.string()).optional().describe("Filter results by tags (all must match)"),
     }),
   },
   {
@@ -121,13 +122,20 @@ export const TOOL_DEFINITIONS = [
   },
 ] as const;
 
+function serializeTagsForStore(params: Record<string, unknown>): Record<string, unknown> {
+  const tags = params["tags"];
+  if (!Array.isArray(tags)) return params;
+  return { ...params, tags: JSON.stringify(tags) };
+}
+
 export async function executeTool(
   client: SocketClient,
   name: string,
   params: Record<string, unknown>,
 ): Promise<string> {
   try {
-    const result = await client.call(name, params);
+    const prepared = name === "memory_store" ? serializeTagsForStore(params) : params;
+    const result = await client.call(name, prepared);
     return JSON.stringify(result, null, 2);
   } catch (error) {
     if (error instanceof SocketError) {
