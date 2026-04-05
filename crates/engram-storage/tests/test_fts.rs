@@ -161,8 +161,6 @@ fn test_fts_search_special_characters() {
         ))
         .unwrap();
 
-    // Queries with special FTS5 characters must not panic.
-    // They may return results or an error, but must not crash.
     let special_queries = [
         "\"unclosed quote",
         "term AND OR NOT",
@@ -170,8 +168,16 @@ fn test_fts_search_special_characters() {
         "prefix*",
         "(unbalanced",
         "a + b",
+        "some-context",
+        "dash-injection OR 1=1",
+        "***",
+        "@#$%^&",
     ];
     for query in &special_queries {
-        let _ = database.search_fts(query, 10);
+        let results = database.search_fts(query, 10);
+        assert!(results.is_ok(), "query {query:?} must not error");
     }
+
+    let all_specials = database.search_fts("@#$%^&", 10).unwrap();
+    assert!(all_specials.is_empty(), "all-special-chars query must return empty");
 }
