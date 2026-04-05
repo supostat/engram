@@ -21,6 +21,14 @@ impl MemorySummary {
     }
 }
 
+pub struct QTableEntry {
+    pub router_level: i32,
+    pub state: String,
+    pub action: String,
+    pub value: f64,
+    pub update_count: i64,
+}
+
 pub struct ModelInfo {
     pub filename: String,
     pub size_bytes: u64,
@@ -137,9 +145,24 @@ impl DatabaseReader {
         rows.flatten().collect()
     }
 
-    #[allow(dead_code)]
-    pub fn q_table_count(&self) -> usize {
-        self.query_count("SELECT COUNT(*) FROM q_table")
+    pub fn q_table_entries(&self) -> Vec<QTableEntry> {
+        let query = "SELECT router_level, state, action, value, update_count \
+                     FROM q_table ORDER BY router_level, state, action";
+        let Ok(mut statement) = self.connection.prepare(query) else {
+            return Vec::new();
+        };
+        let Ok(rows) = statement.query_map([], |row| {
+            Ok(QTableEntry {
+                router_level: row.get(0)?,
+                state: row.get(1)?,
+                action: row.get(2)?,
+                value: row.get(3)?,
+                update_count: row.get(4)?,
+            })
+        }) else {
+            return Vec::new();
+        };
+        rows.flatten().collect()
     }
 
     pub fn models_info(&self, models_path: &str) -> Vec<ModelInfo> {

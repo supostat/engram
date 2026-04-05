@@ -9,9 +9,10 @@ use ratatui::widgets::{Block, Borders, Paragraph, Tabs};
 use ratatui::DefaultTerminal;
 use ratatui::Frame;
 
-use crate::data::{DatabaseReader, MemorySummary};
+use crate::data::{DatabaseReader, MemorySummary, QTableEntry};
 use crate::tabs::{
-    render_memories_tab, render_models_tab, render_status_tab, MemoriesTabState, ModelsTabState,
+    render_memories_tab, render_models_tab, render_qlearning_tab, render_status_tab,
+    MemoriesTabState, ModelsTabState,
 };
 use crate::theme;
 
@@ -67,6 +68,7 @@ pub struct App {
     database: DatabaseReader,
     database_path: String,
     stats: DashboardStats,
+    q_table_entries: Vec<QTableEntry>,
     memories_state: MemoriesTabState,
     models_state: ModelsTabState,
     should_quit: bool,
@@ -77,6 +79,7 @@ impl App {
     pub fn new(database_path: &str, models_path: &str) -> io::Result<Self> {
         let database = DatabaseReader::new(database_path)?;
         let stats = load_stats(&database);
+        let q_table_entries = database.q_table_entries();
         let memories = database.list_memories(500);
         let models = database.models_info(models_path);
         let mut memories_state = MemoriesTabState::new();
@@ -88,6 +91,7 @@ impl App {
             database,
             database_path: database_path.to_string(),
             stats,
+            q_table_entries,
             memories_state,
             models_state,
             should_quit: false,
@@ -179,6 +183,7 @@ impl App {
 
     fn force_refresh(&mut self) {
         self.stats = load_stats(&self.database);
+        self.q_table_entries = self.database.q_table_entries();
         self.memories_state.memories = self.database.list_memories(500);
         self.memories_state.clamp_selection();
         self.models_state.models = self.database.models_info(&self.models_state.models_path);
@@ -227,6 +232,7 @@ impl App {
         match self.tab {
             Tab::Status => render_status_tab(frame, area, &self.stats),
             Tab::Memories => render_memories_tab(frame, area, &mut self.memories_state),
+            Tab::QLearning => render_qlearning_tab(frame, area, &self.q_table_entries),
             Tab::Models => render_models_tab(frame, area, &self.models_state),
             _ => render_placeholder(frame, area, self.tab.title()),
         }
