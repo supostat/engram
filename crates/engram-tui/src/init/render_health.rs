@@ -41,7 +41,7 @@ impl InitWizard {
 
         frame.render_widget(Paragraph::new(lines), content_area);
 
-        let footer = footer_spans(&[("Esc", "назад")]);
+        let footer = footer_spans(&[("Esc", "back")]);
         frame.render_widget(
             Paragraph::new(Line::from(footer)).alignment(Alignment::Center),
             footer_area,
@@ -73,7 +73,7 @@ impl InitWizard {
 
         frame.render_widget(Paragraph::new(lines), content_area);
 
-        let footer = footer_spans(&[("Esc", "назад")]);
+        let footer = footer_spans(&[("Esc", "back")]);
         frame.render_widget(
             Paragraph::new(Line::from(footer)).alignment(Alignment::Center),
             footer_area,

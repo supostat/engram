@@ -54,10 +54,10 @@ impl Step {
 }
 
 pub const STATUS_MENU_LABELS: [&str; 4] = [
-    "Перенастроить конфигурацию",
-    "Показать MCP сниппет",
-    "Проверить подключения",
-    "Выход",
+    "Reconfigure",
+    "Show MCP snippets",
+    "Check connections",
+    "Exit",
 ];
 
 pub struct InitWizard {

@@ -83,13 +83,13 @@ fn render_input(frame: &mut Frame, area: Rect, state: &SearchTabState) {
 fn render_results(frame: &mut Frame, area: Rect, state: &mut SearchTabState) {
     match &state.status {
         SearchStatus::Idle => {
-            render_centered_message(frame, area, "Введите запрос и нажмите Enter");
+            render_centered_message(frame, area, "Type a query and press Enter");
         }
         SearchStatus::NoResults => {
-            render_centered_message(frame, area, "Ничего не найдено");
+            render_centered_message(frame, area, "No results found");
         }
         SearchStatus::Error(message) => {
-            let display = format!("Ошибка: {message}");
+            let display = format!("Error: {message}");
             render_centered_message(frame, area, &display);
         }
         SearchStatus::Offline => {}

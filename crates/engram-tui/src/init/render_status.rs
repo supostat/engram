@@ -74,7 +74,7 @@ impl InitWizard {
 
         frame.render_widget(Paragraph::new(lines), content_area);
 
-        let footer = footer_spans(&[("↑↓", "выбрать"), ("Enter", "выполнить")]);
+        let footer = footer_spans(&[("↑↓", "select"), ("Enter", "confirm")]);
         frame.render_widget(
             Paragraph::new(Line::from(footer)).alignment(Alignment::Center),
             footer_area,
@@ -87,7 +87,7 @@ impl InitWizard {
         config: &super::existing_config::ExistingConfig,
     ) {
         lines.push(Line::from(Span::styled(
-            "  Конфигурация:",
+            "  Configuration:",
             Style::default().fg(theme::TEXT).add_modifier(Modifier::BOLD),
         )));
 
@@ -95,7 +95,7 @@ impl InitWizard {
             if config.embedding_api_key.as_ref().is_some_and(|k| !k.is_empty()) {
                 ("✓ API key", theme::GREEN)
             } else if config.embedding_provider == "deterministic" {
-                ("не требуется", theme::MUTED)
+                ("not required", theme::MUTED)
             } else {
                 ("✗ API key", theme::RED)
             };
@@ -111,7 +111,7 @@ impl InitWizard {
         } else if config.llm_provider == "openai" {
             ("✗ API key", theme::RED)
         } else {
-            ("не требуется", theme::MUTED)
+            ("not required", theme::MUTED)
         };
         lines.push(config_line_with_status(
             "    LLM",
