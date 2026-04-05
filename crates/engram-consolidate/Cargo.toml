@@ -7,6 +7,9 @@ repository.workspace = true
 authors.workspace = true
 homepage.workspace = true
 description = "Memory consolidation: preview, analyze, apply"
+readme = "README.md"
+keywords = ["deduplication", "consolidation", "memory", "merge"]
+categories = ["algorithms"]
 
 [dependencies]
 engram-storage = { path = "../engram-storage" }

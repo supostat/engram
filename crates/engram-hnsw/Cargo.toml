@@ -7,6 +7,9 @@ repository.workspace = true
 authors.workspace = true
 homepage.workspace = true
 description = "HNSW approximate nearest neighbor search"
+readme = "README.md"
+keywords = ["hnsw", "nearest-neighbor", "vector-search", "cosine-similarity"]
+categories = ["algorithms", "data-structures"]
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }

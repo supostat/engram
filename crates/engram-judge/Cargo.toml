@@ -7,6 +7,9 @@ repository.workspace = true
 authors.workspace = true
 homepage.workspace = true
 description = "Heuristic and LLM-based memory relevance scoring"
+readme = "README.md"
+keywords = ["scoring", "quality", "llm-judge", "heuristic"]
+categories = ["algorithms"]
 
 [dependencies]
 engram-llm-client = { path = "../engram-llm-client" }

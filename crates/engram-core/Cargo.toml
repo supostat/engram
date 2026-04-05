@@ -7,6 +7,9 @@ repository.workspace = true
 authors.workspace = true
 homepage.workspace = true
 description = "Core binary and shared infrastructure for Engram memory system"
+readme = "README.md"
+keywords = ["memory", "ai-agent", "mcp", "cli", "semantic-search"]
+categories = ["command-line-utilities"]
 
 [[bin]]
 name = "engram"

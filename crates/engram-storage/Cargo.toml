@@ -7,6 +7,9 @@ repository.workspace = true
 authors.workspace = true
 homepage.workspace = true
 description = "SQLite storage with FTS5"
+readme = "README.md"
+keywords = ["sqlite", "fts5", "memory-storage", "full-text-search"]
+categories = ["database"]
 
 [dependencies]
 rusqlite = { version = "0.39", features = ["bundled", "vtab"] }
