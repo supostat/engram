@@ -51,6 +51,15 @@ engram search --query "auth architecture"
 engram status
 ```
 
+### TUI Dashboard
+
+```bash
+cargo install engram-tui --locked
+engram-tui
+```
+
+Terminal dashboard with 5 tabs: Status, Memories, Search, Q-Learning, Models. Includes an interactive init wizard for first-time setup.
+
 ### MCP Server
 
 Add to your Claude Desktop / Claude Code config:
@@ -75,7 +84,7 @@ pip install engram-trainer
 python -m engram_trainer --database ~/.engram/memories.db --models-path ~/.engram/models/
 python -m engram_trainer --database ~/.engram/memories.db --models-path ~/.engram/models/ --deep
 
-# Via CLI
+# Via CLI (requires engram-core server running)
 engram train
 engram train --deep  # LoRA fine-tuning (requires torch)
 ```
@@ -127,8 +136,10 @@ crates/
   engram-judge/         Heuristic and LLM-based scoring
   engram-consolidate/   Memory consolidation pipeline
   engram-core/          CLI + server binary
+  engram-tui/           Terminal dashboard (ratatui)
 mcp-server/             TypeScript MCP server
 trainer/                Python self-learning trainer
+website/                Documentation site (Fumadocs)
 ```
 
 ## Configuration
@@ -178,11 +189,13 @@ cd trainer && pytest           # Python tests (pip install -e ".[dev]")
 cargo bench --all             # Criterion benchmarks
 ```
 
+[Lefthook](https://github.com/evilmartians/lefthook) is configured for git hooks: `pre-commit` runs `cargo fmt`, `clippy`, and `typecheck`; `pre-push` runs `cargo test`, `vitest`, and `npm run build`.
+
 ## Documentation
 
-Full documentation available at the website:
-- Russian: /ru/docs
-- English: /en/docs
+Full documentation available at [supostat.github.io/engram](https://supostat.github.io/engram/):
+- [Russian](https://supostat.github.io/engram/ru/docs)
+- [English](https://supostat.github.io/engram/en/docs)
 
 To run locally:
 

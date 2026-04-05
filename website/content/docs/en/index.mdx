@@ -19,6 +19,7 @@ Engram is a long-term memory system for AI agents. It stores decisions, patterns
 - **Graceful degradation** — every API dependency has a local fallback
 - **MCP integration** — works with Claude Desktop, Claude Code, Cursor
 - **CLI** — full-featured command-line interface
+- **TUI dashboard** — terminal UI with 5 tabs and an init wizard
 
 ## Three Learning Loops
 
@@ -49,6 +50,24 @@ Engram uses a two-process model:
 
 See [Architecture](/en/docs/architecture) for details.
 
+## TUI Dashboard
+
+`engram-tui` is a terminal dashboard built with [ratatui](https://ratatui.rs/), connecting to engram via unix socket and reading SQLite directly.
+
+**5 tabs:**
+- **Status** — database, server, and model health
+- **Memories** — browse, delete, and archive memories
+- **Search** — hybrid search through the server's unix socket
+- **Q-Learning** — router Q-table state
+- **Models** — trained ONNX model listing
+
+On first launch, `engram-tui` offers an interactive init wizard similar to `engram init`.
+
+```bash
+cargo install engram-tui --locked
+engram-tui
+```
+
 ## Further Reading
 
 - [Getting Started](/en/docs/getting-started) — installation and first steps
@@ -59,3 +78,5 @@ See [Architecture](/en/docs/architecture) for details.
 - [Q-Learning Router](/en/docs/q-learning) — adaptive routing
 - [Consolidation](/en/docs/consolidation) — memory deduplication and merging
 - [Trainer](/en/docs/trainer) — self-learning and model export
+
+Documentation is also available on [GitHub Pages](https://supostat.github.io/engram/).
