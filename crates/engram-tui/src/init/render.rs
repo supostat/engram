@@ -1,8 +1,8 @@
+use ratatui::Frame;
 use ratatui::layout::{Alignment, Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Padding, Paragraph};
-use ratatui::Frame;
 
 use crate::theme;
 
@@ -27,7 +27,11 @@ impl InitWizard {
         );
         let block = Block::default()
             .title(title)
-            .title_style(Style::default().fg(theme::PURPLE).add_modifier(Modifier::BOLD))
+            .title_style(
+                Style::default()
+                    .fg(theme::PURPLE)
+                    .add_modifier(Modifier::BOLD),
+            )
             .borders(Borders::ALL)
             .border_style(Style::default().fg(theme::MUTED))
             .padding(Padding::new(2, 2, 1, 0));
@@ -35,11 +39,8 @@ impl InitWizard {
         let inner = block.inner(area);
         frame.render_widget(block, area);
 
-        let [content_area, footer_area] = Layout::vertical([
-            Constraint::Fill(1),
-            Constraint::Length(1),
-        ])
-        .areas(inner);
+        let [content_area, footer_area] =
+            Layout::vertical([Constraint::Fill(1), Constraint::Length(1)]).areas(inner);
 
         self.render_step_content(frame, content_area);
         self.render_step_footer(frame, footer_area);
@@ -51,39 +52,45 @@ impl InitWizard {
                 unreachable!("status screens handled by render_status_screen")
             }
             Step::EmbeddingProvider => self.render_radio_step(
-                frame, area,
+                frame,
+                area,
                 "Embedding Provider",
                 "How should engram generate embeddings for semantic search?",
                 &EMBEDDING_LABELS,
                 self.embedding_provider,
             ),
             Step::EmbeddingApiKey => self.render_text_step(
-                frame, area,
+                frame,
+                area,
                 "Voyage API Key",
                 "Enter your Voyage AI API key (dashboard.voyageai.com)",
                 true,
             ),
             Step::LlmProvider => self.render_radio_step(
-                frame, area,
+                frame,
+                area,
                 "LLM Provider",
                 "Which LLM should engram use for consolidation and insights?",
                 &LLM_LABELS,
                 self.llm_provider,
             ),
             Step::LlmApiKey => self.render_text_step(
-                frame, area,
+                frame,
+                area,
                 "OpenAI API Key",
                 "Enter your OpenAI API key (platform.openai.com)",
                 true,
             ),
             Step::DatabasePath => self.render_text_step(
-                frame, area,
+                frame,
+                area,
                 "Database Path",
                 "Where should engram store memories?",
                 false,
             ),
             Step::McpClient => self.render_radio_step(
-                frame, area,
+                frame,
+                area,
                 "MCP Client",
                 "Which client will connect to engram via MCP?",
                 &MCP_LABELS,
@@ -105,14 +112,21 @@ impl InitWizard {
         let mut lines = vec![
             Line::from(Span::styled(
                 title,
-                Style::default().fg(theme::TEXT).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(theme::TEXT)
+                    .add_modifier(Modifier::BOLD),
             )),
             Line::from(Span::styled(description, Style::default().fg(theme::MUTED))),
             Line::default(),
         ];
         for (index, label) in labels.iter().enumerate() {
             let (marker, style) = if index == selected {
-                ("  > ", Style::default().fg(theme::PURPLE).add_modifier(Modifier::BOLD))
+                (
+                    "  > ",
+                    Style::default()
+                        .fg(theme::PURPLE)
+                        .add_modifier(Modifier::BOLD),
+                )
             } else {
                 ("    ", Style::default().fg(theme::TEXT))
             };
@@ -142,11 +156,16 @@ impl InitWizard {
         let mut lines = vec![
             Line::from(Span::styled(
                 title,
-                Style::default().fg(theme::TEXT).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(theme::TEXT)
+                    .add_modifier(Modifier::BOLD),
             )),
             Line::from(Span::styled(description, Style::default().fg(theme::MUTED))),
             Line::default(),
-            Line::from(Span::styled(cursor_line, Style::default().fg(theme::PURPLE))),
+            Line::from(Span::styled(
+                cursor_line,
+                Style::default().fg(theme::PURPLE),
+            )),
         ];
 
         if let Some(ref error) = self.error_message {
@@ -182,7 +201,9 @@ impl InitWizard {
         let mut lines = vec![
             Line::from(Span::styled(
                 "Configuration",
-                Style::default().fg(theme::TEXT).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(theme::TEXT)
+                    .add_modifier(Modifier::BOLD),
             )),
             Line::default(),
             config_line("  Embedding", &embedding_display),
@@ -219,10 +240,16 @@ impl InitWizard {
         lines.push(Line::default());
         lines.push(colored_line("  Add to your shell profile:", theme::MUTED));
         if needs_voyage {
-            lines.push(colored_line("    export ENGRAM_VOYAGE_API_KEY=...", theme::BLUE));
+            lines.push(colored_line(
+                "    export ENGRAM_VOYAGE_API_KEY=...",
+                theme::BLUE,
+            ));
         }
         if needs_openai {
-            lines.push(colored_line("    export ENGRAM_OPENAI_API_KEY=...", theme::BLUE));
+            lines.push(colored_line(
+                "    export ENGRAM_OPENAI_API_KEY=...",
+                theme::BLUE,
+            ));
         }
     }
 
@@ -234,7 +261,10 @@ impl InitWizard {
             _ => return,
         };
         lines.push(Line::default());
-        lines.push(colored_line(&format!("  MCP config  ({config_path}):"), theme::MUTED));
+        lines.push(colored_line(
+            &format!("  MCP config  ({config_path}):"),
+            theme::MUTED,
+        ));
         for snippet_line in MCP_JSON_SNIPPET.lines() {
             lines.push(colored_line(&format!("    {snippet_line}"), theme::BLUE));
         }
@@ -279,18 +309,30 @@ fn footer_spans(pairs: &[(&str, &str)]) -> Vec<Span<'static>> {
         if index > 0 {
             spans.push(Span::raw("  "));
         }
-        spans.push(Span::styled(key.to_string(), Style::default().fg(theme::PURPLE)));
-        spans.push(Span::styled(format!(": {desc}"), Style::default().fg(theme::MUTED)));
+        spans.push(Span::styled(
+            key.to_string(),
+            Style::default().fg(theme::PURPLE),
+        ));
+        spans.push(Span::styled(
+            format!(": {desc}"),
+            Style::default().fg(theme::MUTED),
+        ));
     }
     spans
 }
 
 fn centered_rect(percent_width: u16, height: u16, area: Rect) -> Rect {
     let row = Layout::vertical([
-        Constraint::Fill(1), Constraint::Length(height), Constraint::Fill(1),
-    ]).split(area);
+        Constraint::Fill(1),
+        Constraint::Length(height),
+        Constraint::Fill(1),
+    ])
+    .split(area);
     let margin = (100 - percent_width) / 2;
     Layout::horizontal([
-        Constraint::Percentage(margin), Constraint::Percentage(percent_width), Constraint::Percentage(margin),
-    ]).split(row[1])[1]
+        Constraint::Percentage(margin),
+        Constraint::Percentage(percent_width),
+        Constraint::Percentage(margin),
+    ])
+    .split(row[1])[1]
 }

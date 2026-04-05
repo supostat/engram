@@ -169,10 +169,7 @@ async fn load_memories(
     state: &Arc<ServerState>,
     scored_results: &[(String, f64)],
 ) -> Result<Vec<Value>, CoreError> {
-    let memory_ids: Vec<String> = scored_results
-        .iter()
-        .map(|(id, _)| id.clone())
-        .collect();
+    let memory_ids: Vec<String> = scored_results.iter().map(|(id, _)| id.clone()).collect();
     let scores: HashMap<String, f64> = scored_results.iter().cloned().collect();
     let state_clone = Arc::clone(state);
     tokio::task::spawn_blocking(move || {

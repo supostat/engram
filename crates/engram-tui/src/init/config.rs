@@ -3,14 +3,12 @@ use std::io;
 
 use super::wizard::{EMBEDDING_OPTIONS, InitWizard, LLM_OPTIONS};
 
-pub const MCP_JSON_SNIPPET: &str =
-    r#"{ "mcpServers": { "engram": { "command": "engram-mcp" } } }"#;
+pub const MCP_JSON_SNIPPET: &str = r#"{ "mcpServers": { "engram": { "command": "engram-mcp" } } }"#;
 
 impl InitWizard {
     pub(super) fn create_config_files(&self) -> io::Result<()> {
-        let home = dirs::home_dir().ok_or_else(|| {
-            io::Error::new(io::ErrorKind::NotFound, "HOME directory not found")
-        })?;
+        let home = dirs::home_dir()
+            .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "HOME directory not found"))?;
         let engram_directory = home.join(".engram");
         fs::create_dir_all(&engram_directory)?;
 
@@ -29,7 +27,11 @@ impl InitWizard {
         } else {
             "deterministic"
         };
-        let embedding_dimension: u32 = if embedding_name == "voyage" { 1024 } else { 128 };
+        let embedding_dimension: u32 = if embedding_name == "voyage" {
+            1024
+        } else {
+            128
+        };
 
         let llm_model = match llm_name {
             "openai" => "gpt-4o-mini",
@@ -77,10 +79,7 @@ min_score = 0.3
             if self.embedding_api_key.is_empty() || embedding_name != "voyage" {
                 toml.push_str("\n[secrets]\n");
             }
-            toml.push_str(&format!(
-                "openai_api_key = \"{}\"\n",
-                self.llm_api_key
-            ));
+            toml.push_str(&format!("openai_api_key = \"{}\"\n", self.llm_api_key));
         }
         toml
     }

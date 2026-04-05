@@ -1,8 +1,8 @@
 use std::io;
 use std::time::Duration;
 
-use ratatui::crossterm::event::{self, Event, KeyCode, KeyEventKind};
 use ratatui::DefaultTerminal;
+use ratatui::crossterm::event::{self, Event, KeyCode, KeyEventKind};
 
 use super::existing_config::{EngineStats, ExistingConfig, HealthStatus, mask_api_key};
 
@@ -42,7 +42,10 @@ impl Step {
     }
 
     pub fn is_status_screen(self) -> bool {
-        matches!(self, Step::StatusMenu | Step::McpSnippets | Step::HealthCheck)
+        matches!(
+            self,
+            Step::StatusMenu | Step::McpSnippets | Step::HealthCheck
+        )
     }
 
     pub fn is_text_input(self) -> bool {
@@ -98,7 +101,11 @@ pub const MCP_LABELS: [&str; 4] = ["Claude Desktop", "Claude Code", "Cursor", "S
 impl InitWizard {
     pub fn new() -> Self {
         let default_database_path = dirs::home_dir()
-            .map(|home| home.join(".engram/memories.db").to_string_lossy().into_owned())
+            .map(|home| {
+                home.join(".engram/memories.db")
+                    .to_string_lossy()
+                    .into_owned()
+            })
             .unwrap_or_else(|| "~/.engram/memories.db".into());
 
         let existing_config = ExistingConfig::load();
@@ -263,5 +270,4 @@ impl InitWizard {
             _ => {}
         }
     }
-
 }

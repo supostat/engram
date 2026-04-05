@@ -1,10 +1,10 @@
 use std::time::Instant;
 
+use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph, Wrap};
-use ratatui::Frame;
 
 use crate::theme;
 
@@ -96,9 +96,7 @@ pub fn render_confirm_dialog(frame: &mut Frame, area: Rect, dialog: &ConfirmDial
         .border_style(Style::default().fg(theme::RED))
         .title(Span::styled(
             " Confirm ",
-            Style::default()
-                .fg(theme::RED)
-                .add_modifier(Modifier::BOLD),
+            Style::default().fg(theme::RED).add_modifier(Modifier::BOLD),
         ));
     let inner = block.inner(popup_area);
     frame.render_widget(block, popup_area);
@@ -184,7 +182,12 @@ pub fn render_consolidation_preview(frame: &mut Frame, area: Rect, text: &str) {
 
     let mut lines: Vec<Line> = text
         .lines()
-        .map(|line| Line::from(Span::styled(line.to_string(), Style::default().fg(theme::TEXT))))
+        .map(|line| {
+            Line::from(Span::styled(
+                line.to_string(),
+                Style::default().fg(theme::TEXT),
+            ))
+        })
         .collect();
     lines.push(Line::from(""));
     lines.push(Line::from(vec![

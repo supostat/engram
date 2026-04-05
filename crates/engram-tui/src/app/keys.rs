@@ -62,22 +62,52 @@ impl App {
 
     fn handle_memories_key(&mut self, code: KeyCode) -> bool {
         match code {
-            KeyCode::Down => { self.memories_state.move_down(); true }
-            KeyCode::Up => { self.memories_state.move_up(); true }
-            KeyCode::Enter => { self.memories_state.toggle_detail(); true }
-            KeyCode::Char('j') => { self.action_judge_memory(); true }
-            KeyCode::Char('k') => { self.memories_state.move_up(); true }
-            KeyCode::Char('d') => { self.action_confirm_delete(); true }
-            KeyCode::Char('f') => { self.action_open_filter(); true }
-            KeyCode::Char('/') => { self.memories_state.activate_search(); true }
+            KeyCode::Down => {
+                self.memories_state.move_down();
+                true
+            }
+            KeyCode::Up => {
+                self.memories_state.move_up();
+                true
+            }
+            KeyCode::Enter => {
+                self.memories_state.toggle_detail();
+                true
+            }
+            KeyCode::Char('j') => {
+                self.action_judge_memory();
+                true
+            }
+            KeyCode::Char('k') => {
+                self.memories_state.move_up();
+                true
+            }
+            KeyCode::Char('d') => {
+                self.action_confirm_delete();
+                true
+            }
+            KeyCode::Char('f') => {
+                self.action_open_filter();
+                true
+            }
+            KeyCode::Char('/') => {
+                self.memories_state.activate_search();
+                true
+            }
             _ => false,
         }
     }
 
     fn handle_status_key(&mut self, code: KeyCode) -> bool {
         match code {
-            KeyCode::Char('e') => { self.action_export(); true }
-            KeyCode::Char('c') => { self.action_consolidation_preview(); true }
+            KeyCode::Char('e') => {
+                self.action_export();
+                true
+            }
+            KeyCode::Char('c') => {
+                self.action_consolidation_preview();
+                true
+            }
             _ => false,
         }
     }
@@ -207,8 +237,7 @@ impl App {
         match actions::consolidation_preview(&mut self.socket) {
             Some(text) => self.consolidation_preview = Some(text),
             None => {
-                self.status_message =
-                    Some(StatusMessage::error("Server offline".to_string()));
+                self.status_message = Some(StatusMessage::error("Server offline".to_string()));
             }
         }
     }

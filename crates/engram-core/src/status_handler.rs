@@ -69,12 +69,9 @@ fn directory_contains_onnx(path: &str) -> bool {
     let Ok(entries) = std::fs::read_dir(path) else {
         return false;
     };
-    entries.flatten().any(|entry| {
-        entry
-            .path()
-            .extension()
-            .is_some_and(|ext| ext == "onnx")
-    })
+    entries
+        .flatten()
+        .any(|entry| entry.path().extension().is_some_and(|ext| ext == "onnx"))
 }
 
 fn onnx_models_older_than_database(config: &Config, models_path: &str) -> bool {
@@ -89,12 +86,7 @@ fn onnx_models_older_than_database(config: &Config, models_path: &str) -> bool {
         .into_iter()
         .flatten()
         .flatten()
-        .filter(|entry| {
-            entry
-                .path()
-                .extension()
-                .is_some_and(|ext| ext == "onnx")
-        })
+        .filter(|entry| entry.path().extension().is_some_and(|ext| ext == "onnx"))
         .filter_map(|entry| entry.metadata().ok()?.modified().ok())
         .max();
 

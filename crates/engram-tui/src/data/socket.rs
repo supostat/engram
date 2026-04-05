@@ -31,8 +31,7 @@ impl SocketClient {
         let mut reader = BufReader::new(&self.stream);
         let mut response_line = String::new();
         reader.read_line(&mut response_line)?;
-        let response: Value =
-            serde_json::from_str(&response_line).map_err(io::Error::other)?;
+        let response: Value = serde_json::from_str(&response_line).map_err(io::Error::other)?;
 
         if response["ok"].as_bool() == Some(true) {
             Ok(response["data"].clone())

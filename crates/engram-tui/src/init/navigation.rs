@@ -1,6 +1,4 @@
-use super::wizard::{
-    EMBEDDING_OPTIONS, InitWizard, LLM_OPTIONS, STATUS_MENU_LABELS, Step,
-};
+use super::wizard::{EMBEDDING_OPTIONS, InitWizard, LLM_OPTIONS, STATUS_MENU_LABELS, Step};
 
 impl InitWizard {
     pub(super) fn handle_status_menu_key(&mut self, code: ratatui::crossterm::event::KeyCode) {

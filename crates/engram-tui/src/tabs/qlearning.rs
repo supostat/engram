@@ -1,8 +1,8 @@
+use ratatui::Frame;
 use ratatui::layout::{Alignment, Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph, Row, Table};
-use ratatui::Frame;
 
 use crate::data::QTableEntry;
 use crate::theme;
@@ -39,15 +39,11 @@ pub fn render_qlearning_tab(frame: &mut Frame, area: Rect, entries: &[QTableEntr
         return;
     }
 
-    let [top_row, bottom_row] = Layout::vertical([
-        Constraint::Percentage(50),
-        Constraint::Percentage(50),
-    ])
-    .areas(area);
+    let [top_row, bottom_row] =
+        Layout::vertical([Constraint::Percentage(50), Constraint::Percentage(50)]).areas(area);
 
     let [top_left, top_right] =
-        Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])
-            .areas(top_row);
+        Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)]).areas(top_row);
 
     let [bottom_left, bottom_right] =
         Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])
@@ -67,48 +63,38 @@ fn render_empty_state(frame: &mut Frame, area: Rect) {
             Block::default()
                 .borders(Borders::ALL)
                 .border_style(Style::default().fg(theme::MUTED))
-                .title(Span::styled(
-                    "Q-Learning",
-                    Style::default().fg(theme::BLUE),
-                )),
+                .title(Span::styled("Q-Learning", Style::default().fg(theme::BLUE))),
         );
     frame.render_widget(message, area);
 }
 
 fn render_level_panel(frame: &mut Frame, area: Rect, level: i32, entries: &[QTableEntry]) {
     let router = &ROUTER_LEVELS[level as usize];
-    let level_entries: Vec<&QTableEntry> = entries.iter().filter(|e| e.router_level == level).collect();
+    let level_entries: Vec<&QTableEntry> =
+        entries.iter().filter(|e| e.router_level == level).collect();
     let total_updates: i64 = level_entries.iter().map(|e| e.update_count).sum();
 
     let block = Block::default()
         .borders(Borders::ALL)
         .border_style(Style::default().fg(theme::MUTED))
-        .title(Span::styled(
-            router.title,
-            Style::default().fg(theme::BLUE),
-        ));
+        .title(Span::styled(router.title, Style::default().fg(theme::BLUE)));
 
-    let [table_area, footer_area] = Layout::vertical([
-        Constraint::Fill(1),
-        Constraint::Length(1),
-    ])
-    .areas(block.inner(area));
+    let [table_area, footer_area] =
+        Layout::vertical([Constraint::Fill(1), Constraint::Length(1)]).areas(block.inner(area));
 
     frame.render_widget(block, area);
 
-    let header_cells: Vec<Span> = std::iter::once(Span::styled(
-        "",
-        Style::default().fg(theme::MUTED),
-    ))
-    .chain(router.actions.iter().map(|action| {
-        Span::styled(
-            format!("{action:>10}"),
-            Style::default()
-                .fg(theme::BLUE)
-                .add_modifier(Modifier::BOLD),
-        )
-    }))
-    .collect();
+    let header_cells: Vec<Span> =
+        std::iter::once(Span::styled("", Style::default().fg(theme::MUTED)))
+            .chain(router.actions.iter().map(|action| {
+                Span::styled(
+                    format!("{action:>10}"),
+                    Style::default()
+                        .fg(theme::BLUE)
+                        .add_modifier(Modifier::BOLD),
+                )
+            }))
+            .collect();
 
     let header = Row::new(header_cells).bottom_margin(0);
 
@@ -121,7 +107,10 @@ fn render_level_panel(frame: &mut Frame, area: Rect, level: i32, entries: &[QTab
             ))
             .chain(router.actions.iter().map(|action| {
                 let value = find_value(&level_entries, state, action);
-                Span::styled(format!("{value:>10.2}"), Style::default().fg(value_color(value)))
+                Span::styled(
+                    format!("{value:>10.2}"),
+                    Style::default().fg(value_color(value)),
+                )
             }))
             .collect();
             Row::new(cells)

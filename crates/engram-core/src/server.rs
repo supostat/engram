@@ -239,11 +239,7 @@ fn warn_missing_api_keys(config: &Config) {
         .api_key
         .as_deref()
         .is_some_and(|k| !k.is_empty());
-    let has_llm_key = config
-        .llm
-        .api_key
-        .as_deref()
-        .is_some_and(|k| !k.is_empty());
+    let has_llm_key = config.llm.api_key.as_deref().is_some_and(|k| !k.is_empty());
 
     if !has_embedding_key && config.embedding.provider != "deterministic" {
         eprintln!(

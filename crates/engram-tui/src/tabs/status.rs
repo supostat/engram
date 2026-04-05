@@ -14,15 +14,20 @@ pub fn render_status_tab(frame: &mut Frame, area: Rect, stats: &DashboardStats) 
         stats.hints.len() as u16 + 2
     };
 
-    let [cards_area, distributions_area, histogram_area, hints_area, table_area] =
-        Layout::vertical([
-            Constraint::Length(5),
-            Constraint::Length(10),
-            Constraint::Length(6),
-            Constraint::Length(hints_height),
-            Constraint::Fill(1),
-        ])
-        .areas(area);
+    let [
+        cards_area,
+        distributions_area,
+        histogram_area,
+        hints_area,
+        table_area,
+    ] = Layout::vertical([
+        Constraint::Length(5),
+        Constraint::Length(10),
+        Constraint::Length(6),
+        Constraint::Length(hints_height),
+        Constraint::Fill(1),
+    ])
+    .areas(area);
 
     render_stat_cards(frame, cards_area, stats);
     render_distributions(frame, distributions_area, stats);
@@ -44,8 +49,18 @@ fn render_stat_cards(frame: &mut Frame, area: Rect, stats: &DashboardStats) {
 
     render_single_card(frame, mem_area, "Memories", &stats.memory_count.to_string());
     render_single_card(frame, idx_area, "Indexed", &stats.indexed_count.to_string());
-    render_single_card(frame, judged_area, "Judged", &stats.feedback_judged.to_string());
-    render_single_card(frame, score_area, "Avg Score", &format!("{:.2}", stats.average_score));
+    render_single_card(
+        frame,
+        judged_area,
+        "Judged",
+        &stats.feedback_judged.to_string(),
+    );
+    render_single_card(
+        frame,
+        score_area,
+        "Avg Score",
+        &format!("{:.2}", stats.average_score),
+    );
 }
 
 fn render_single_card(frame: &mut Frame, area: Rect, title: &str, value: &str) {
@@ -80,7 +95,12 @@ fn render_distributions(frame: &mut Frame, area: Rect, stats: &DashboardStats) {
         Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)]).areas(area);
 
     render_distribution_bars(frame, types_area, "Types", &stats.type_distribution);
-    render_distribution_bars(frame, projects_area, "Projects", &stats.project_distribution);
+    render_distribution_bars(
+        frame,
+        projects_area,
+        "Projects",
+        &stats.project_distribution,
+    );
 }
 
 fn render_distribution_bars(
@@ -103,7 +123,11 @@ fn render_distribution_bars(
         frame.render_widget(empty, inner);
         return;
     }
-    let max_count = distribution.iter().map(|(_, count)| *count).max().unwrap_or(1);
+    let max_count = distribution
+        .iter()
+        .map(|(_, count)| *count)
+        .max()
+        .unwrap_or(1);
     let lines: Vec<Line> = distribution
         .iter()
         .take(inner.height as usize)
@@ -208,10 +232,16 @@ fn render_recent_memories(frame: &mut Frame, area: Rect, stats: &DashboardStats)
                 theme::MUTED
             };
             Row::new(vec![
-                Span::styled(memory.memory_type.clone(), Style::default().fg(theme::PURPLE)),
+                Span::styled(
+                    memory.memory_type.clone(),
+                    Style::default().fg(theme::PURPLE),
+                ),
                 Span::styled(memory.project_display(), Style::default().fg(theme::MUTED)),
                 Span::styled(memory.context.clone(), Style::default().fg(theme::TEXT)),
-                Span::styled(format!("{:.2}", memory.score), Style::default().fg(score_color)),
+                Span::styled(
+                    format!("{:.2}", memory.score),
+                    Style::default().fg(score_color),
+                ),
             ])
         })
         .collect();

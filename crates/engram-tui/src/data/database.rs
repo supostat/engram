@@ -16,9 +16,7 @@ pub struct MemorySummary {
 
 impl MemorySummary {
     pub fn project_display(&self) -> String {
-        self.project
-            .clone()
-            .unwrap_or_else(|| "(none)".to_string())
+        self.project.clone().unwrap_or_else(|| "(none)".to_string())
     }
 }
 
@@ -57,9 +55,11 @@ impl DatabaseReader {
 
     pub fn average_score(&self) -> f64 {
         self.connection
-            .query_row("SELECT COALESCE(AVG(score), 0.0) FROM memories", [], |row| {
-                row.get(0)
-            })
+            .query_row(
+                "SELECT COALESCE(AVG(score), 0.0) FROM memories",
+                [],
+                |row| row.get(0),
+            )
             .unwrap_or(0.0)
     }
 
@@ -94,9 +94,7 @@ impl DatabaseReader {
 
     pub fn feedback_stats(&self) -> (usize, usize) {
         let searched = self.query_count("SELECT COUNT(*) FROM feedback_tracking");
-        let judged = self.query_count(
-            "SELECT COUNT(*) FROM feedback_tracking WHERE judged = TRUE",
-        );
+        let judged = self.query_count("SELECT COUNT(*) FROM feedback_tracking WHERE judged = TRUE");
         (searched, judged)
     }
 
@@ -176,10 +174,9 @@ impl DatabaseReader {
         let mut models: Vec<ModelInfo> = entries
             .flatten()
             .filter(|entry| {
-                entry
-                    .path()
-                    .extension()
-                    .is_some_and(|ext| ext == "onnx" || ext == "json" || ext == "data" || ext == "txt")
+                entry.path().extension().is_some_and(|ext| {
+                    ext == "onnx" || ext == "json" || ext == "data" || ext == "txt"
+                })
             })
             .filter_map(|entry| model_info_from_entry(&entry))
             .collect();
@@ -192,12 +189,9 @@ impl DatabaseReader {
         let Ok(entries) = std::fs::read_dir(path) else {
             return false;
         };
-        entries.flatten().any(|entry| {
-            entry
-                .path()
-                .extension()
-                .is_some_and(|ext| ext == "onnx")
-        })
+        entries
+            .flatten()
+            .any(|entry| entry.path().extension().is_some_and(|ext| ext == "onnx"))
     }
 
     pub fn delete_memory(&self, database_path: &str, memory_id: &str) -> io::Result<()> {

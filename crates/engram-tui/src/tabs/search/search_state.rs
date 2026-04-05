@@ -105,7 +105,9 @@ impl SearchTabState {
         self.cursor_position += next_char.len_utf8();
     }
 
-    pub fn move_result_up(&mut self) { self.selected = self.selected.saturating_sub(1); }
+    pub fn move_result_up(&mut self) {
+        self.selected = self.selected.saturating_sub(1);
+    }
 
     pub fn move_result_down(&mut self) {
         if !self.results.is_empty() {
@@ -114,10 +116,14 @@ impl SearchTabState {
     }
 
     pub fn toggle_detail(&mut self) {
-        if !self.results.is_empty() { self.detail_open = !self.detail_open; }
+        if !self.results.is_empty() {
+            self.detail_open = !self.detail_open;
+        }
     }
 
-    pub fn close_detail(&mut self) { self.detail_open = false; }
+    pub fn close_detail(&mut self) {
+        self.detail_open = false;
+    }
 
     pub fn clear(&mut self) {
         self.query.clear();
@@ -277,7 +283,9 @@ impl SearchTabState {
             self.set_status_message("Socket offline".to_string());
             return;
         };
-        let top_context = self.results.first()
+        let top_context = self
+            .results
+            .first()
             .map_or("no results".to_string(), |r| r.context.clone());
         let params = serde_json::json!({
             "memory_type": "context",

@@ -179,5 +179,8 @@ fn test_fts_search_special_characters() {
     }
 
     let all_specials = database.search_fts("@#$%^&", 10).unwrap();
-    assert!(all_specials.is_empty(), "all-special-chars query must return empty");
+    assert!(
+        all_specials.is_empty(),
+        "all-special-chars query must return empty"
+    );
 }

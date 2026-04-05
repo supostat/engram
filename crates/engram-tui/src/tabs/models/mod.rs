@@ -2,11 +2,11 @@ mod models_state;
 
 pub use models_state::{ModelsKeyAction, ModelsPopup, ModelsTabState};
 
+use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph, Row, Table, TableState, Wrap};
-use ratatui::Frame;
 
 use crate::theme;
 
@@ -49,7 +49,10 @@ fn render_models_table(frame: &mut Frame, area: Rect, state: &mut ModelsTabState
             Row::new(vec![
                 Span::styled(" \u{25CF} ", Style::default().fg(theme::GREEN)),
                 Span::styled(model.filename.clone(), Style::default().fg(theme::TEXT)),
-                Span::styled(format_size(model.size_bytes), Style::default().fg(theme::MUTED)),
+                Span::styled(
+                    format_size(model.size_bytes),
+                    Style::default().fg(theme::MUTED),
+                ),
                 Span::styled(model.modified.clone(), Style::default().fg(theme::MUTED)),
             ])
         })
@@ -102,12 +105,16 @@ fn render_summary(frame: &mut Frame, area: Rect, state: &ModelsTabState) {
         Span::styled("  Files: ", Style::default().fg(theme::BLUE)),
         Span::styled(
             state.models.len().to_string(),
-            Style::default().fg(theme::PURPLE).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(theme::PURPLE)
+                .add_modifier(Modifier::BOLD),
         ),
         Span::styled("  Total size: ", Style::default().fg(theme::BLUE)),
         Span::styled(
             format_size(total_bytes),
-            Style::default().fg(theme::PURPLE).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(theme::PURPLE)
+                .add_modifier(Modifier::BOLD),
         ),
     ]);
     let paragraph = Paragraph::new(text).block(
@@ -151,7 +158,9 @@ fn render_popup(frame: &mut Frame, area: Rect, popup: &ModelsPopup) {
                 Line::from(""),
                 Line::from(Span::styled(
                     format!("  $ {command}"),
-                    Style::default().fg(theme::GREEN).add_modifier(Modifier::BOLD),
+                    Style::default()
+                        .fg(theme::GREEN)
+                        .add_modifier(Modifier::BOLD),
                 )),
                 Line::from(""),
                 Line::from(Span::styled(
@@ -159,17 +168,17 @@ fn render_popup(frame: &mut Frame, area: Rect, popup: &ModelsPopup) {
                     Style::default().fg(theme::MUTED),
                 )),
             ];
-            let paragraph = Paragraph::new(text)
-                .wrap(Wrap { trim: false })
-                .block(
-                    Block::default()
-                        .borders(Borders::ALL)
-                        .border_style(Style::default().fg(theme::PURPLE))
-                        .title(Span::styled(
-                            " Train ",
-                            Style::default().fg(theme::PURPLE).add_modifier(Modifier::BOLD),
-                        )),
-                );
+            let paragraph = Paragraph::new(text).wrap(Wrap { trim: false }).block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(theme::PURPLE))
+                    .title(Span::styled(
+                        " Train ",
+                        Style::default()
+                            .fg(theme::PURPLE)
+                            .add_modifier(Modifier::BOLD),
+                    )),
+            );
             frame.render_widget(paragraph, popup_area);
         }
         ModelsPopup::DeleteConfirm { filename } => {
@@ -205,8 +214,14 @@ fn footer_hints(pairs: &[(&str, &str)]) -> Vec<Span<'static>> {
     let mut spans = Vec::with_capacity(pairs.len() * 2);
     for (key, description) in pairs {
         let prefix = if spans.is_empty() { " " } else { "  " };
-        spans.push(Span::styled(format!("{prefix}{key}"), Style::default().fg(theme::PURPLE)));
-        spans.push(Span::styled(format!(": {description}"), Style::default().fg(theme::MUTED)));
+        spans.push(Span::styled(
+            format!("{prefix}{key}"),
+            Style::default().fg(theme::PURPLE),
+        ));
+        spans.push(Span::styled(
+            format!(": {description}"),
+            Style::default().fg(theme::MUTED),
+        ));
     }
     spans
 }

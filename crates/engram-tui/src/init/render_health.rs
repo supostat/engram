@@ -1,12 +1,12 @@
+use ratatui::Frame;
 use ratatui::layout::{Alignment, Constraint, Layout};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Padding, Paragraph};
-use ratatui::Frame;
 
 use crate::theme;
 
-use super::existing_config::{format_size, ExistingConfig, HealthStatus};
+use super::existing_config::{ExistingConfig, HealthStatus, format_size};
 use super::render_status::{centered_rect, footer_spans};
 use super::wizard::InitWizard;
 
@@ -15,7 +15,11 @@ impl InitWizard {
         let area = centered_rect(65, 28, frame.area());
         let block = Block::default()
             .title(" MCP Configuration ")
-            .title_style(Style::default().fg(theme::PURPLE).add_modifier(Modifier::BOLD))
+            .title_style(
+                Style::default()
+                    .fg(theme::PURPLE)
+                    .add_modifier(Modifier::BOLD),
+            )
             .borders(Borders::ALL)
             .border_style(Style::default().fg(theme::MUTED))
             .padding(Padding::new(2, 2, 1, 0));
@@ -52,7 +56,11 @@ impl InitWizard {
         let area = centered_rect(60, 22, frame.area());
         let block = Block::default()
             .title(" Connection Check ")
-            .title_style(Style::default().fg(theme::PURPLE).add_modifier(Modifier::BOLD))
+            .title_style(
+                Style::default()
+                    .fg(theme::PURPLE)
+                    .add_modifier(Modifier::BOLD),
+            )
             .borders(Borders::ALL)
             .border_style(Style::default().fg(theme::MUTED))
             .padding(Padding::new(2, 2, 1, 0));
@@ -148,12 +156,7 @@ fn build_health_lines(
     if health.socket_exists {
         lines.push(health_line("Socket", "✓", "running", theme::GREEN));
     } else {
-        lines.push(health_line(
-            "Socket",
-            "✗",
-            "server not running",
-            theme::RED,
-        ));
+        lines.push(health_line("Socket", "✗", "server not running", theme::RED));
     }
 
     if health.model_count > 0 {
@@ -170,17 +173,9 @@ fn build_health_lines(
     lines
 }
 
-fn health_line(
-    label: &str,
-    icon: &str,
-    text: &str,
-    color: ratatui::style::Color,
-) -> Line<'static> {
+fn health_line(label: &str, icon: &str, text: &str, color: ratatui::style::Color) -> Line<'static> {
     Line::from(vec![
-        Span::styled(
-            format!("  {label:<14}"),
-            Style::default().fg(theme::MUTED),
-        ),
+        Span::styled(format!("  {label:<14}"), Style::default().fg(theme::MUTED)),
         Span::styled(format!("{icon} {text}"), Style::default().fg(color)),
     ])
 }

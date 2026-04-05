@@ -1,13 +1,13 @@
+use ratatui::Frame;
 use ratatui::layout::{Alignment, Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Padding, Paragraph};
-use ratatui::Frame;
 
 use crate::theme;
 
 use super::existing_config::format_size;
-use super::wizard::{InitWizard, Step, STATUS_MENU_LABELS};
+use super::wizard::{InitWizard, STATUS_MENU_LABELS, Step};
 
 impl InitWizard {
     pub(super) fn render_status_screen(&self, frame: &mut Frame) {
@@ -23,7 +23,11 @@ impl InitWizard {
         let area = centered_rect(60, 28, frame.area());
         let block = Block::default()
             .title(" engram ")
-            .title_style(Style::default().fg(theme::PURPLE).add_modifier(Modifier::BOLD))
+            .title_style(
+                Style::default()
+                    .fg(theme::PURPLE)
+                    .add_modifier(Modifier::BOLD),
+            )
             .borders(Borders::ALL)
             .border_style(Style::default().fg(theme::MUTED))
             .padding(Padding::new(2, 2, 1, 0));
@@ -52,7 +56,9 @@ impl InitWizard {
 
         lines.push(Line::from(Span::styled(
             "  Actions:",
-            Style::default().fg(theme::TEXT).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(theme::TEXT)
+                .add_modifier(Modifier::BOLD),
         )));
 
         for (index, label) in STATUS_MENU_LABELS.iter().enumerate() {
@@ -66,10 +72,7 @@ impl InitWizard {
             } else {
                 ("    ○ ", Style::default().fg(theme::TEXT))
             };
-            lines.push(Line::from(Span::styled(
-                format!("{marker}{label}"),
-                style,
-            )));
+            lines.push(Line::from(Span::styled(format!("{marker}{label}"), style)));
         }
 
         frame.render_widget(Paragraph::new(lines), content_area);
@@ -88,17 +91,22 @@ impl InitWizard {
     ) {
         lines.push(Line::from(Span::styled(
             "  Configuration:",
-            Style::default().fg(theme::TEXT).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(theme::TEXT)
+                .add_modifier(Modifier::BOLD),
         )));
 
-        let embedding_key_status =
-            if config.embedding_api_key.as_ref().is_some_and(|k| !k.is_empty()) {
-                ("✓ API key", theme::GREEN)
-            } else if config.embedding_provider == "deterministic" {
-                ("not required", theme::MUTED)
-            } else {
-                ("✗ API key", theme::RED)
-            };
+        let embedding_key_status = if config
+            .embedding_api_key
+            .as_ref()
+            .is_some_and(|k| !k.is_empty())
+        {
+            ("✓ API key", theme::GREEN)
+        } else if config.embedding_provider == "deterministic" {
+            ("not required", theme::MUTED)
+        } else {
+            ("✗ API key", theme::RED)
+        };
         lines.push(config_line_with_status(
             "    Embedding",
             &format!("{} ({})", config.embedding_provider, config.embedding_model),
@@ -130,7 +138,9 @@ impl InitWizard {
         };
         lines.push(Line::from(Span::styled(
             "  Statistics:",
-            Style::default().fg(theme::TEXT).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(theme::TEXT)
+                .add_modifier(Modifier::BOLD),
         )));
 
         let memories_line = format!(
@@ -202,10 +212,7 @@ fn styled_line(text: &str, color: ratatui::style::Color, modifier: Modifier) -> 
 
 fn simple_config_line(label: &str, value: &str) -> Line<'static> {
     Line::from(vec![
-        Span::styled(
-            format!("{label}:   "),
-            Style::default().fg(theme::MUTED),
-        ),
+        Span::styled(format!("{label}:   "), Style::default().fg(theme::MUTED)),
         Span::styled(value.to_string(), Style::default().fg(theme::TEXT)),
     ])
 }
@@ -217,14 +224,8 @@ fn config_line_with_status(
     status_color: ratatui::style::Color,
 ) -> Line<'static> {
     Line::from(vec![
-        Span::styled(
-            format!("{label}:  "),
-            Style::default().fg(theme::MUTED),
-        ),
-        Span::styled(
-            format!("{value}  "),
-            Style::default().fg(theme::TEXT),
-        ),
+        Span::styled(format!("{label}:  "), Style::default().fg(theme::MUTED)),
+        Span::styled(format!("{value}  "), Style::default().fg(theme::TEXT)),
         Span::styled(status.to_string(), Style::default().fg(status_color)),
     ])
 }

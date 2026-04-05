@@ -7,10 +7,7 @@ use serde_json::json;
 use crate::data::{DatabaseReader, SocketClient};
 use crate::overlays::StatusMessage;
 
-pub fn judge_memory(
-    socket: &mut Option<SocketClient>,
-    memory_id: &str,
-) -> StatusMessage {
+pub fn judge_memory(socket: &mut Option<SocketClient>, memory_id: &str) -> StatusMessage {
     let Some(client) = socket.as_mut() else {
         return StatusMessage::error("Server offline".to_string());
     };
@@ -91,9 +88,5 @@ fn chrono_like_timestamp() -> String {
 }
 
 fn truncate_id(id: &str) -> &str {
-    if id.len() > 12 {
-        &id[..12]
-    } else {
-        id
-    }
+    if id.len() > 12 { &id[..12] } else { id }
 }

@@ -4,8 +4,8 @@ mod qlearning;
 mod search;
 mod status;
 
-pub use memories::{render_memories_tab, MemoriesTabState};
-pub use models::{render_models_tab, ModelsKeyAction, ModelsTabState};
+pub use memories::{MemoriesTabState, render_memories_tab};
+pub use models::{ModelsKeyAction, ModelsTabState, render_models_tab};
 pub use qlearning::render_qlearning_tab;
-pub use search::{render_search_tab, SearchKeyAction, SearchStatus, SearchTabState};
+pub use search::{SearchKeyAction, SearchStatus, SearchTabState, render_search_tab};
 pub use status::render_status_tab;

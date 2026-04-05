@@ -1,3 +1,4 @@
+use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
@@ -5,7 +6,6 @@ use ratatui::widgets::{
     Block, Borders, Clear, Paragraph, Row, Scrollbar, ScrollbarOrientation, ScrollbarState, Table,
     TableState, Wrap,
 };
-use ratatui::Frame;
 
 use crate::data::MemorySummary;
 use crate::theme;
@@ -16,11 +16,8 @@ pub fn render_memories_tab(frame: &mut Frame, area: Rect, state: &mut MemoriesTa
     let visible: Vec<&MemorySummary> = state.visible_memories().collect();
 
     if state.search_active {
-        let [search_area, table_area] = Layout::vertical([
-            Constraint::Length(3),
-            Constraint::Fill(1),
-        ])
-        .areas(area);
+        let [search_area, table_area] =
+            Layout::vertical([Constraint::Length(3), Constraint::Fill(1)]).areas(area);
         render_search_input(frame, search_area, &state.search_query);
         render_visible_table(frame, table_area, &visible, state.selected);
     } else if visible.is_empty() {
@@ -111,7 +108,10 @@ fn render_visible_table(
                 ),
                 Span::styled(memory.project_display(), Style::default().fg(theme::MUTED)),
                 Span::styled(truncated_context, Style::default().fg(theme::TEXT)),
-                Span::styled(format!("{:.2}", memory.score), Style::default().fg(score_color)),
+                Span::styled(
+                    format!("{:.2}", memory.score),
+                    Style::default().fg(score_color),
+                ),
                 Span::styled(created_short, Style::default().fg(theme::MUTED)),
             ])
         })
@@ -183,7 +183,10 @@ fn render_detail_popup(frame: &mut Frame, area: Rect, memory: &MemorySummary) {
         Span::styled("  Project: ", Style::default().fg(theme::BLUE)),
         Span::styled(memory.project_display(), Style::default().fg(theme::TEXT)),
         Span::styled("  Score: ", Style::default().fg(theme::BLUE)),
-        Span::styled(format!("{:.2}", memory.score), Style::default().fg(theme::GREEN)),
+        Span::styled(
+            format!("{:.2}", memory.score),
+            Style::default().fg(theme::GREEN),
+        ),
         Span::styled("  Created: ", Style::default().fg(theme::BLUE)),
         Span::styled(&memory.created_at, Style::default().fg(theme::MUTED)),
     ]);
@@ -198,7 +201,11 @@ fn render_detail_popup(frame: &mut Frame, area: Rect, memory: &MemorySummary) {
 }
 
 fn render_section(frame: &mut Frame, area: Rect, title: &str, content: &str) {
-    let display = if content.is_empty() { "(empty)" } else { content };
+    let display = if content.is_empty() {
+        "(empty)"
+    } else {
+        content
+    };
     let paragraph = Paragraph::new(display.to_string())
         .style(Style::default().fg(theme::TEXT))
         .wrap(Wrap { trim: false })

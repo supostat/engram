@@ -3,22 +3,22 @@ mod keys;
 use std::io;
 use std::time::{Duration, Instant};
 
+use ratatui::DefaultTerminal;
+use ratatui::Frame;
 use ratatui::crossterm::event::{self, Event, KeyEventKind};
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph, Tabs};
-use ratatui::DefaultTerminal;
-use ratatui::Frame;
 
 use crate::data::{DashboardStats, DatabaseReader, QTableEntry, SocketClient, load_stats};
 use crate::overlays::{
-    self, ConfirmDialog, FilterState, StatusMessage,
-    render_confirm_dialog, render_filter_popup, render_status_message,
+    self, ConfirmDialog, FilterState, StatusMessage, render_confirm_dialog, render_filter_popup,
+    render_status_message,
 };
 use crate::tabs::{
-    render_memories_tab, render_models_tab, render_qlearning_tab, render_search_tab,
-    render_status_tab, MemoriesTabState, ModelsTabState, SearchStatus, SearchTabState,
+    MemoriesTabState, ModelsTabState, SearchStatus, SearchTabState, render_memories_tab,
+    render_models_tab, render_qlearning_tab, render_search_tab, render_status_tab,
 };
 use crate::theme;
 
@@ -214,7 +214,11 @@ impl App {
         let tabs_widget = Tabs::new(titles)
             .select(self.tab.index())
             .style(Style::default().fg(theme::MUTED))
-            .highlight_style(Style::default().fg(theme::PURPLE).add_modifier(Modifier::BOLD))
+            .highlight_style(
+                Style::default()
+                    .fg(theme::PURPLE)
+                    .add_modifier(Modifier::BOLD),
+            )
             .block(header_block());
         frame.render_widget(tabs_widget, area);
     }
@@ -241,7 +245,9 @@ impl App {
 fn render_logo(frame: &mut Frame, area: Rect) {
     let logo = Paragraph::new(Line::from(Span::styled(
         " engram",
-        Style::default().fg(theme::PURPLE).add_modifier(Modifier::BOLD),
+        Style::default()
+            .fg(theme::PURPLE)
+            .add_modifier(Modifier::BOLD),
     )))
     .block(header_block());
     frame.render_widget(logo, area);
@@ -261,10 +267,19 @@ fn render_footer(frame: &mut Frame, area: Rect, tab: Tab) {
     if tab == Tab::Search {
         return;
     }
-    let mut hints: Vec<(&str, &str)> =
-        vec![("q", "quit"), ("Tab", "switch"), ("1-5", "jump"), ("r", "refresh")];
+    let mut hints: Vec<(&str, &str)> = vec![
+        ("q", "quit"),
+        ("Tab", "switch"),
+        ("1-5", "jump"),
+        ("r", "refresh"),
+    ];
     if tab == Tab::Memories {
-        hints.extend([("j", "judge"), ("d", "delete"), ("f", "filter"), ("/", "search")]);
+        hints.extend([
+            ("j", "judge"),
+            ("d", "delete"),
+            ("f", "filter"),
+            ("/", "search"),
+        ]);
     }
     if tab == Tab::Status {
         hints.extend([("e", "export"), ("c", "consolidate")]);
@@ -277,8 +292,14 @@ fn footer_hint_spans(pairs: &[(&str, &str)]) -> Vec<Span<'static>> {
     let mut spans = Vec::with_capacity(pairs.len() * 2);
     for (key, description) in pairs {
         let prefix = if spans.is_empty() { " " } else { "  " };
-        spans.push(Span::styled(format!("{prefix}{key}"), Style::default().fg(theme::PURPLE)));
-        spans.push(Span::styled(format!(": {description}"), Style::default().fg(theme::MUTED)));
+        spans.push(Span::styled(
+            format!("{prefix}{key}"),
+            Style::default().fg(theme::PURPLE),
+        ));
+        spans.push(Span::styled(
+            format!(": {description}"),
+            Style::default().fg(theme::MUTED),
+        ));
     }
     spans
 }
@@ -288,4 +309,3 @@ fn header_block() -> Block<'static> {
         .borders(Borders::BOTTOM)
         .border_style(Style::default().fg(theme::MUTED))
 }
-

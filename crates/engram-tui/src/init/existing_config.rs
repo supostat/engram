@@ -42,11 +42,10 @@ impl ExistingConfig {
         let table: Value = content.parse().ok()?;
 
         let embedding_provider = table_string(&table, &["embedding", "provider"])?;
-        let embedding_model = table_string(&table, &["embedding", "model"])
-            .unwrap_or_else(|| "unknown".into());
+        let embedding_model =
+            table_string(&table, &["embedding", "model"]).unwrap_or_else(|| "unknown".into());
         let llm_provider = table_string(&table, &["llm", "provider"])?;
-        let llm_model = table_string(&table, &["llm", "model"])
-            .unwrap_or_else(|| "unknown".into());
+        let llm_model = table_string(&table, &["llm", "model"]).unwrap_or_else(|| "unknown".into());
         let database_path = table_string(&table, &["database", "path"])
             .unwrap_or_else(|| "~/.engram/memories.db".into());
         let socket_path = table_string(&table, &["server", "socket_path"])
@@ -71,8 +70,7 @@ impl ExistingConfig {
 
     pub fn collect_stats(&self) -> EngineStats {
         let expanded_database = expand_tilde(&self.database_path);
-        let (memory_count, indexed_count, average_score) =
-            read_database_stats(&expanded_database);
+        let (memory_count, indexed_count, average_score) = read_database_stats(&expanded_database);
         let (model_count, models_size_bytes) = read_models_stats();
         EngineStats {
             memory_count,
@@ -93,7 +91,10 @@ impl ExistingConfig {
         let (model_count, models_size_bytes) = read_models_stats();
 
         HealthStatus {
-            embedding_key_present: self.embedding_api_key.as_ref().is_some_and(|k| !k.is_empty()),
+            embedding_key_present: self
+                .embedding_api_key
+                .as_ref()
+                .is_some_and(|k| !k.is_empty()),
             llm_key_present: self.llm_api_key.as_ref().is_some_and(|k| !k.is_empty()),
             database_found,
             database_memory_count,
@@ -110,7 +111,14 @@ impl ExistingConfig {
 pub fn mask_api_key(key: &str) -> String {
     if key.len() > 7 {
         let prefix: String = key.chars().take(3).collect();
-        let suffix: String = key.chars().rev().take(4).collect::<Vec<_>>().into_iter().rev().collect();
+        let suffix: String = key
+            .chars()
+            .rev()
+            .take(4)
+            .collect::<Vec<_>>()
+            .into_iter()
+            .rev()
+            .collect();
         format!("{prefix}****{suffix}")
     } else {
         "****".into()
@@ -165,7 +173,9 @@ fn read_database_stats(database_path: &str) -> (usize, usize, f64) {
         return (0, 0, 0.0);
     };
     let memory_count = connection
-        .query_row("SELECT COUNT(*) FROM memories", [], |row| row.get::<_, i64>(0))
+        .query_row("SELECT COUNT(*) FROM memories", [], |row| {
+            row.get::<_, i64>(0)
+        })
         .unwrap_or(0) as usize;
     let indexed_count = connection
         .query_row(
@@ -175,9 +185,11 @@ fn read_database_stats(database_path: &str) -> (usize, usize, f64) {
         )
         .unwrap_or(0) as usize;
     let average_score = connection
-        .query_row("SELECT COALESCE(AVG(score), 0.0) FROM memories", [], |row| {
-            row.get::<_, f64>(0)
-        })
+        .query_row(
+            "SELECT COALESCE(AVG(score), 0.0) FROM memories",
+            [],
+            |row| row.get::<_, f64>(0),
+        )
         .unwrap_or(0.0);
     (memory_count, indexed_count, average_score)
 }
@@ -195,7 +207,9 @@ fn check_database(database_path: &str) -> (bool, usize, u64) {
         return (true, 0, size);
     };
     let count = connection
-        .query_row("SELECT COUNT(*) FROM memories", [], |row| row.get::<_, i64>(0))
+        .query_row("SELECT COUNT(*) FROM memories", [], |row| {
+            row.get::<_, i64>(0)
+        })
         .unwrap_or(0) as usize;
     (true, count, size)
 }

@@ -2,6 +2,7 @@ mod search_state;
 
 pub use search_state::{SearchKeyAction, SearchStatus, SearchTabState};
 
+use ratatui::Frame;
 use ratatui::layout::{Alignment, Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
@@ -9,7 +10,6 @@ use ratatui::widgets::{
     Block, Borders, Clear, Paragraph, Row, Scrollbar, ScrollbarOrientation, ScrollbarState, Table,
     TableState, Wrap,
 };
-use ratatui::Frame;
 
 use crate::theme;
 
@@ -103,10 +103,12 @@ fn render_centered_message(frame: &mut Frame, area: Rect, message: &str) {
     let paragraph = Paragraph::new(message)
         .style(Style::default().fg(theme::MUTED))
         .alignment(Alignment::Center)
-        .block(Block::default()
-            .borders(Borders::ALL)
-            .border_style(Style::default().fg(theme::MUTED))
-            .title(Span::styled("Results", Style::default().fg(theme::BLUE))));
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(theme::MUTED))
+                .title(Span::styled("Results", Style::default().fg(theme::BLUE))),
+        );
     frame.render_widget(paragraph, area);
 }
 
@@ -172,8 +174,7 @@ fn render_results_table(frame: &mut Frame, area: Rect, state: &mut SearchTabStat
     frame.render_stateful_widget(table, area, &mut table_state);
 
     let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight);
-    let mut scrollbar_state =
-        ScrollbarState::new(state.results.len()).position(state.selected);
+    let mut scrollbar_state = ScrollbarState::new(state.results.len()).position(state.selected);
     frame.render_stateful_widget(scrollbar, area, &mut scrollbar_state);
 }
 
@@ -208,8 +209,14 @@ fn footer_hints(pairs: &[(&str, &str)]) -> Vec<Span<'static>> {
     let mut spans = Vec::with_capacity(pairs.len() * 2);
     for (key, description) in pairs {
         let prefix = if spans.is_empty() { " " } else { "  " };
-        spans.push(Span::styled(format!("{prefix}{key}"), Style::default().fg(theme::PURPLE)));
-        spans.push(Span::styled(format!(": {description}"), Style::default().fg(theme::MUTED)));
+        spans.push(Span::styled(
+            format!("{prefix}{key}"),
+            Style::default().fg(theme::PURPLE),
+        ));
+        spans.push(Span::styled(
+            format!(": {description}"),
+            Style::default().fg(theme::MUTED),
+        ));
     }
     spans
 }
@@ -241,7 +248,10 @@ fn render_detail_popup(frame: &mut Frame, area: Rect, state: &SearchTabState) {
 
     let meta_line = Line::from(vec![
         Span::styled("Score: ", Style::default().fg(theme::BLUE)),
-        Span::styled(format!("{:.4}", result.score), Style::default().fg(theme::GREEN)),
+        Span::styled(
+            format!("{:.4}", result.score),
+            Style::default().fg(theme::GREEN),
+        ),
     ]);
     frame.render_widget(Paragraph::new(meta_line), meta_area);
 
@@ -251,14 +261,20 @@ fn render_detail_popup(frame: &mut Frame, area: Rect, state: &SearchTabState) {
 }
 
 fn render_section(frame: &mut Frame, area: Rect, title: &str, content: &str) {
-    let display = if content.is_empty() { "(empty)" } else { content };
+    let display = if content.is_empty() {
+        "(empty)"
+    } else {
+        content
+    };
     let paragraph = Paragraph::new(display.to_string())
         .style(Style::default().fg(theme::TEXT))
         .wrap(Wrap { trim: false })
-        .block(Block::default()
-            .borders(Borders::TOP)
-            .border_style(Style::default().fg(theme::MUTED))
-            .title(Span::styled(title, Style::default().fg(theme::BLUE))));
+        .block(
+            Block::default()
+                .borders(Borders::TOP)
+                .border_style(Style::default().fg(theme::MUTED))
+                .title(Span::styled(title, Style::default().fg(theme::BLUE))),
+        );
     frame.render_widget(paragraph, area);
 }
 
@@ -275,8 +291,13 @@ fn type_color(memory_type: &str) -> ratatui::style::Color {
 
 fn truncate_to_width(text: &str, max_chars: usize) -> String {
     let single_line: String = text.chars().take_while(|c| *c != '\n').collect();
-    if single_line.chars().count() <= max_chars { return single_line; }
-    let truncated: String = single_line.chars().take(max_chars.saturating_sub(3)).collect();
+    if single_line.chars().count() <= max_chars {
+        return single_line;
+    }
+    let truncated: String = single_line
+        .chars()
+        .take(max_chars.saturating_sub(3))
+        .collect();
     format!("{truncated}...")
 }
 
