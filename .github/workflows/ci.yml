@@ -34,8 +34,8 @@ jobs:
       - run: cargo clippy --all -- -D warnings
       - run: cargo fmt --all -- --check
 
-  node-typecheck:
-    name: Node typecheck
+  node-test:
+    name: Node test
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -48,8 +48,23 @@ jobs:
           cache: npm
           cache-dependency-path: mcp-server/package-lock.json
       - run: npm ci
+      - run: npm run typecheck
       - run: npm test
       - run: npm run build
+
+  rust-coverage:
+    name: Rust coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo install cargo-tarpaulin
+      - run: cargo tarpaulin --all --timeout 120 --out html --output-dir target/coverage
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: target/coverage/
 
   python-test:
     name: Python tests

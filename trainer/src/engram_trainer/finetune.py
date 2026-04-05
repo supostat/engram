@@ -127,33 +127,37 @@ def _tokenize_texts(texts: list[str], tokenizer, max_length: int) -> dict:
 
 
 def _run_training(model, tokenizer, dataset) -> float:
+    import shutil
     import torch
     from transformers import Trainer, TrainingArguments
     import tempfile
 
     training_directory = tempfile.mkdtemp(prefix="engram_lora_")
 
-    training_arguments = TrainingArguments(
-        output_dir=training_directory,
-        num_train_epochs=TRAINING_EPOCHS,
-        per_device_train_batch_size=TRAINING_BATCH_SIZE,
-        learning_rate=TRAINING_LEARNING_RATE,
-        logging_steps=1,
-        save_strategy="no",
-        report_to="none",
-        disable_tqdm=True,
-        use_cpu=not torch.cuda.is_available(),
-    )
+    try:
+        training_arguments = TrainingArguments(
+            output_dir=training_directory,
+            num_train_epochs=TRAINING_EPOCHS,
+            per_device_train_batch_size=TRAINING_BATCH_SIZE,
+            learning_rate=TRAINING_LEARNING_RATE,
+            logging_steps=1,
+            save_strategy="no",
+            report_to="none",
+            disable_tqdm=True,
+            use_cpu=not torch.cuda.is_available(),
+        )
 
-    trainer = Trainer(
-        model=model,
-        args=training_arguments,
-        train_dataset=dataset,
-        processing_class=tokenizer,
-    )
+        trainer = Trainer(
+            model=model,
+            args=training_arguments,
+            train_dataset=dataset,
+            processing_class=tokenizer,
+        )
 
-    train_output = trainer.train()
-    return train_output.training_loss
+        train_output = trainer.train()
+        return train_output.training_loss
+    finally:
+        shutil.rmtree(training_directory, ignore_errors=True)
 
 
 def _merge_lora_weights(lora_model):

@@ -114,7 +114,7 @@ export class Lifecycle {
     this.process.on("exit", (code) => {
       console.error(`[engram-mcp] engram-core exited with code ${code}`);
       if (this.state === LifecycleState.Connected) {
-        this.state = LifecycleState.Dead;
+        this.attemptReconnect();
       }
     });
   }
@@ -129,14 +129,55 @@ export class Lifecycle {
   }
 
   private startHealthCheck(): void {
-    this.healthTimer = setInterval(async () => {
-      try {
-        await this.client!.call("memory_status", {});
-      } catch (error) {
-        console.error("[engram-mcp] health check failed:", error);
-        this.state = LifecycleState.Reconnecting;
-      }
+    this.healthTimer = setInterval(() => {
+      this.performHealthCheck();
     }, this.healthIntervalMs);
+  }
+
+  private performHealthCheck(): void {
+    if (this.state !== LifecycleState.Connected || !this.client) return;
+
+    this.client.call("memory_status", {}).catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error("[engram-mcp] health check failed:", message);
+      this.attemptReconnect();
+    });
+  }
+
+  private attemptReconnect(): void {
+    if (this.state === LifecycleState.Reconnecting) return;
+    this.state = LifecycleState.Reconnecting;
+
+    if (this.healthTimer) {
+      clearInterval(this.healthTimer);
+      this.healthTimer = null;
+    }
+
+    if (this.client) {
+      this.client.close().catch(() => {});
+      this.client = null;
+    }
+
+    this.reconnectWithBackoff().catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error("[engram-mcp] reconnection exhausted:", message);
+      this.state = LifecycleState.Dead;
+    });
+  }
+
+  private async reconnectWithBackoff(): Promise<void> {
+    const backoffs = [1000, 2000, 4000];
+    for (let attempt = 0; attempt < backoffs.length; attempt++) {
+      await sleep(backoffs[attempt]);
+      console.error(`[engram-mcp] reconnect attempt ${attempt + 1}/${backoffs.length}`);
+      try {
+        await this.start();
+        return;
+      } catch {
+        // next attempt
+      }
+    }
+    throw new Error("reconnect attempts exhausted");
   }
 }
 
