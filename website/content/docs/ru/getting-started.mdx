@@ -1,0 +1,42 @@
+---
+title: Быстрый старт
+description: Установка и первый запуск engram
+---
+
+# Быстрый старт
+
+## Установка
+
+### Rust core
+
+```bash
+cargo install engram-core
+```
+
+### MCP сервер
+
+```bash
+npm install -g @engram/mcp-server
+```
+
+### Инициализация
+
+```bash
+engram init
+```
+
+Команда создаст `~/.engram/` с конфигурацией и базой данных.
+
+## Подключение к Claude
+
+Добавьте в настройки MCP-клиента:
+
+```json
+{
+  "mcpServers": {
+    "engram": {
+      "command": "engram-mcp"
+    }
+  }
+}
+```

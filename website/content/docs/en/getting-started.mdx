@@ -1,0 +1,42 @@
+---
+title: Quick Start
+description: Installing and running engram for the first time
+---
+
+# Quick Start
+
+## Installation
+
+### Rust core
+
+```bash
+cargo install engram-core
+```
+
+### MCP server
+
+```bash
+npm install -g @engram/mcp-server
+```
+
+### Initialize
+
+```bash
+engram init
+```
+
+This creates `~/.engram/` with configuration and database.
+
+## Connect to Claude
+
+Add to your MCP client settings:
+
+```json
+{
+  "mcpServers": {
+    "engram": {
+      "command": "engram-mcp"
+    }
+  }
+}
+```
