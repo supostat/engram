@@ -60,7 +60,7 @@ pub fn render_qlearning_tab(frame: &mut Frame, area: Rect, entries: &[QTableEntr
 }
 
 fn render_empty_state(frame: &mut Frame, area: Rect) {
-    let message = Paragraph::new("Q-таблица пуста. Используйте memory_judge для обучения роутера.")
+    let message = Paragraph::new("Q-table is empty. Use memory_judge to train the router.")
         .style(Style::default().fg(theme::MUTED))
         .alignment(Alignment::Center)
         .block(

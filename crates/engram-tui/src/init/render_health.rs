@@ -14,7 +14,7 @@ impl InitWizard {
     pub(super) fn render_mcp_snippets(&self, frame: &mut Frame) {
         let area = centered_rect(65, 28, frame.area());
         let block = Block::default()
-            .title(" MCP конфигурация ")
+            .title(" MCP Configuration ")
             .title_style(Style::default().fg(theme::PURPLE).add_modifier(Modifier::BOLD))
             .borders(Borders::ALL)
             .border_style(Style::default().fg(theme::MUTED))
@@ -51,7 +51,7 @@ impl InitWizard {
     pub(super) fn render_health_check(&self, frame: &mut Frame) {
         let area = centered_rect(60, 22, frame.area());
         let block = Block::default()
-            .title(" Проверка подключений ")
+            .title(" Connection Check ")
             .title_style(Style::default().fg(theme::PURPLE).add_modifier(Modifier::BOLD))
             .borders(Borders::ALL)
             .border_style(Style::default().fg(theme::MUTED))
@@ -66,7 +66,7 @@ impl InitWizard {
         let lines = match self.cached_health {
             Some(ref health) => build_health_lines(health, &self.existing_config),
             None => vec![Line::from(Span::styled(
-                "  Нет данных конфигурации",
+                "  No configuration data",
                 Style::default().fg(theme::RED),
             ))],
         };
@@ -87,7 +87,7 @@ fn build_health_lines(
 ) -> Vec<Line<'static>> {
     let mut lines = vec![
         Line::from(Span::styled(
-            "  Проверка подключений...",
+            "  Checking connections...",
             Style::default()
                 .fg(theme::TEXT)
                 .add_modifier(Modifier::BOLD),

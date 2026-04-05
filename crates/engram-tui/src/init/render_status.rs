@@ -37,7 +37,7 @@ impl InitWizard {
         let mut lines = Vec::new();
 
         lines.push(styled_line(
-            "  ✓ engram настроен",
+            "  ✓ engram configured",
             theme::GREEN,
             Modifier::BOLD,
         ));
@@ -51,7 +51,7 @@ impl InitWizard {
         }
 
         lines.push(Line::from(Span::styled(
-            "  Действия:",
+            "  Actions:",
             Style::default().fg(theme::TEXT).add_modifier(Modifier::BOLD),
         )));
 
@@ -129,7 +129,7 @@ impl InitWizard {
             return;
         };
         lines.push(Line::from(Span::styled(
-            "  Статистика:",
+            "  Statistics:",
             Style::default().fg(theme::TEXT).add_modifier(Modifier::BOLD),
         )));
 

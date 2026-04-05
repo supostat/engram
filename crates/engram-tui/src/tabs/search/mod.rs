@@ -37,9 +37,9 @@ pub fn render_search_tab(frame: &mut Frame, area: Rect, state: &mut SearchTabSta
 
 fn render_offline(frame: &mut Frame, area: Rect) {
     let text = "\n\
-                \x20 Сервер не запущен\n\
-                \x20 Запустите: engram server\n\n\
-                \x20 Search требует подключения к engram-core через\n\
+                \x20 Server not running\n\
+                \x20 Start with: engram server\n\n\
+                \x20 Search requires a connection to engram-core via\n\
                 \x20 unix socket (~/.engram/engram.sock)";
     let paragraph = Paragraph::new(text)
         .style(Style::default().fg(theme::MUTED))
