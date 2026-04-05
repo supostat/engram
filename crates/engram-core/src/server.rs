@@ -156,7 +156,7 @@ fn reindex_single_memory(
     let id_hash = crate::persistence::hash_string_to_u64(memory_id);
     let rng_value = crate::persistence::deterministic_rng(id_hash);
     if !indexes.contains(id_hash) {
-        indexes.insert(id_hash, &embedding, rng_value)?;
+        indexes.insert(id_hash, memory_id, &embedding, rng_value)?;
     }
     database.set_memory_indexed(memory_id, true)?;
     Ok(())

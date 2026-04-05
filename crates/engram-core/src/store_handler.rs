@@ -109,6 +109,7 @@ async fn persist_memory(
 
     let hashed_id = hash_string_to_u64(memory_id);
     let rng_value = deterministic_rng(hashed_id);
+    let memory_id_owned = memory_id.to_string();
     let embedding_owned = engram_embeddings::ThreeFieldEmbedding {
         context: embedding.context.clone(),
         action: embedding.action.clone(),
@@ -117,7 +118,7 @@ async fn persist_memory(
     let state_idx = Arc::clone(state);
     tokio::task::spawn_blocking(move || {
         let mut indexes = state_idx.indexes.lock().unwrap();
-        indexes.insert(hashed_id, &embedding_owned, rng_value)?;
+        indexes.insert(hashed_id, &memory_id_owned, &embedding_owned, rng_value)?;
         Ok::<(), CoreError>(())
     })
     .await

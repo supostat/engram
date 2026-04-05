@@ -20,8 +20,9 @@ pub fn load_or_rebuild(
 ) -> Result<IndexSet, CoreError> {
     let index_path = Path::new(index_directory).join(INDEX_FILENAME);
     if index_path.exists()
-        && let Ok(indexes) = load_from_disk(&index_path)
+        && let Ok(mut indexes) = load_from_disk(&index_path)
     {
+        rebuild_id_map_from_database(&mut indexes, database)?;
         return Ok(indexes);
     }
     rebuild_from_database(database, build_params)
@@ -46,9 +47,29 @@ fn rebuild_from_database(
             Some(emb) => emb,
             None => continue,
         };
-        indexes.insert(id, &embedding, deterministic_rng(id))?;
+        indexes.insert(id, &memory.id, &embedding, deterministic_rng(id))?;
     }
     Ok(indexes)
+}
+
+fn rebuild_id_map_from_database(
+    indexes: &mut IndexSet,
+    database: &Database,
+) -> Result<(), CoreError> {
+    let indexed_ids = database.get_indexed_memory_ids()?;
+    let entries: Vec<(u64, String)> = indexed_ids
+        .into_iter()
+        .filter_map(|memory_id| {
+            let hash = hash_string_to_u64(&memory_id);
+            if indexes.contains(hash) {
+                Some((hash, memory_id))
+            } else {
+                None
+            }
+        })
+        .collect();
+    indexes.rebuild_id_map(entries.into_iter());
+    Ok(())
 }
 
 pub fn save_to_disk(index_directory: &str, indexes: &IndexSet) -> Result<(), CoreError> {

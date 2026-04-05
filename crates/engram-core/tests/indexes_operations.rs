@@ -30,7 +30,7 @@ fn new_index_set_is_empty() {
 fn insert_and_contains() {
     let mut indexes = IndexSet::new(test_params).unwrap();
     let embedding = make_embedding([1.0, 0.0, 0.0, 0.0]);
-    indexes.insert(1, &embedding, 0.5).unwrap();
+    indexes.insert(1, "mem-1", &embedding, 0.5).unwrap();
     assert!(indexes.contains(1));
     assert!(!indexes.contains(2));
     assert_eq!(indexes.len(), 1);
@@ -41,8 +41,8 @@ fn search_returns_inserted_items() {
     let mut indexes = IndexSet::new(test_params).unwrap();
     let emb1 = make_embedding([1.0, 0.0, 0.0, 0.0]);
     let emb2 = make_embedding([0.0, 1.0, 0.0, 0.0]);
-    indexes.insert(1, &emb1, 0.3).unwrap();
-    indexes.insert(2, &emb2, 0.7).unwrap();
+    indexes.insert(1, "mem-1", &emb1, 0.3).unwrap();
+    indexes.insert(2, "mem-2", &emb2, 0.7).unwrap();
 
     let results = indexes.search(&[1.0, 0.0, 0.0, 0.0], 2).unwrap();
     assert!(!results.is_empty());
@@ -53,7 +53,7 @@ fn search_returns_inserted_items() {
 fn delete_removes_from_all_indexes() {
     let mut indexes = IndexSet::new(test_params).unwrap();
     let embedding = make_embedding([1.0, 0.0, 0.0, 0.0]);
-    indexes.insert(1, &embedding, 0.5).unwrap();
+    indexes.insert(1, "mem-1", &embedding, 0.5).unwrap();
     indexes.delete(1).unwrap();
     assert!(!indexes.contains(1));
     assert!(indexes.is_empty());
@@ -71,8 +71,8 @@ fn serialize_deserialize_roundtrip() {
     let mut indexes = IndexSet::new(test_params).unwrap();
     let emb1 = make_embedding([1.0, 0.0, 0.0, 0.0]);
     let emb2 = make_embedding([0.0, 1.0, 0.0, 0.0]);
-    indexes.insert(10, &emb1, 0.3).unwrap();
-    indexes.insert(20, &emb2, 0.7).unwrap();
+    indexes.insert(10, "mem-10", &emb1, 0.3).unwrap();
+    indexes.insert(20, "mem-20", &emb2, 0.7).unwrap();
 
     let mut buffer = Vec::new();
     indexes.serialize(&mut buffer).unwrap();
@@ -92,7 +92,7 @@ fn search_merges_across_three_indexes() {
         action: vec![0.0, 1.0, 0.0, 0.0],
         result: vec![0.0, 0.0, 1.0, 0.0],
     };
-    indexes.insert(1, &embedding, 0.5).unwrap();
+    indexes.insert(1, "mem-1", &embedding, 0.5).unwrap();
 
     let results_by_context = indexes.search(&[1.0, 0.0, 0.0, 0.0], 5).unwrap();
     let results_by_action = indexes.search(&[0.0, 1.0, 0.0, 0.0], 5).unwrap();
@@ -110,7 +110,7 @@ fn search_merges_across_three_indexes() {
 fn duplicate_insert_returns_error() {
     let mut indexes = IndexSet::new(test_params).unwrap();
     let embedding = make_embedding([1.0, 0.0, 0.0, 0.0]);
-    indexes.insert(1, &embedding, 0.5).unwrap();
-    let result = indexes.insert(1, &embedding, 0.5);
+    indexes.insert(1, "mem-1", &embedding, 0.5).unwrap();
+    let result = indexes.insert(1, "mem-1", &embedding, 0.5);
     assert!(result.is_err());
 }

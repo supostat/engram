@@ -85,14 +85,23 @@ async fn search_vector_index(
     state: &Arc<ServerState>,
     query_embedding: &[f32],
     top_k: usize,
-) -> Result<Vec<(u64, f32)>, CoreError> {
+) -> Result<Vec<(String, f32)>, CoreError> {
     let embedding_owned = query_embedding.to_vec();
     let state_clone = Arc::clone(state);
     tokio::task::spawn_blocking(move || {
         let indexes = state_clone.indexes.lock().unwrap();
-        indexes
+        let raw_results = indexes
             .search(&embedding_owned, top_k)
-            .map_err(CoreError::Hnsw)
+            .map_err(CoreError::Hnsw)?;
+        let resolved: Vec<(String, f32)> = raw_results
+            .into_iter()
+            .filter_map(|(node_id, score)| {
+                indexes
+                    .resolve_node_id(node_id)
+                    .map(|memory_id| (memory_id.to_string(), score))
+            })
+            .collect();
+        Ok(resolved)
     })
     .await
     .map_err(|error| CoreError::SocketError(error.to_string()))?
@@ -119,7 +128,7 @@ async fn search_fts(
 }
 
 fn merge_results(
-    vector_results: &[(u64, f32)],
+    vector_results: &[(String, f32)],
     sparse_results: &[(String, f64)],
 ) -> Vec<(String, f64)> {
     let mut combined: HashMap<String, f64> = HashMap::new();
@@ -128,11 +137,10 @@ fn merge_results(
         .map(|(_, score)| *score as f64)
         .fold(0.0f64, f64::max)
         .max(1.0);
-    for &(id_hash, score) in vector_results {
-        let normalized = score as f64 / vector_max;
-        let key = format!("hnsw:{id_hash}");
+    for (memory_id, score) in vector_results {
+        let normalized = *score as f64 / vector_max;
         combined
-            .entry(key)
+            .entry(memory_id.clone())
             .and_modify(|existing| *existing = existing.max(normalized * VECTOR_WEIGHT))
             .or_insert(normalized * VECTOR_WEIGHT);
     }
@@ -163,7 +171,6 @@ async fn load_memories(
 ) -> Result<Vec<Value>, CoreError> {
     let memory_ids: Vec<String> = scored_results
         .iter()
-        .filter(|(key, _)| !key.starts_with("hnsw:"))
         .map(|(id, _)| id.clone())
         .collect();
     let scores: HashMap<String, f64> = scored_results.iter().cloned().collect();

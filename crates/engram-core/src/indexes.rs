@@ -10,6 +10,7 @@ pub struct IndexSet {
     context_index: HnswGraph,
     action_index: HnswGraph,
     result_index: HnswGraph,
+    id_map: HashMap<u64, String>,
 }
 
 impl IndexSet {
@@ -23,12 +24,14 @@ impl IndexSet {
             context_index,
             action_index,
             result_index,
+            id_map: HashMap::new(),
         })
     }
 
     pub fn insert(
         &mut self,
         id: u64,
+        memory_id: &str,
         embedding: &ThreeFieldEmbedding,
         rng_value: f64,
     ) -> Result<(), HnswError> {
@@ -38,7 +41,19 @@ impl IndexSet {
             .insert(id, embedding.action.clone(), rng_value)?;
         self.result_index
             .insert(id, embedding.result.clone(), rng_value)?;
+        self.id_map.insert(id, memory_id.to_string());
         Ok(())
+    }
+
+    pub fn resolve_node_id(&self, node_id: u64) -> Option<&str> {
+        self.id_map.get(&node_id).map(String::as_str)
+    }
+
+    pub fn rebuild_id_map(&mut self, entries: impl Iterator<Item = (u64, String)>) {
+        self.id_map.clear();
+        for (hash, memory_id) in entries {
+            self.id_map.insert(hash, memory_id);
+        }
     }
 
     pub fn search(&self, query: &[f32], top_k: usize) -> Result<Vec<(u64, f32)>, HnswError> {
@@ -56,6 +71,7 @@ impl IndexSet {
         self.context_index.delete(id)?;
         self.action_index.delete(id)?;
         self.result_index.delete(id)?;
+        self.id_map.remove(&id);
         Ok(())
     }
 
@@ -86,6 +102,7 @@ impl IndexSet {
             context_index,
             action_index,
             result_index,
+            id_map: HashMap::new(),
         })
     }
 }

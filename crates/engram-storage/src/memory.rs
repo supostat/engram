@@ -221,4 +221,16 @@ impl Database {
         }
         Ok(results)
     }
+
+    pub fn get_indexed_memory_ids(&self) -> Result<Vec<String>, StorageError> {
+        let mut statement = self
+            .connection()
+            .prepare("SELECT id FROM memories WHERE indexed = TRUE")?;
+        let rows = statement.query_map([], |row| row.get::<_, String>(0))?;
+        let mut results = Vec::new();
+        for row in rows {
+            results.push(row?);
+        }
+        Ok(results)
+    }
 }

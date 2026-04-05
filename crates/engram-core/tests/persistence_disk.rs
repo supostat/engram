@@ -20,7 +20,7 @@ fn save_and_load_from_disk() {
         action: vec![0.0, 1.0, 0.0, 0.0],
         result: vec![0.0, 0.0, 1.0, 0.0],
     };
-    indexes.insert(42, &embedding, 0.5).unwrap();
+    indexes.insert(42, "mem-42", &embedding, 0.5).unwrap();
 
     engram_core::persistence::save_to_disk(dir_path, &indexes).unwrap();
 
@@ -62,7 +62,7 @@ fn load_or_rebuild_prefers_existing_file() {
         action: vec![0.0, 1.0, 0.0, 0.0],
         result: vec![0.0, 0.0, 1.0, 0.0],
     };
-    indexes.insert(99, &embedding, 0.4).unwrap();
+    indexes.insert(99, "mem-99", &embedding, 0.4).unwrap();
     engram_core::persistence::save_to_disk(dir_path, &indexes).unwrap();
 
     let database = engram_storage::Database::in_memory().unwrap();
