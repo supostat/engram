@@ -1,16 +1,20 @@
 mod actions;
 mod app;
 mod data;
+mod init;
 mod overlays;
 mod tabs;
 #[allow(dead_code)]
 mod theme;
 
-use clap::Parser;
+use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
 #[command(name = "engram-tui", about = "Terminal dashboard for engram")]
 struct Args {
+    #[command(subcommand)]
+    command: Option<SubCommand>,
+
     /// Path to engram SQLite database
     #[arg(long, short)]
     database: Option<String>,
@@ -24,8 +28,20 @@ struct Args {
     socket: Option<String>,
 }
 
+#[derive(Subcommand)]
+enum SubCommand {
+    /// Interactive setup wizard
+    Init,
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
+
+    if matches!(args.command, Some(SubCommand::Init)) {
+        ratatui::run(init::run_init_wizard)?;
+        return Ok(());
+    }
+
     let database_path = resolve_database_path(args.database);
     let models_path = resolve_models_path(args.models_path);
     let socket_path = resolve_socket_path(args.socket);

@@ -40,8 +40,13 @@ min_score = 0.3
 "#;
 
 pub fn execute() -> Result<(), CoreError> {
+    try_interactive_wizard();
+
     if config_already_exists() {
-        println!("engram.toml already exists, skipping initialization.");
+        // Config exists (possibly created by wizard). Ensure DB and AGENT.md are set up.
+        let engram_directory = resolve_engram_directory()?;
+        initialize_database(&engram_directory)?;
+        write_agent_instructions(&engram_directory)?;
         return Ok(());
     }
     let engram_directory = resolve_engram_directory()?;
@@ -51,6 +56,23 @@ pub fn execute() -> Result<(), CoreError> {
     write_agent_instructions(&engram_directory)?;
     print_mcp_snippets();
     Ok(())
+}
+
+fn try_interactive_wizard() {
+    if !std::io::IsTerminal::is_terminal(&std::io::stdin()) {
+        return;
+    }
+    let result = std::process::Command::new("engram-tui")
+        .arg("init")
+        .status();
+    match result {
+        Ok(status) if status.success() => {
+            // Wizard created engram.toml. Fall through to set up DB and AGENT.md.
+        }
+        _ => {
+            // engram-tui not found or wizard cancelled. Fall through to non-interactive.
+        }
+    }
 }
 
 fn config_already_exists() -> bool {
