@@ -10,7 +10,9 @@ use ratatui::DefaultTerminal;
 use ratatui::Frame;
 
 use crate::data::{DatabaseReader, MemorySummary};
-use crate::tabs::render_status_tab;
+use crate::tabs::{
+    render_memories_tab, render_models_tab, render_status_tab, MemoriesTabState, ModelsTabState,
+};
 use crate::theme;
 
 const POLL_TIMEOUT: Duration = Duration::from_millis(250);
@@ -65,19 +67,29 @@ pub struct App {
     database: DatabaseReader,
     database_path: String,
     stats: DashboardStats,
+    memories_state: MemoriesTabState,
+    models_state: ModelsTabState,
     should_quit: bool,
     last_refresh: Instant,
 }
 
 impl App {
-    pub fn new(database_path: &str) -> io::Result<Self> {
+    pub fn new(database_path: &str, models_path: &str) -> io::Result<Self> {
         let database = DatabaseReader::new(database_path)?;
         let stats = load_stats(&database);
+        let memories = database.list_memories(500);
+        let models = database.models_info(models_path);
+        let mut memories_state = MemoriesTabState::new();
+        memories_state.memories = memories;
+        let mut models_state = ModelsTabState::new(models_path.to_string());
+        models_state.models = models;
         Ok(Self {
             tab: Tab::Status,
             database,
             database_path: database_path.to_string(),
             stats,
+            memories_state,
+            models_state,
             should_quit: false,
             last_refresh: Instant::now(),
         })
@@ -107,6 +119,32 @@ impl App {
     }
 
     fn handle_key(&mut self, code: KeyCode) {
+        if self.tab == Tab::Memories && self.memories_state.detail_open {
+            match code {
+                KeyCode::Esc | KeyCode::Enter => self.memories_state.close_detail(),
+                _ => {}
+            }
+            return;
+        }
+
+        if self.tab == Tab::Memories {
+            match code {
+                KeyCode::Char('j') | KeyCode::Down => {
+                    self.memories_state.move_down();
+                    return;
+                }
+                KeyCode::Char('k') | KeyCode::Up => {
+                    self.memories_state.move_up();
+                    return;
+                }
+                KeyCode::Enter => {
+                    self.memories_state.toggle_detail();
+                    return;
+                }
+                _ => {}
+            }
+        }
+
         match code {
             KeyCode::Char('q') | KeyCode::Esc => self.should_quit = true,
             KeyCode::Tab => self.next_tab(),
@@ -141,10 +179,13 @@ impl App {
 
     fn force_refresh(&mut self) {
         self.stats = load_stats(&self.database);
+        self.memories_state.memories = self.database.list_memories(500);
+        self.memories_state.clamp_selection();
+        self.models_state.models = self.database.models_info(&self.models_state.models_path);
         self.last_refresh = Instant::now();
     }
 
-    fn render(&self, frame: &mut Frame) {
+    fn render(&mut self, frame: &mut Frame) {
         let [header_area, content_area, footer_area] = Layout::vertical([
             Constraint::Length(3),
             Constraint::Fill(1),
@@ -152,9 +193,10 @@ impl App {
         ])
         .areas(frame.area());
 
+        let current_tab = self.tab;
         self.render_header(frame, header_area);
         self.render_content(frame, content_area);
-        render_footer(frame, footer_area);
+        render_footer(frame, footer_area, current_tab);
     }
 
     fn render_header(&self, frame: &mut Frame, area: Rect) {
@@ -181,9 +223,11 @@ impl App {
         frame.render_widget(tabs_widget, area);
     }
 
-    fn render_content(&self, frame: &mut Frame, area: Rect) {
+    fn render_content(&mut self, frame: &mut Frame, area: Rect) {
         match self.tab {
             Tab::Status => render_status_tab(frame, area, &self.stats),
+            Tab::Memories => render_memories_tab(frame, area, &mut self.memories_state),
+            Tab::Models => render_models_tab(frame, area, &self.models_state),
             _ => render_placeholder(frame, area, self.tab.title()),
         }
     }
@@ -208,8 +252,8 @@ fn render_database_path(frame: &mut Frame, area: Rect, path: &str) {
     frame.render_widget(display, area);
 }
 
-fn render_footer(frame: &mut Frame, area: Rect) {
-    let footer = Paragraph::new(Line::from(vec![
+fn render_footer(frame: &mut Frame, area: Rect, tab: Tab) {
+    let mut spans = vec![
         Span::styled(" q", Style::default().fg(theme::PURPLE)),
         Span::styled(": quit", Style::default().fg(theme::MUTED)),
         Span::styled("  Tab", Style::default().fg(theme::PURPLE)),
@@ -218,7 +262,16 @@ fn render_footer(frame: &mut Frame, area: Rect) {
         Span::styled(": jump", Style::default().fg(theme::MUTED)),
         Span::styled("  r", Style::default().fg(theme::PURPLE)),
         Span::styled(": refresh", Style::default().fg(theme::MUTED)),
-    ]));
+    ];
+    if tab == Tab::Memories {
+        spans.extend([
+            Span::styled("  j/k", Style::default().fg(theme::PURPLE)),
+            Span::styled(": scroll", Style::default().fg(theme::MUTED)),
+            Span::styled("  Enter", Style::default().fg(theme::PURPLE)),
+            Span::styled(": detail", Style::default().fg(theme::MUTED)),
+        ]);
+    }
+    let footer = Paragraph::new(Line::from(spans));
     frame.render_widget(footer, area);
 }
 

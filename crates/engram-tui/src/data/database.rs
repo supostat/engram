@@ -6,8 +6,11 @@ use rusqlite::{Connection, OpenFlags};
 pub struct MemorySummary {
     pub memory_type: String,
     pub context: String,
+    pub action: String,
+    pub result: String,
     pub score: f64,
     pub project: Option<String>,
+    pub created_at: String,
 }
 
 impl MemorySummary {
@@ -18,7 +21,6 @@ impl MemorySummary {
     }
 }
 
-#[allow(dead_code)]
 pub struct ModelInfo {
     pub filename: String,
     pub size_bytes: u64,
@@ -90,7 +92,8 @@ impl DatabaseReader {
     }
 
     pub fn recent_memories(&self, limit: usize) -> Vec<MemorySummary> {
-        let query = "SELECT memory_type, context, score, COALESCE(project, '') \
+        let query = "SELECT memory_type, context, COALESCE(action, ''), COALESCE(result, ''), \
+                     score, COALESCE(project, ''), created_at \
                      FROM memories ORDER BY created_at DESC LIMIT ?1";
         let Ok(mut statement) = self.connection.prepare(query) else {
             return Vec::new();
@@ -99,8 +102,34 @@ impl DatabaseReader {
             Ok(MemorySummary {
                 memory_type: row.get(0)?,
                 context: truncate_context(row.get::<_, String>(1)?),
-                score: row.get(2)?,
-                project: non_empty_string(row.get::<_, String>(3)?),
+                action: row.get(2)?,
+                result: row.get(3)?,
+                score: row.get(4)?,
+                project: non_empty_string(row.get::<_, String>(5)?),
+                created_at: row.get(6)?,
+            })
+        }) else {
+            return Vec::new();
+        };
+        rows.flatten().collect()
+    }
+
+    pub fn list_memories(&self, limit: usize) -> Vec<MemorySummary> {
+        let query = "SELECT memory_type, context, COALESCE(action, ''), COALESCE(result, ''), \
+                     score, COALESCE(project, ''), created_at \
+                     FROM memories ORDER BY created_at DESC LIMIT ?1";
+        let Ok(mut statement) = self.connection.prepare(query) else {
+            return Vec::new();
+        };
+        let Ok(rows) = statement.query_map([limit as i64], |row| {
+            Ok(MemorySummary {
+                memory_type: row.get(0)?,
+                context: row.get(1)?,
+                action: row.get(2)?,
+                result: row.get(3)?,
+                score: row.get(4)?,
+                project: non_empty_string(row.get::<_, String>(5)?),
+                created_at: row.get(6)?,
             })
         }) else {
             return Vec::new();
@@ -113,7 +142,6 @@ impl DatabaseReader {
         self.query_count("SELECT COUNT(*) FROM q_table")
     }
 
-    #[allow(dead_code)]
     pub fn models_info(&self, models_path: &str) -> Vec<ModelInfo> {
         let path = Path::new(models_path);
         let Ok(entries) = std::fs::read_dir(path) else {

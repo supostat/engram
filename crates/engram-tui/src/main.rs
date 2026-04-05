@@ -12,14 +12,30 @@ struct Args {
     /// Path to engram SQLite database
     #[arg(long, short)]
     database: Option<String>,
+
+    /// Path to ONNX models directory
+    #[arg(long, short)]
+    models_path: Option<String>,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
     let database_path = resolve_database_path(args.database);
-    let mut application = app::App::new(&database_path)?;
+    let models_path = resolve_models_path(args.models_path);
+    let mut application = app::App::new(&database_path, &models_path)?;
     ratatui::run(|terminal| application.run(terminal))?;
     Ok(())
+}
+
+fn resolve_models_path(explicit_path: Option<String>) -> String {
+    if let Some(path) = explicit_path {
+        return expand_tilde(&path);
+    }
+    let home = dirs::home_dir().expect("cannot determine home directory");
+    home.join(".engram")
+        .join("models")
+        .to_string_lossy()
+        .into_owned()
 }
 
 fn resolve_database_path(explicit_path: Option<String>) -> String {
