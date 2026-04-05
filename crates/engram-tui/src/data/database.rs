@@ -176,7 +176,7 @@ impl DatabaseReader {
                 entry
                     .path()
                     .extension()
-                    .is_some_and(|ext| ext == "onnx" || ext == "json")
+                    .is_some_and(|ext| ext == "onnx" || ext == "json" || ext == "data" || ext == "txt")
             })
             .filter_map(|entry| model_info_from_entry(&entry))
             .collect();
