@@ -9,10 +9,11 @@ use ratatui::widgets::{Block, Borders, Paragraph, Tabs};
 use ratatui::DefaultTerminal;
 use ratatui::Frame;
 
-use crate::data::{DatabaseReader, MemorySummary, QTableEntry};
+use crate::data::{DatabaseReader, MemorySummary, QTableEntry, SocketClient};
 use crate::tabs::{
-    render_memories_tab, render_models_tab, render_qlearning_tab, render_status_tab,
-    MemoriesTabState, ModelsTabState,
+    render_memories_tab, render_models_tab, render_qlearning_tab, render_search_tab,
+    render_status_tab, MemoriesTabState, ModelsTabState, SearchKeyAction, SearchStatus,
+    SearchTabState,
 };
 use crate::theme;
 
@@ -70,13 +71,15 @@ pub struct App {
     stats: DashboardStats,
     q_table_entries: Vec<QTableEntry>,
     memories_state: MemoriesTabState,
+    search_state: SearchTabState,
+    socket: Option<SocketClient>,
     models_state: ModelsTabState,
     should_quit: bool,
     last_refresh: Instant,
 }
 
 impl App {
-    pub fn new(database_path: &str, models_path: &str) -> io::Result<Self> {
+    pub fn new(database_path: &str, models_path: &str, socket_path: &str) -> io::Result<Self> {
         let database = DatabaseReader::new(database_path)?;
         let stats = load_stats(&database);
         let q_table_entries = database.q_table_entries();
@@ -86,6 +89,11 @@ impl App {
         memories_state.memories = memories;
         let mut models_state = ModelsTabState::new(models_path.to_string());
         models_state.models = models;
+        let socket = SocketClient::connect(socket_path).ok();
+        let mut search_state = SearchTabState::new();
+        if socket.is_none() {
+            search_state.status = SearchStatus::Offline;
+        }
         Ok(Self {
             tab: Tab::Status,
             database,
@@ -93,6 +101,8 @@ impl App {
             stats,
             q_table_entries,
             memories_state,
+            search_state,
+            socket,
             models_state,
             should_quit: false,
             last_refresh: Instant::now(),
@@ -127,6 +137,16 @@ impl App {
             match code {
                 KeyCode::Esc | KeyCode::Enter => self.memories_state.close_detail(),
                 _ => {}
+            }
+            return;
+        }
+
+        if self.tab == Tab::Search && !matches!(self.search_state.status, SearchStatus::Offline) {
+            match self.search_state.handle_key(code, &mut self.socket) {
+                SearchKeyAction::Quit => self.should_quit = true,
+                SearchKeyAction::NextTab => self.next_tab(),
+                SearchKeyAction::PreviousTab => self.previous_tab(),
+                SearchKeyAction::Handled => {}
             }
             return;
         }
@@ -232,9 +252,9 @@ impl App {
         match self.tab {
             Tab::Status => render_status_tab(frame, area, &self.stats),
             Tab::Memories => render_memories_tab(frame, area, &mut self.memories_state),
+            Tab::Search => render_search_tab(frame, area, &mut self.search_state),
             Tab::QLearning => render_qlearning_tab(frame, area, &self.q_table_entries),
             Tab::Models => render_models_tab(frame, area, &self.models_state),
-            _ => render_placeholder(frame, area, self.tab.title()),
         }
     }
 }
@@ -259,6 +279,9 @@ fn render_database_path(frame: &mut Frame, area: Rect, path: &str) {
 }
 
 fn render_footer(frame: &mut Frame, area: Rect, tab: Tab) {
+    if tab == Tab::Search {
+        return;
+    }
     let mut spans = vec![
         Span::styled(" q", Style::default().fg(theme::PURPLE)),
         Span::styled(": quit", Style::default().fg(theme::MUTED)),
@@ -279,18 +302,6 @@ fn render_footer(frame: &mut Frame, area: Rect, tab: Tab) {
     }
     let footer = Paragraph::new(Line::from(spans));
     frame.render_widget(footer, area);
-}
-
-fn render_placeholder(frame: &mut Frame, area: Rect, tab_name: &str) {
-    let paragraph = Paragraph::new(format!("{tab_name} — coming soon"))
-        .style(Style::default().fg(theme::MUTED))
-        .alignment(ratatui::layout::Alignment::Center)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(theme::MUTED)),
-        );
-    frame.render_widget(paragraph, area);
 }
 
 fn header_block() -> Block<'static> {
