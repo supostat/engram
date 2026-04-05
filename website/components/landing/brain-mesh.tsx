@@ -17,13 +17,15 @@ interface Connection {
 
 function generateBrainNodes(count: number): Node[] {
   const nodes: Node[] = [];
-  for (let i = 0; i < count; i++) {
+  let attempts = 0;
+  while (nodes.length < count && attempts < count * 10) {
+    attempts++;
     const theta = Math.random() * Math.PI * 2;
     const phi = Math.acos(2 * Math.random() - 1);
-    const radiusX = 2.2;
-    const radiusY = 1.6;
-    const radiusZ = 1.8;
-    const jitter = 0.7 + Math.random() * 0.3;
+    const radiusX = 3.4;
+    const radiusY = 2.6;
+    const radiusZ = 2.4;
+    const jitter = 0.75 + Math.random() * 0.25;
     const x = radiusX * Math.sin(phi) * Math.cos(theta) * jitter;
     const y = radiusY * Math.sin(phi) * Math.sin(theta) * jitter;
     const z = radiusZ * Math.cos(phi) * jitter;
@@ -54,8 +56,8 @@ export function BrainMesh() {
   const pulsePhaseRef = useRef(0);
 
   const { nodes, connections, linePositions, lineColors } = useMemo(() => {
-    const generatedNodes = generateBrainNodes(50);
-    const generatedConnections = generateConnections(generatedNodes, 1.8);
+    const generatedNodes = generateBrainNodes(65);
+    const generatedConnections = generateConnections(generatedNodes, 2.2);
 
     const positions = new Float32Array(generatedConnections.length * 6);
     const colors = new Float32Array(generatedConnections.length * 6);
@@ -137,11 +139,11 @@ export function BrainMesh() {
       <group ref={groupRef}>
         {nodes.map((node, index) => (
           <mesh key={index} position={node.position}>
-            <sphereGeometry args={[0.06, 12, 12]} />
+            <sphereGeometry args={[0.07, 12, 12]} />
             <meshStandardMaterial
-              color="#8b5cf6"
+              color="#a78bfa"
               emissive="#8b5cf6"
-              emissiveIntensity={1.2}
+              emissiveIntensity={1.8}
               toneMapped={false}
             />
           </mesh>
@@ -157,7 +159,7 @@ export function BrainMesh() {
               args={[lineColors, 3]}
             />
           </bufferGeometry>
-          <lineBasicMaterial vertexColors transparent opacity={0.5} />
+          <lineBasicMaterial vertexColors transparent opacity={0.35} />
         </lineSegments>
       </group>
     </Float>

@@ -4,7 +4,10 @@ export const translations = {
   ru: {
     heroTitle: 'engram',
     heroSubtitle: 'AI-память для агентов',
+    heroDescription: 'Хранит решения. Учится. Находит релевантное.',
     heroButton: 'Начать',
+    heroStats: ['11 MCP-инструментов', '350+ тестов', '8 крейтов'],
+    scrollHint: 'Узнать больше',
 
     featuresTitle: 'Возможности',
     featureHybridSearch: 'Гибридный поиск',
@@ -50,7 +53,10 @@ export const translations = {
   en: {
     heroTitle: 'engram',
     heroSubtitle: 'AI memory for agents',
+    heroDescription: 'Stores decisions. Learns. Finds what matters.',
     heroButton: 'Get Started',
+    heroStats: ['11 MCP tools', '350+ tests', '8 crates'],
+    scrollHint: 'Learn more',
 
     featuresTitle: 'Features',
     featureHybridSearch: 'Hybrid Search',
