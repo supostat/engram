@@ -29,7 +29,7 @@ jobs:
           node-version: "18"
           cache: npm
           cache-dependency-path: website/package-lock.json
-      - run: npm ci
+      - run: rm -f package-lock.json && npm install
       - run: npm run build
       - uses: actions/upload-pages-artifact@v3
         with:
