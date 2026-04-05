@@ -1,5 +1,9 @@
 mod config;
+mod existing_config;
+mod navigation;
 mod render;
+mod render_health;
+mod render_status;
 mod wizard;
 
 use std::io;

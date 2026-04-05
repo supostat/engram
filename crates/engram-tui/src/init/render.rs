@@ -14,11 +14,16 @@ use super::wizard::{
 
 impl InitWizard {
     pub(super) fn render(&self, frame: &mut Frame) {
+        if self.step.is_status_screen() {
+            self.render_status_screen(frame);
+            return;
+        }
+
         let area = centered_rect(60, 22, frame.area());
         let title = format!(
             " engram init --- Step {}/{} ",
             self.step.number(),
-            Step::ALL.len()
+            Step::WIZARD_STEPS.len()
         );
         let block = Block::default()
             .title(title)
@@ -42,6 +47,9 @@ impl InitWizard {
 
     fn render_step_content(&self, frame: &mut Frame, area: Rect) {
         match self.step {
+            Step::StatusMenu | Step::McpSnippets | Step::HealthCheck => {
+                unreachable!("status screens handled by render_status_screen")
+            }
             Step::EmbeddingProvider => self.render_radio_step(
                 frame, area,
                 "Embedding Provider",

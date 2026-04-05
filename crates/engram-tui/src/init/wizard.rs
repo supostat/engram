@@ -4,10 +4,15 @@ use std::time::Duration;
 use ratatui::crossterm::event::{self, Event, KeyCode, KeyEventKind};
 use ratatui::DefaultTerminal;
 
+use super::existing_config::{EngineStats, ExistingConfig, HealthStatus, mask_api_key};
+
 const POLL_TIMEOUT: Duration = Duration::from_millis(100);
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Step {
+    StatusMenu,
+    McpSnippets,
+    HealthCheck,
     EmbeddingProvider,
     EmbeddingApiKey,
     LlmProvider,
@@ -18,7 +23,7 @@ pub enum Step {
 }
 
 impl Step {
-    pub const ALL: [Step; 7] = [
+    pub const WIZARD_STEPS: [Step; 7] = [
         Step::EmbeddingProvider,
         Step::EmbeddingApiKey,
         Step::LlmProvider,
@@ -29,9 +34,31 @@ impl Step {
     ];
 
     pub fn number(self) -> usize {
-        Step::ALL.iter().position(|&s| s == self).unwrap_or(0) + 1
+        Step::WIZARD_STEPS
+            .iter()
+            .position(|&s| s == self)
+            .unwrap_or(0)
+            + 1
+    }
+
+    pub fn is_status_screen(self) -> bool {
+        matches!(self, Step::StatusMenu | Step::McpSnippets | Step::HealthCheck)
+    }
+
+    pub fn is_text_input(self) -> bool {
+        matches!(
+            self,
+            Step::EmbeddingApiKey | Step::LlmApiKey | Step::DatabasePath
+        )
     }
 }
+
+pub const STATUS_MENU_LABELS: [&str; 4] = [
+    "Перенастроить конфигурацию",
+    "Показать MCP сниппет",
+    "Проверить подключения",
+    "Выход",
+];
 
 pub struct InitWizard {
     pub(super) step: Step,
@@ -46,6 +73,10 @@ pub struct InitWizard {
     pub(super) created: bool,
     pub(super) error_message: Option<String>,
     pub(super) should_quit: bool,
+    pub(super) existing_config: Option<ExistingConfig>,
+    pub(super) cached_stats: Option<EngineStats>,
+    pub(super) cached_health: Option<HealthStatus>,
+    pub(super) status_menu_selection: usize,
 }
 
 pub const EMBEDDING_OPTIONS: [&str; 2] = ["voyage", "deterministic"];
@@ -70,8 +101,14 @@ impl InitWizard {
             .map(|home| home.join(".engram/memories.db").to_string_lossy().into_owned())
             .unwrap_or_else(|| "~/.engram/memories.db".into());
 
-        Self {
-            step: Step::EmbeddingProvider,
+        let existing_config = ExistingConfig::load();
+        let (initial_step, cached_stats) = match &existing_config {
+            Some(config) => (Step::StatusMenu, Some(config.collect_stats())),
+            None => (Step::EmbeddingProvider, None),
+        };
+
+        let mut wizard = Self {
+            step: initial_step,
             embedding_provider: 0,
             embedding_api_key: String::new(),
             llm_provider: 0,
@@ -83,7 +120,39 @@ impl InitWizard {
             created: false,
             error_message: None,
             should_quit: false,
-        }
+            existing_config,
+            cached_stats,
+            cached_health: None,
+            status_menu_selection: 0,
+        };
+        wizard.prefill_from_existing_config();
+        wizard
+    }
+
+    fn prefill_from_existing_config(&mut self) {
+        let Some(ref config) = self.existing_config else {
+            return;
+        };
+        self.embedding_provider = EMBEDDING_OPTIONS
+            .iter()
+            .position(|&opt| opt == config.embedding_provider)
+            .unwrap_or(0);
+        self.llm_provider = LLM_OPTIONS
+            .iter()
+            .position(|&opt| opt == config.llm_provider)
+            .unwrap_or(0);
+        self.embedding_api_key = config
+            .embedding_api_key
+            .as_deref()
+            .map(mask_api_key)
+            .unwrap_or_default();
+        self.llm_api_key = config
+            .llm_api_key
+            .as_deref()
+            .map(mask_api_key)
+            .unwrap_or_default();
+        self.database_path = config.database_path.clone();
+        self.text_input = config.database_path.clone();
     }
 
     pub fn run(&mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
@@ -106,7 +175,7 @@ impl InitWizard {
         }
         self.error_message = None;
         match key.code {
-            KeyCode::Char('q') => self.should_quit = true,
+            KeyCode::Char('q') if !self.step.is_text_input() => self.should_quit = true,
             KeyCode::Esc => self.go_back(),
             _ => self.handle_step_key(key.code),
         }
@@ -115,6 +184,8 @@ impl InitWizard {
 
     fn handle_step_key(&mut self, code: KeyCode) {
         match self.step {
+            Step::StatusMenu => self.handle_status_menu_key(code),
+            Step::McpSnippets | Step::HealthCheck => {}
             Step::EmbeddingProvider => self.handle_radio_key(code, EMBEDDING_OPTIONS.len()),
             Step::EmbeddingApiKey => self.handle_text_key(code),
             Step::LlmProvider => self.handle_radio_key(code, LLM_OPTIONS.len()),
@@ -193,78 +264,4 @@ impl InitWizard {
         }
     }
 
-    fn advance(&mut self) {
-        match self.step {
-            Step::EmbeddingProvider => {
-                if EMBEDDING_OPTIONS[self.embedding_provider] == "voyage" {
-                    self.text_input = self.embedding_api_key.clone();
-                    self.cursor_position = self.text_input.len();
-                    self.step = Step::EmbeddingApiKey;
-                } else {
-                    self.step = Step::LlmProvider;
-                }
-            }
-            Step::EmbeddingApiKey => {
-                self.embedding_api_key = self.text_input.clone();
-                self.step = Step::LlmProvider;
-            }
-            Step::LlmProvider => {
-                if LLM_OPTIONS[self.llm_provider] == "openai" {
-                    self.text_input = self.llm_api_key.clone();
-                    self.cursor_position = self.text_input.len();
-                    self.step = Step::LlmApiKey;
-                } else {
-                    self.text_input = self.database_path.clone();
-                    self.cursor_position = self.text_input.len();
-                    self.step = Step::DatabasePath;
-                }
-            }
-            Step::LlmApiKey => {
-                self.llm_api_key = self.text_input.clone();
-                self.text_input = self.database_path.clone();
-                self.cursor_position = self.text_input.len();
-                self.step = Step::DatabasePath;
-            }
-            Step::DatabasePath => {
-                self.database_path = self.text_input.clone();
-                self.step = Step::McpClient;
-            }
-            Step::McpClient => {
-                self.step = Step::Summary;
-            }
-            Step::Summary => {}
-        }
-    }
-
-    fn go_back(&mut self) {
-        match self.step {
-            Step::EmbeddingProvider => self.should_quit = true,
-            Step::EmbeddingApiKey => self.step = Step::EmbeddingProvider,
-            Step::LlmProvider => {
-                if EMBEDDING_OPTIONS[self.embedding_provider] == "voyage" {
-                    self.text_input = self.embedding_api_key.clone();
-                    self.cursor_position = self.text_input.len();
-                    self.step = Step::EmbeddingApiKey;
-                } else {
-                    self.step = Step::EmbeddingProvider;
-                }
-            }
-            Step::LlmApiKey => self.step = Step::LlmProvider,
-            Step::DatabasePath => {
-                if LLM_OPTIONS[self.llm_provider] == "openai" {
-                    self.text_input = self.llm_api_key.clone();
-                    self.cursor_position = self.text_input.len();
-                    self.step = Step::LlmApiKey;
-                } else {
-                    self.step = Step::LlmProvider;
-                }
-            }
-            Step::McpClient => {
-                self.text_input = self.database_path.clone();
-                self.cursor_position = self.text_input.len();
-                self.step = Step::DatabasePath;
-            }
-            Step::Summary => self.step = Step::McpClient,
-        }
-    }
 }

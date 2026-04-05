@@ -790,6 +790,7 @@ dependencies = [
  "ratatui",
  "rusqlite",
  "serde_json",
+ "toml",
 ]
 
 [[package]]
