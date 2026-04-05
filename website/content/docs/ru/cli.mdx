@@ -1,0 +1,178 @@
+---
+title: CLI команды
+description: Справочник по командам engram CLI
+---
+
+# CLI команды
+
+Engram CLI работает автономно с SQLite и HNSW-индексами на диске. Запущенный сервер не требуется.
+
+Глобальные флаги:
+
+- `--config <path>` — путь к файлу конфигурации
+- `--format <json|text|jsonl>` — формат вывода (по умолчанию `json`)
+
+## engram init
+
+Инициализирует директорию `~/.engram/` с конфигурацией, базой данных и выводит инструкции для подключения MCP-сервера.
+
+```bash
+engram init
+```
+
+Эта команда обрабатывается до загрузки конфигурации и не требует существующего `engram.toml`.
+
+## engram server
+
+Запускает Unix-сокет сервер для приема JSON-запросов от MCP-сервера.
+
+```bash
+engram server
+```
+
+Сервер слушает на `~/.engram/engram.sock` (настраивается через `server.socket_path`). Фоново переиндексирует новые записи с интервалом `reindex_interval_secs`.
+
+## engram store
+
+Сохраняет новую запись в памяти.
+
+```bash
+engram store \
+  --context "Модуль auth стал монолитным, 800 строк" \
+  --action "Разделил на middleware + handler + validator" \
+  --result "Каждый файл < 200 строк, тесты изолированы"
+```
+
+| Флаг | Обязательный | Описание |
+|------|-------------|----------|
+| `--context` | да | Ситуация или контекст |
+| `--action` | да | Предпринятое действие |
+| `--result` | да | Результат или исход |
+| `--memory-type` | нет | `decision` (по умолчанию), `pattern`, `bugfix`, `context`, `antipattern` |
+| `--tags` | нет | Теги через запятую |
+| `--project` | нет | Идентификатор проекта |
+
+```bash
+engram store \
+  --context "Токены протухали молча" \
+  --action "Добавил middleware валидации с логированием" \
+  --result "Ошибки auth сразу видны в логах" \
+  --memory-type bugfix \
+  --tags "auth,middleware" \
+  --project api-server
+```
+
+## engram search
+
+Ищет релевантные записи через гибридный поиск (вектор + полнотекст).
+
+```bash
+engram search --query "auth middleware архитектура"
+```
+
+| Флаг | По умолчанию | Описание |
+|------|-------------|----------|
+| `--query` | — (обязательный) | Поисковый запрос |
+| `--limit` | `10` | Максимум результатов |
+| `--project` | — | Фильтр по проекту |
+
+```bash
+engram search --query "паттерны обработки ошибок" --limit 5 --project my-api
+```
+
+## engram judge
+
+Оценивает качество записи. Результаты обучают Q-Learning роутер.
+
+```bash
+engram judge --memory-id "abc-123-def" --score 0.8
+```
+
+| Флаг | Обязательный | Описание |
+|------|-------------|----------|
+| `--memory-id` | да | UUID оцениваемой записи |
+| `--query` | нет | Запрос, по которому найдена запись |
+| `--score` | нет | Явная оценка от 0.0 до 1.0 |
+
+## engram status
+
+Показывает статус системы: количество записей, размер индекса, ожидающие оценки.
+
+```bash
+engram status
+```
+
+```bash
+engram status --format text
+```
+
+## engram consolidate
+
+Управление консолидацией записей. Три подкоманды:
+
+### engram consolidate preview
+
+Находит кандидатов для дедупликации без изменений.
+
+```bash
+engram consolidate preview
+engram consolidate preview --stale-days 30 --min-score 0.5
+```
+
+### engram consolidate analyze
+
+Анализирует кандидатов с помощью LLM и возвращает рекомендации.
+
+```bash
+engram consolidate analyze
+```
+
+### engram consolidate apply
+
+Применяет рекомендации: merge, delete, archive.
+
+```bash
+engram consolidate apply
+```
+
+| Флаг | По умолчанию | Описание |
+|------|-------------|----------|
+| `--stale-days` | из конфигурации (90) | Порог устаревания (дни) |
+| `--min-score` | из конфигурации (0.3) | Минимальный score |
+
+## engram train
+
+Управление самообучением через trainer.
+
+### engram train generate
+
+Запускает trainer для генерации insights из паттернов в памяти.
+
+```bash
+engram train generate
+```
+
+### engram train list
+
+Показывает активные insights.
+
+```bash
+engram train list
+```
+
+### engram train delete
+
+Удаляет insight по ID. Работает только для записей с типом `insight`.
+
+```bash
+engram train delete --id "insight-uuid"
+```
+
+## engram version
+
+Показывает версию engram.
+
+```bash
+engram version
+engram version --format text
+```

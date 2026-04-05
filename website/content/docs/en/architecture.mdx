@@ -1,0 +1,110 @@
+---
+title: Architecture
+description: engram two-process architecture
+---
+
+# Architecture
+
+## Two-process model
+
+Engram consists of two processes:
+
+- **Rust core** (`engram-core`) — long-lived Unix socket server or standalone CLI
+- **TypeScript MCP server** (`@engram/mcp-server`) — thin MCP to JSON-RPC translator
+
+```
+┌─────────────────────────────────────────────────┐
+│  Claude Desktop / Claude Code / Cursor          │
+│  (MCP client)                                   │
+└──────────────┬──────────────────────────────────┘
+               │ MCP protocol (stdio)
+┌──────────────▼──────────────────────────────────┐
+│  @engram/mcp-server          (TypeScript)       │
+│  Translation: MCP ↔ JSON-RPC                    │
+└──────────────┬──────────────────────────────────┘
+               │ Unix socket (JSON, newline-delimited)
+┌──────────────▼──────────────────────────────────┐
+│  engram-core                 (Rust)             │
+│  Server mode: tokio, dispatch, background tasks │
+│  CLI mode: standalone, no server needed         │
+└─────────────────────────────────────────────────┘
+```
+
+### CLI vs Server
+
+**Server mode** — started via `engram server`. Listens on a Unix socket, processes requests through tokio, runs background reindexing. The MCP server manages its lifecycle.
+
+**CLI mode** — each command creates a `ServerState` from config, executes the request directly, and exits. Works with the same SQLite and HNSW files without a running server.
+
+## Lifecycle management
+
+The MCP server manages the Rust core process:
+
+1. **Spawn** — starts `engram server` on the first MCP call
+2. **Health ping** — checks availability via Unix socket
+3. **Graceful shutdown** — sends SIGTERM when the MCP server exits
+4. **Reconnect** — when an orphan process is detected, reconnects instead of starting a new one. If API keys are missing, kills the orphan and restarts
+
+## Crate dependency graph
+
+Bottom-up by dependencies:
+
+```
+engram-hnsw          (standalone — no external dependencies)
+engram-router        (standalone — no external dependencies)
+    │
+engram-storage       (rusqlite, serde)
+engram-llm-client    (reqwest, serde — traits + implementations)
+    │
+engram-embeddings    (← engram-llm-client)
+engram-judge         (← engram-llm-client)
+engram-consolidate   (← engram-storage, engram-hnsw, engram-llm-client)
+    │
+engram-core          (← all crates — glue, unix socket, CLI)
+```
+
+## Key decisions
+
+### SQLite as source of truth
+
+SQLite in WAL mode is the single source of data. HNSW indexes are a cache and are rebuilt from SQLite on corruption.
+
+### Three HNSW indexes
+
+Each memory field (`context`, `action`, `result`) has its own HNSW index. Search runs across all three with result aggregation.
+
+### Mutex for thread safety
+
+`rusqlite::Database` is not `Send`. The server wraps all resources in `Mutex` and uses `spawn_blocking` for DB access from async context.
+
+### FNV-1a hashing
+
+String UUIDs are hashed to `u64` via FNV-1a for use as HNSW node IDs. Deterministic, no collision handling.
+
+### ServerState reuse
+
+`ServerState` is a shared structure for both server and CLI. CLI creates `ServerState` from config and calls the same handlers via dispatch.
+
+## Trainer
+
+```
+engram-core
+    │ stdout JSON Lines
+┌───▼───────────────────────────────────┐
+│  engram-trainer         (Python)      │
+│  Clustering, temporal analysis,       │
+│  causal chains, ONNX export           │
+└───────────────────────────────────────┘
+```
+
+The trainer is a Python process with read-only access to SQLite. All results are communicated via stdout JSON Lines protocol. The Rust core parses the output and applies changes.
+
+## Graceful degradation
+
+Every external API dependency has a local fallback:
+
+| Dependency | Primary | Fallback |
+|------------|---------|----------|
+| Embedding API | Voyage AI | FTS5-only search |
+| LLM API | OpenAI | Heuristic scoring |
+| HNSW index | In-memory | Rebuild from SQLite |

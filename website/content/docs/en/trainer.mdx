@@ -1,0 +1,117 @@
+---
+title: Self-Learning
+description: Three learning loops in engram — Q-Learning, trainer, LoRA
+---
+
+# Self-Learning
+
+Engram uses three learning loops at different time scales to continuously improve search quality and generate derived knowledge.
+
+## Three learning loops
+
+### Fast: Q-Learning (per call)
+
+The Q-Learning router updates on every `memory_judge` call. Agent feedback directly influences search strategy selection, LLM model choice, contextualization, and proactivity.
+
+Details: [Q-Learning Router](/docs/en/q-learning).
+
+### Medium: Trainer (periodic)
+
+A Python process analyzes accumulated records and generates insights — derived knowledge unavailable from analyzing individual records.
+
+### Deep: LoRA fine-tuning (on demand)
+
+Fine-tunes a model on memory data. Exports an ONNX model for local generation without API calls.
+
+```bash
+engram-trainer --db ~/.engram/memories.db --deep
+```
+
+## Trainer
+
+### Installation
+
+```bash
+pip install engram-trainer
+```
+
+### Usage
+
+```bash
+engram-trainer --db ~/.engram/memories.db
+engram-trainer --db ~/.engram/memories.db --models-path ~/.engram/models
+```
+
+Or via MCP:
+
+```json
+{ "action": "generate" }
+```
+
+Or via CLI:
+
+```bash
+engram train generate
+```
+
+### Analysis
+
+The trainer performs several types of analysis:
+
+**Clustering** — groups records by semantic similarity. Uses AgglomerativeClustering with cosine distance matrix (`metric="precomputed"`).
+
+**Temporal patterns** — finds recurring decisions in specific time periods.
+
+**Causal chains** — traces cause-effect chains through `parent_id`. First builds explicit chains (parent_id), then finds implicit ones by time and semantic similarity.
+
+**Quality gate** — validates generated insights via ROUGE-L (LCS F-measure, threshold 0.1).
+
+### Generated insights
+
+Each insight is saved as a record with `memory_type = "insight"` containing:
+
+- `context` — description of the discovered pattern
+- `action` — recommended action
+- `result` — expected effect
+- `insight_type` — analysis type (cluster, temporal, causal)
+- `source_ids` — IDs of source records
+
+### ONNX models
+
+When run with the `--deep` flag, the trainer performs LoRA fine-tuning and exports:
+
+```
+~/.engram/models/
+  text_generator.onnx     # ONNX model for text generation
+  tokenizer.json          # tokenizer
+```
+
+These models are used by the `local` provider in the `[llm]` config section for generation without API calls.
+
+## Trainer protocol
+
+The trainer communicates with the Rust core via stdout JSON Lines. Each line is a JSON object with a `type` field:
+
+| Type | Description |
+|------|-------------|
+| `progress` | Execution progress (`stage`, `percent`) |
+| `insight` | Generated insight |
+| `recommendation` | Recommendation for an existing record |
+| `metric` | Metric (`name`, `value`) |
+| `artifact` | Created file (`path`, `size_bytes`) |
+| `complete` | Completion (`insights_generated`, `duration_secs`) |
+
+Details: [Protocol](/docs/en/protocol).
+
+## Configuration
+
+Trainer parameters in `engram.toml`:
+
+```toml
+[trainer]
+trainer_binary = "engram-trainer"
+trainer_timeout_secs = 300
+models_path = "~/.engram/models"
+```
+
+Default timeout is 5 minutes. Exceeding it terminates the process with error 6014 (TrainerTimeout).

@@ -1,0 +1,139 @@
+---
+title: Конфигурация
+description: Файл конфигурации engram.toml и переменные окружения
+---
+
+# Конфигурация
+
+Engram ищет конфигурацию в следующем порядке:
+
+1. `./engram.toml` — текущая директория
+2. `~/.engram/engram.toml` — домашняя директория
+3. Значения по умолчанию — если файл не найден
+
+Переменные окружения всегда перезаписывают значения из файла.
+
+## Структура engram.toml
+
+```toml
+[database]
+path = "~/.engram/memories.db"
+
+[embedding]
+provider = "voyage"         # voyage | deterministic
+model = "voyage-code-3"
+# api_key = "..."          # или через ENGRAM_VOYAGE_API_KEY
+
+[llm]
+provider = "openai"         # openai | local
+model = "gpt-4o-mini"
+# api_key = "..."          # или через ENGRAM_OPENAI_API_KEY
+
+[server]
+socket_path = "~/.engram/engram.sock"
+reindex_interval_secs = 3600
+
+[hnsw]
+max_connections = 16
+ef_construction = 200
+ef_search = 40
+dimension = 1024
+
+[consolidation]
+stale_days = 90
+min_score = 0.3
+
+[trainer]
+trainer_binary = "engram-trainer"
+trainer_timeout_secs = 300
+models_path = "~/.engram/models"
+```
+
+## Секции
+
+### database
+
+| Параметр | По умолчанию | Описание |
+|----------|-------------|----------|
+| `path` | `~/.engram/memories.db` | Путь к SQLite базе данных |
+
+### embedding
+
+| Параметр | По умолчанию | Описание |
+|----------|-------------|----------|
+| `provider` | `voyage` | Провайдер эмбеддингов: `voyage` или `deterministic` |
+| `model` | `voyage-code-3` | Модель эмбеддингов |
+| `api_key` | — | API-ключ (предпочтительно через переменную окружения) |
+| `dimension` | `1024` | Размерность вектора эмбеддинга |
+
+Провайдер `deterministic` не требует API-ключа и генерирует детерминированные эмбеддинги из текста. Подходит для тестирования.
+
+### llm
+
+| Параметр | По умолчанию | Описание |
+|----------|-------------|----------|
+| `provider` | `openai` | Провайдер LLM: `openai` или `local` |
+| `model` | `gpt-4o-mini` | Модель для генерации текста |
+| `api_key` | — | API-ключ (предпочтительно через переменную окружения) |
+
+Провайдер `local` использует ONNX-модель из `trainer.models_path` для локальной генерации без API-вызовов.
+
+### server
+
+| Параметр | По умолчанию | Описание |
+|----------|-------------|----------|
+| `socket_path` | `~/.engram/engram.sock` | Путь к Unix-сокету сервера |
+| `reindex_interval_secs` | `3600` | Интервал переиндексации (секунды, 0 = выключено) |
+
+### hnsw
+
+| Параметр | По умолчанию | Описание |
+|----------|-------------|----------|
+| `max_connections` | `16` | Максимум соединений в графе HNSW |
+| `ef_construction` | `200` | Точность при построении индекса |
+| `ef_search` | `40` | Точность при поиске |
+| `dimension` | `1024` | Размерность векторов (должна совпадать с embedding.dimension) |
+
+### consolidation
+
+| Параметр | По умолчанию | Описание |
+|----------|-------------|----------|
+| `stale_days` | `90` | Порог устаревания записей (дни) |
+| `min_score` | `0.3` | Минимальный score для кандидатов консолидации |
+
+### trainer
+
+| Параметр | По умолчанию | Описание |
+|----------|-------------|----------|
+| `trainer_binary` | `engram-trainer` | Путь или имя бинарника trainer |
+| `trainer_timeout_secs` | `300` | Таймаут выполнения trainer (секунды) |
+| `models_path` | `~/.engram/models` | Директория для ONNX-моделей |
+
+## Переменные окружения
+
+| Переменная | Перезаписывает |
+|-----------|---------------|
+| `ENGRAM_VOYAGE_API_KEY` | `embedding.api_key` (при provider=voyage) |
+| `ENGRAM_OPENAI_API_KEY` | `llm.api_key` (при provider=openai) |
+| `ENGRAM_DB_PATH` | `database.path` |
+| `ENGRAM_SOCKET_PATH` | `server.socket_path` |
+| `ENGRAM_EMBEDDING_MODEL` | `embedding.model` |
+| `ENGRAM_LLM_MODEL` | `llm.model` |
+| `ENGRAM_TRAINER_BINARY` | `trainer.trainer_binary` |
+| `ENGRAM_TRAINER_TIMEOUT` | `trainer.trainer_timeout_secs` |
+| `ENGRAM_MODELS_PATH` | `trainer.models_path` |
+
+## Пути по умолчанию
+
+```
+~/.engram/
+  engram.toml          # конфигурация
+  memories.db          # SQLite база данных
+  engram.sock          # Unix-сокет сервера
+  models/              # ONNX-модели trainer
+  *.hnsw               # сериализованные HNSW-индексы
+```
+
+## Инициализация
+
+Команда `engram init` создает директорию `~/.engram/` с конфигурацией по умолчанию и пустой базой данных. Если директория уже существует, init пропускает создание существующих файлов.

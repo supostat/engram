@@ -1,0 +1,98 @@
+---
+title: Consolidation
+description: Memory deduplication and cleanup in engram
+---
+
+# Consolidation
+
+Consolidation is the process of cleaning the database from duplicates, stale, and low-quality records. It runs in three steps with control at each stage.
+
+## Three-step process
+
+### 1. Preview — find candidates
+
+Finds pairs of records with cosine similarity > 0.95 and records matching `stale_days` and `min_score` filters. Does not call LLM, does not modify data.
+
+```bash
+engram consolidate preview --stale-days 30 --min-score 0.3
+```
+
+```json
+// MCP
+memory_consolidate_preview({ "stale_days": 30, "min_score": 0.3 })
+```
+
+### 2. Analyze — LLM analysis
+
+Sends candidates to LLM for analysis. Returns recommendations with reasoning: merge, keep, delete, archive.
+
+```bash
+engram consolidate analyze
+```
+
+```json
+// MCP
+memory_consolidate({ "stale_days": 30 })
+```
+
+### 3. Apply — execute
+
+Applies recommendations: merges, deletes, or archives records.
+
+```bash
+engram consolidate apply
+```
+
+```json
+// MCP
+memory_consolidate_apply({})
+```
+
+## Operations
+
+### Merge
+
+Combines two or more similar records into one. The new record inherits the best fields from sources. Source records get `superseded_by` set to the new record's ID.
+
+### Delete
+
+Completely removes a record from the database.
+
+### Archive
+
+Marks a record as superseded via `superseded_by`. The record remains in the database but is excluded from search.
+
+## Write-time deduplication
+
+In addition to consolidation, engram performs deduplication on every `memory_store` call. If cosine similarity of a new record with an existing one exceeds 0.95, the existing record is updated instead of creating a duplicate.
+
+## Parameters
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `stale_days` | 90 (from config) | Records older than this threshold are considered stale |
+| `min_score` | 0.3 (from config) | Records with score below threshold are deletion candidates |
+
+Configured in `engram.toml`:
+
+```toml
+[consolidation]
+stale_days = 90
+min_score = 0.3
+```
+
+## Insights
+
+As part of consolidation and trainer analysis, insights are generated — derived knowledge extracted from patterns in records. Insights are saved as separate records with `memory_type = "insight"` and participate in cross-project search.
+
+Managing insights:
+
+```bash
+engram train list              # list insights
+engram train generate          # generate new insights
+engram train delete --id UUID  # delete an insight
+```
+
+## Audit
+
+All consolidation operations are recorded in the `consolidation_log` table with action type and source (auto/user).

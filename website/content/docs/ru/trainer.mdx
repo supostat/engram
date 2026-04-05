@@ -1,0 +1,117 @@
+---
+title: Самообучение
+description: Три цикла обучения engram — Q-Learning, trainer, LoRA
+---
+
+# Самообучение
+
+Engram использует три цикла обучения с разными временными масштабами для постоянного улучшения качества поиска и генерации знаний.
+
+## Три цикла обучения
+
+### Fast: Q-Learning (каждый вызов)
+
+Q-Learning роутер обновляется при каждом вызове `memory_judge`. Обратная связь от агента напрямую влияет на выбор стратегии поиска, LLM-модели, контекстуализации и проактивности.
+
+Подробнее: [Q-Learning роутер](/docs/ru/q-learning).
+
+### Medium: Trainer (периодически)
+
+Python-процесс анализирует накопленные записи и генерирует insights — производные знания, недоступные при анализе отдельных записей.
+
+### Deep: LoRA fine-tuning (по запросу)
+
+Тонкая настройка модели на данных из памяти. Экспортирует ONNX-модель для локальной генерации без API-вызовов.
+
+```bash
+engram-trainer --db ~/.engram/memories.db --deep
+```
+
+## Trainer
+
+### Установка
+
+```bash
+pip install engram-trainer
+```
+
+### Запуск
+
+```bash
+engram-trainer --db ~/.engram/memories.db
+engram-trainer --db ~/.engram/memories.db --models-path ~/.engram/models
+```
+
+Или через MCP:
+
+```json
+{ "action": "generate" }
+```
+
+Или через CLI:
+
+```bash
+engram train generate
+```
+
+### Анализ
+
+Trainer выполняет несколько видов анализа:
+
+**Кластеризация** — группирует записи по семантической близости. Использует AgglomerativeClustering с cosine distance matrix (`metric="precomputed"`).
+
+**Временные паттерны** — находит повторяющиеся решения в определенные временные периоды.
+
+**Каузальные цепочки** — прослеживает цепочки причина-следствие через `parent_id`. Сначала строит явные цепочки (parent_id), затем находит неявные по времени и семантической близости.
+
+**Quality gate** — валидирует сгенерированные insights через ROUGE-L (LCS F-measure, порог 0.1).
+
+### Генерируемые insights
+
+Каждый insight сохраняется как запись с `memory_type = "insight"` и содержит:
+
+- `context` — описание обнаруженного паттерна
+- `action` — рекомендуемое действие
+- `result` — ожидаемый эффект
+- `insight_type` — тип анализа (cluster, temporal, causal)
+- `source_ids` — ID исходных записей
+
+### ONNX-модели
+
+При запуске с флагом `--deep` trainer выполняет LoRA fine-tuning и экспортирует:
+
+```
+~/.engram/models/
+  text_generator.onnx     # ONNX-модель для генерации текста
+  tokenizer.json          # токенизатор
+```
+
+Модели используются провайдером `local` в секции `[llm]` конфигурации для генерации без API-вызовов.
+
+## Протокол trainer
+
+Trainer общается с Rust-ядром через stdout JSON Lines. Каждая строка — JSON-объект с полем `type`:
+
+| Тип | Описание |
+|-----|---------|
+| `progress` | Прогресс выполнения (`stage`, `percent`) |
+| `insight` | Сгенерированный insight |
+| `recommendation` | Рекомендация по существующей записи |
+| `metric` | Метрика (`name`, `value`) |
+| `artifact` | Созданный файл (`path`, `size_bytes`) |
+| `complete` | Завершение (`insights_generated`, `duration_secs`) |
+
+Подробнее: [Протокол](/docs/ru/protocol).
+
+## Конфигурация
+
+Параметры trainer в `engram.toml`:
+
+```toml
+[trainer]
+trainer_binary = "engram-trainer"
+trainer_timeout_secs = 300
+models_path = "~/.engram/models"
+```
+
+Таймаут по умолчанию — 5 минут. При превышении процесс завершается с ошибкой 6014 (TrainerTimeout).

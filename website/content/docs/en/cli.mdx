@@ -1,0 +1,178 @@
+---
+title: CLI Commands
+description: engram CLI command reference
+---
+
+# CLI Commands
+
+Engram CLI works standalone with SQLite and on-disk HNSW indexes. No running server required.
+
+Global flags:
+
+- `--config <path>` — path to configuration file
+- `--format <json|text|jsonl>` — output format (default `json`)
+
+## engram init
+
+Initializes the `~/.engram/` directory with configuration, database, and prints MCP server setup instructions.
+
+```bash
+engram init
+```
+
+This command is handled before config loading and does not require an existing `engram.toml`.
+
+## engram server
+
+Starts a Unix socket server to accept JSON requests from the MCP server.
+
+```bash
+engram server
+```
+
+Listens on `~/.engram/engram.sock` (configurable via `server.socket_path`). Runs background reindexing at `reindex_interval_secs` interval.
+
+## engram store
+
+Saves a new memory record.
+
+```bash
+engram store \
+  --context "Auth module became monolithic, 800 lines" \
+  --action "Split into middleware + handler + validator" \
+  --result "Each file < 200 lines, tests isolated"
+```
+
+| Flag | Required | Description |
+|------|----------|-------------|
+| `--context` | yes | Situation or context |
+| `--action` | yes | Action taken |
+| `--result` | yes | Result or outcome |
+| `--memory-type` | no | `decision` (default), `pattern`, `bugfix`, `context`, `antipattern` |
+| `--tags` | no | Comma-separated tags |
+| `--project` | no | Project identifier |
+
+```bash
+engram store \
+  --context "Tokens expired silently" \
+  --action "Added validation middleware with structured logging" \
+  --result "Auth failures surface immediately with error codes" \
+  --memory-type bugfix \
+  --tags "auth,middleware" \
+  --project api-server
+```
+
+## engram search
+
+Searches for relevant records using hybrid search (vector + full-text).
+
+```bash
+engram search --query "auth middleware architecture"
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--query` | — (required) | Search query |
+| `--limit` | `10` | Maximum results |
+| `--project` | — | Filter by project |
+
+```bash
+engram search --query "error handling patterns" --limit 5 --project my-api
+```
+
+## engram judge
+
+Rates a memory's quality. Results train the Q-Learning router.
+
+```bash
+engram judge --memory-id "abc-123-def" --score 0.8
+```
+
+| Flag | Required | Description |
+|------|----------|-------------|
+| `--memory-id` | yes | UUID of the memory to judge |
+| `--query` | no | Query that found this memory |
+| `--score` | no | Explicit score from 0.0 to 1.0 |
+
+## engram status
+
+Shows system status: memory count, index size, pending judgments.
+
+```bash
+engram status
+```
+
+```bash
+engram status --format text
+```
+
+## engram consolidate
+
+Manages memory consolidation. Three subcommands:
+
+### engram consolidate preview
+
+Finds deduplication candidates without making changes.
+
+```bash
+engram consolidate preview
+engram consolidate preview --stale-days 30 --min-score 0.5
+```
+
+### engram consolidate analyze
+
+Analyzes candidates with LLM and returns recommendations.
+
+```bash
+engram consolidate analyze
+```
+
+### engram consolidate apply
+
+Applies recommendations: merge, delete, archive.
+
+```bash
+engram consolidate apply
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--stale-days` | from config (90) | Stale threshold (days) |
+| `--min-score` | from config (0.3) | Minimum score |
+
+## engram train
+
+Manages self-learning through the trainer.
+
+### engram train generate
+
+Runs the trainer to generate insights from memory patterns.
+
+```bash
+engram train generate
+```
+
+### engram train list
+
+Lists active insights.
+
+```bash
+engram train list
+```
+
+### engram train delete
+
+Deletes an insight by ID. Only works for records with type `insight`.
+
+```bash
+engram train delete --id "insight-uuid"
+```
+
+## engram version
+
+Shows the engram version.
+
+```bash
+engram version
+engram version --format text
+```

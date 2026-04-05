@@ -1,0 +1,83 @@
+---
+title: Error Codes
+description: engram error codes reference
+---
+
+# Error Codes
+
+Every error in engram has a numeric code. The first digit identifies the subsystem.
+
+## 1xxx: Storage / Database
+
+| Code | Name | Description |
+|------|------|-------------|
+| 1000 | Storage | General storage error |
+| 1001 | DatabaseUnavailable | Database connection failed or unavailable |
+| 1002 | NotFound | Record not found by the specified ID |
+| 1003 | DuplicateKey | Attempt to create a record with an existing ID |
+| 1004 | MigrationRequired | Database schema migration required |
+
+## 2xxx: API / LLM
+
+| Code | Name | Description |
+|------|------|-------------|
+| 2000 | Api | General API error |
+| 2001 | EmbeddingApiUnavailable | Embedding API unavailable (network, server) |
+| 2002 | LlmApiUnavailable | LLM API unavailable |
+| 2003 | RateLimitExceeded | API rate limit exceeded |
+| 2004 | InvalidApiKey | Invalid API key |
+| 2005 | HyDeGenerationFailed | Failed to generate HyDE hypothesis |
+| 2006 | LocalModelLoadFailed | Failed to load local ONNX model |
+| 2007 | LocalInferenceFailed | Local inference error (NaN/Inf in logits) |
+
+Errors 2001, 2002, 2003 are retryable.
+
+## 3xxx: HNSW
+
+| Code | Name | Description |
+|------|------|-------------|
+| 3000 | Hnsw | General HNSW error |
+| 3001 | IndexCorrupted | Index data is corrupted |
+| 3002 | DimensionMismatch | Vector dimension does not match index dimension |
+| 3003 | RebuildRequired | Index needs to be rebuilt |
+
+## 4xxx: Protocol / Router
+
+| Code | Name | Description |
+|------|------|-------------|
+| 4000 | InvalidJson | Invalid JSON in request |
+
+## 5xxx: Consolidation
+
+| Code | Name | Description |
+|------|------|-------------|
+| 5000 | Consolidation | General consolidation error |
+| 5001 | NoCandidates | No consolidation candidates found |
+| 5002 | IndexStale | Index is stale, rebuild required |
+| 5003 | InvalidMergeParams | Invalid merge parameters |
+| 5004 | AnalysisFailed | LLM analysis failed |
+| 5005 | ApplyFailed | Failed to apply recommendations |
+
+## 6xxx: Core
+
+| Code | Name | Description |
+|------|------|-------------|
+| 6001 | ConfigNotFound | Configuration file not found |
+| 6002 | ConfigParseError | Config parse error (invalid TOML) |
+| 6003 | InvalidProvider | Unsupported or misconfigured provider |
+| 6004 | IndexCorrupted | HNSW index corrupted at core level |
+| 6005 | RebuildFailed | Index rebuild failed |
+| 6006 | SocketError | Unix socket error (bind, read, write) |
+| 6007 | DispatchError | Request routing error (unknown method, invalid params) |
+| 6008 | ConfigReadOnly | Attempt to write config via API (forbidden) |
+| 6009 | ExportFailed | Database export error |
+| 6010 | ImportVersionMismatch | Import format version mismatch (expected 1) |
+| 6011 | ImportFailed | Memory import error |
+| 6012 | InitFailed | Initialization error |
+| 6013 | TrainerFailed | Trainer not found or exited with error |
+| 6014 | TrainerTimeout | Trainer exceeded timeout (default 300 sec) |
+| 6015 | TrainerMalformedOutput | Invalid JSON in trainer output |
+
+## Degraded mode
+
+On API errors (2001-2003), the system enters degraded mode. Responses in this mode contain a `degraded: true` flag. Search switches to FTS5-only, scoring uses heuristics instead of LLM.

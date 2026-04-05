@@ -1,0 +1,139 @@
+---
+title: Configuration
+description: engram.toml config file and environment variables
+---
+
+# Configuration
+
+Engram looks for configuration in the following order:
+
+1. `./engram.toml` — current directory
+2. `~/.engram/engram.toml` — home directory
+3. Default values — if no config file found
+
+Environment variables always override file values.
+
+## engram.toml structure
+
+```toml
+[database]
+path = "~/.engram/memories.db"
+
+[embedding]
+provider = "voyage"         # voyage | deterministic
+model = "voyage-code-3"
+# api_key = "..."          # or via ENGRAM_VOYAGE_API_KEY
+
+[llm]
+provider = "openai"         # openai | local
+model = "gpt-4o-mini"
+# api_key = "..."          # or via ENGRAM_OPENAI_API_KEY
+
+[server]
+socket_path = "~/.engram/engram.sock"
+reindex_interval_secs = 3600
+
+[hnsw]
+max_connections = 16
+ef_construction = 200
+ef_search = 40
+dimension = 1024
+
+[consolidation]
+stale_days = 90
+min_score = 0.3
+
+[trainer]
+trainer_binary = "engram-trainer"
+trainer_timeout_secs = 300
+models_path = "~/.engram/models"
+```
+
+## Sections
+
+### database
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `path` | `~/.engram/memories.db` | Path to SQLite database |
+
+### embedding
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `provider` | `voyage` | Embedding provider: `voyage` or `deterministic` |
+| `model` | `voyage-code-3` | Embedding model |
+| `api_key` | — | API key (prefer environment variable) |
+| `dimension` | `1024` | Embedding vector dimension |
+
+The `deterministic` provider requires no API key and generates deterministic embeddings from text. Suitable for testing.
+
+### llm
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `provider` | `openai` | LLM provider: `openai` or `local` |
+| `model` | `gpt-4o-mini` | Text generation model |
+| `api_key` | — | API key (prefer environment variable) |
+
+The `local` provider uses an ONNX model from `trainer.models_path` for local generation without API calls.
+
+### server
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `socket_path` | `~/.engram/engram.sock` | Unix socket path |
+| `reindex_interval_secs` | `3600` | Reindex interval (seconds, 0 = disabled) |
+
+### hnsw
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `max_connections` | `16` | Maximum connections in HNSW graph |
+| `ef_construction` | `200` | Accuracy during index construction |
+| `ef_search` | `40` | Accuracy during search |
+| `dimension` | `1024` | Vector dimension (must match embedding.dimension) |
+
+### consolidation
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `stale_days` | `90` | Stale record threshold (days) |
+| `min_score` | `0.3` | Minimum score for consolidation candidates |
+
+### trainer
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `trainer_binary` | `engram-trainer` | Trainer binary path or name |
+| `trainer_timeout_secs` | `300` | Trainer execution timeout (seconds) |
+| `models_path` | `~/.engram/models` | Directory for ONNX models |
+
+## Environment variables
+
+| Variable | Overrides |
+|----------|-----------|
+| `ENGRAM_VOYAGE_API_KEY` | `embedding.api_key` (when provider=voyage) |
+| `ENGRAM_OPENAI_API_KEY` | `llm.api_key` (when provider=openai) |
+| `ENGRAM_DB_PATH` | `database.path` |
+| `ENGRAM_SOCKET_PATH` | `server.socket_path` |
+| `ENGRAM_EMBEDDING_MODEL` | `embedding.model` |
+| `ENGRAM_LLM_MODEL` | `llm.model` |
+| `ENGRAM_TRAINER_BINARY` | `trainer.trainer_binary` |
+| `ENGRAM_TRAINER_TIMEOUT` | `trainer.trainer_timeout_secs` |
+| `ENGRAM_MODELS_PATH` | `trainer.models_path` |
+
+## Default paths
+
+```
+~/.engram/
+  engram.toml          # configuration
+  memories.db          # SQLite database
+  engram.sock          # Unix socket server
+  models/              # ONNX models from trainer
+  *.hnsw               # serialized HNSW indexes
+```
+
+## Initialization
+
+The `engram init` command creates the `~/.engram/` directory with default configuration and an empty database. If the directory already exists, init skips creating existing files.

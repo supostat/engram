@@ -1,0 +1,178 @@
+---
+title: Protocol
+description: Unix socket JSON protocol and trainer stdout protocol
+---
+
+# Protocol
+
+Engram uses two JSON protocols: Unix socket for MCP server -> Rust core communication, and stdout JSON Lines for Rust core -> trainer communication.
+
+## Unix socket protocol
+
+Communication between the MCP server and Rust core happens via Unix socket with newline-delimited JSON.
+
+### Request format
+
+```json
+{
+  "id": "request-uuid",
+  "method": "memory_search",
+  "params": {
+    "query": "auth middleware",
+    "limit": 10
+  }
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | UUID for request-response correlation |
+| `method` | string | Method name (matches MCP tool name) |
+| `params` | object | Method parameters |
+
+### Response format (success)
+
+```json
+{
+  "id": "request-uuid",
+  "ok": true,
+  "data": {
+    "memories": [],
+    "count": 0
+  },
+  "error": null
+}
+```
+
+### Response format (error)
+
+```json
+{
+  "id": "request-uuid",
+  "ok": false,
+  "data": null,
+  "error": {
+    "code": 1002,
+    "message": "[1002] not found: memory abc-123"
+  }
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | Request UUID |
+| `ok` | boolean | Operation success |
+| `data` | object/null | Data on success |
+| `error` | object/null | Error on failure |
+| `error.code` | number | Numeric error code |
+| `error.message` | string | Error description |
+
+### Delimiter
+
+Each message (request or response) is terminated by a `\n` (newline) character. One line = one JSON object.
+
+### Available methods
+
+| Method | Description |
+|--------|-------------|
+| `memory_store` | Store a record |
+| `memory_search` | Search records |
+| `memory_judge` | Rate a record |
+| `memory_status` | System status |
+| `memory_config` | Read configuration |
+| `memory_export` | Export records |
+| `memory_import` | Import records |
+| `memory_consolidate_preview` | Consolidation preview |
+| `memory_consolidate` | LLM analysis of candidates |
+| `memory_consolidate_apply` | Apply recommendations |
+| `memory_train_generate` | Generate insights |
+| `memory_train_list` | List insights |
+| `memory_train_delete` | Delete an insight |
+
+## Trainer stdout protocol
+
+The trainer (Python) outputs results to stdout as JSON Lines. Each line is a JSON object with a required `type` field.
+
+### progress
+
+Stage execution progress.
+
+```json
+{
+  "type": "progress",
+  "stage": "clustering",
+  "percent": 45.0
+}
+```
+
+### insight
+
+Generated insight to be saved as a memory record.
+
+```json
+{
+  "type": "insight",
+  "id": "uuid",
+  "context": "Found cluster of 5 records about auth error handling",
+  "action": "Use a unified middleware for token validation",
+  "result": "60% reduction in code duplication",
+  "insight_type": "cluster",
+  "tags": "auth,middleware",
+  "source_ids": "id1,id2,id3"
+}
+```
+
+### recommendation
+
+Recommendation for an existing record.
+
+```json
+{
+  "type": "recommendation",
+  "target_id": "existing-record-uuid",
+  "action": "merge",
+  "reasoning": "Records describe the same decision from different angles"
+}
+```
+
+### metric
+
+Analysis metric.
+
+```json
+{
+  "type": "metric",
+  "name": "cluster_count",
+  "value": 12.0
+}
+```
+
+### artifact
+
+Information about a created file (ONNX model, tokenizer).
+
+```json
+{
+  "type": "artifact",
+  "path": "/home/user/.engram/models/text_generator.onnx",
+  "size_bytes": 15728640
+}
+```
+
+### complete
+
+Trainer execution completion.
+
+```json
+{
+  "type": "complete",
+  "insights_generated": 7,
+  "duration_secs": 42.5
+}
+```
+
+## Routing
+
+The Rust core uses `dispatch.rs` for request routing by the `method` field. Unknown methods return error 6007 (DispatchError).
+
+The trainer is invoked synchronously via `tokio::process::Command` with a timeout. Stdout is parsed line-by-line via `serde_json::from_str` with tagged deserialization (`#[serde(tag = "type")]`).

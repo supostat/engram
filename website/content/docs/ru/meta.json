@@ -1,4 +1,22 @@
 {
   "title": "Документация",
-  "pages": ["index", "getting-started"]
+  "pages": [
+    "index",
+    "---Начало работы---",
+    "getting-started",
+    "configuration",
+    "---Руководства---",
+    "cli",
+    "mcp-tools",
+    "trainer",
+    "consolidation",
+    "---Архитектура---",
+    "architecture",
+    "data-model",
+    "hybrid-search",
+    "q-learning",
+    "---Справочник---",
+    "error-codes",
+    "protocol"
+  ]
 }

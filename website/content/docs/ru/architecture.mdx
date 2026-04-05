@@ -1,0 +1,110 @@
+---
+title: Архитектура
+description: Двухпроцессная архитектура engram
+---
+
+# Архитектура
+
+## Двухпроцессная модель
+
+Engram состоит из двух процессов:
+
+- **Rust core** (`engram-core`) — долгоживущий Unix-сокет сервер или автономный CLI
+- **TypeScript MCP server** (`@engram/mcp-server`) — тонкий транслятор MCP в JSON-RPC
+
+```
+┌─────────────────────────────────────────────────┐
+│  Claude Desktop / Claude Code / Cursor          │
+│  (MCP-клиент)                                   │
+└──────────────┬──────────────────────────────────┘
+               │ MCP protocol (stdio)
+┌──────────────▼──────────────────────────────────┐
+│  @engram/mcp-server          (TypeScript)       │
+│  Трансляция: MCP ↔ JSON-RPC                     │
+└──────────────┬──────────────────────────────────┘
+               │ Unix socket (JSON, newline-delimited)
+┌──────────────▼──────────────────────────────────┐
+│  engram-core                 (Rust)             │
+│  Server mode: tokio, dispatch, background tasks │
+│  CLI mode: автономный, сервер не нужен          │
+└─────────────────────────────────────────────────┘
+```
+
+### CLI vs Server
+
+**Server mode** — запускается через `engram server`. Слушает Unix-сокет, обрабатывает запросы через tokio, выполняет фоновую переиндексацию. MCP-сервер управляет его жизненным циклом.
+
+**CLI mode** — каждая команда создает `ServerState` из конфигурации, выполняет запрос напрямую и завершается. Работает с теми же SQLite и HNSW-файлами без запущенного сервера.
+
+## Управление жизненным циклом
+
+MCP-сервер управляет процессом Rust core:
+
+1. **Spawn** — запускает `engram server` при первом MCP-вызове
+2. **Health ping** — проверяет доступность через Unix-сокет
+3. **Graceful shutdown** — отправляет SIGTERM при завершении MCP-сервера
+4. **Reconnect** — при обнаружении запущенного процесса-сироты переподключается вместо запуска нового. При отсутствии API-ключей убивает процесс-сироту и перезапускает
+
+## Граф зависимостей крейтов
+
+Снизу вверх по зависимостям:
+
+```
+engram-hnsw          (standalone — без внешних зависимостей)
+engram-router        (standalone — без внешних зависимостей)
+    │
+engram-storage       (rusqlite, serde)
+engram-llm-client    (reqwest, serde — traits + implementations)
+    │
+engram-embeddings    (← engram-llm-client)
+engram-judge         (← engram-llm-client)
+engram-consolidate   (← engram-storage, engram-hnsw, engram-llm-client)
+    │
+engram-core          (← все крейты — glue, unix socket, CLI)
+```
+
+## Ключевые решения
+
+### SQLite как источник истины
+
+SQLite в WAL mode — единственный источник данных. HNSW-индексы являются кэшем и перестраиваются из SQLite при повреждении.
+
+### Три HNSW-индекса
+
+Каждое поле записи (`context`, `action`, `result`) имеет собственный HNSW-индекс. Поиск выполняется по всем трем с агрегацией результатов.
+
+### Mutex для thread safety
+
+`rusqlite::Database` не является `Send`. Сервер оборачивает все ресурсы в `Mutex` и использует `spawn_blocking` для доступа к БД из async-контекста.
+
+### FNV-1a хеширование
+
+Строковые UUID записей хешируются в `u64` через FNV-1a для использования как ID узлов HNSW. Детерминированное, без обработки коллизий.
+
+### ServerState переиспользование
+
+`ServerState` — общая структура для сервера и CLI. CLI создает `ServerState` из конфигурации и вызывает те же handlers через dispatch.
+
+## Trainer
+
+```
+engram-core
+    │ stdout JSON Lines
+┌───▼───────────────────────────────────┐
+│  engram-trainer         (Python)      │
+│  Кластеризация, временной анализ,     │
+│  каузальные цепочки, ONNX экспорт     │
+└───────────────────────────────────────┘
+```
+
+Trainer — Python-процесс, доступ к SQLite только на чтение. Все результаты передаются через stdout JSON Lines протокол. Rust core парсит вывод и применяет изменения.
+
+## Graceful degradation
+
+Каждая внешняя API-зависимость имеет локальный fallback:
+
+| Зависимость | Основной | Fallback |
+|------------|---------|----------|
+| Embedding API | Voyage AI | FTS5-only поиск |
+| LLM API | OpenAI | Heuristic scoring |
+| HNSW индекс | In-memory | Перестройка из SQLite |

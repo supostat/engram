@@ -1,4 +1,22 @@
 {
   "title": "Documentation",
-  "pages": ["index", "getting-started"]
+  "pages": [
+    "index",
+    "---Getting Started---",
+    "getting-started",
+    "configuration",
+    "---Guides---",
+    "cli",
+    "mcp-tools",
+    "trainer",
+    "consolidation",
+    "---Architecture---",
+    "architecture",
+    "data-model",
+    "hybrid-search",
+    "q-learning",
+    "---Reference---",
+    "error-codes",
+    "protocol"
+  ]
 }

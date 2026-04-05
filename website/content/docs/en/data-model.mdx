@@ -1,0 +1,123 @@
+---
+title: Data Model
+description: SQLite tables and data structures in engram
+---
+
+# Data Model
+
+Engram stores all data in SQLite (WAL mode) at `~/.engram/memories.db`.
+
+## memories
+
+The primary records table.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | TEXT PK | Record UUID |
+| `memory_type` | TEXT | `decision`, `pattern`, `bugfix`, `context`, `antipattern`, `insight` |
+| `context` | TEXT | Situation or context |
+| `action` | TEXT | Action or decision |
+| `result` | TEXT | Result |
+| `score` | REAL | Quality score (0.0-1.0) |
+| `embedding_context` | BLOB | Context embedding vector |
+| `embedding_action` | BLOB | Action embedding vector |
+| `embedding_result` | BLOB | Result embedding vector |
+| `indexed` | BOOLEAN | Whether indexed in HNSW |
+| `tags` | TEXT | JSON array of tags |
+| `project` | TEXT | Project identifier |
+| `parent_id` | TEXT | Parent record (causal chain) |
+| `source_ids` | TEXT | Source record IDs (for insights) |
+| `insight_type` | TEXT | Insight type (cluster, temporal, causal) |
+| `created_at` | TEXT | Creation date (ISO 8601) |
+| `updated_at` | TEXT | Last update date |
+| `used_count` | INTEGER | Number of times used in search |
+| `last_used_at` | TEXT | Last used timestamp |
+| `superseded_by` | TEXT | Replacement record ID (from consolidation) |
+
+## memories_fts
+
+FTS5 virtual table for full-text search via BM25.
+
+```sql
+CREATE VIRTUAL TABLE memories_fts USING fts5(
+    context,
+    action,
+    result,
+    content='memories',
+    content_rowid='rowid'
+);
+```
+
+Indexes three text fields of each record. Used for the sparse component of hybrid search.
+
+## q_table
+
+Q-Learning router table. Stores values for 4 independent levels.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `router_level` | TEXT | Level: `search`, `llm`, `context`, `proactivity` |
+| `state` | TEXT | State (mode: debug, architecture, coding, review, plan, routine) |
+| `action` | TEXT | Action (level-dependent) |
+| `value` | REAL | Q-value |
+| `update_count` | INTEGER | Number of updates |
+
+Actions by level:
+
+| Level | Actions |
+|-------|---------|
+| `search` | `high_threshold`, `medium_threshold`, `low_threshold` |
+| `llm` | `cheap`, `balanced`, `expensive` |
+| `context` | `raw`, `summarize` |
+| `proactivity` | `passive`, `proactive` |
+
+## consolidation_log
+
+Audit trail for consolidation operations.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | INTEGER PK | Autoincrement |
+| `action` | TEXT | Operation type (merge, delete, archive) |
+| `source` | TEXT | Source (auto, user) |
+| `details` | TEXT | JSON with operation details |
+| `created_at` | TEXT | Operation date |
+
+## feedback_tracking
+
+Tracks the feedback loop for Q-Learning.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `memory_id` | TEXT | Record UUID |
+| `searched_at` | TEXT | When the record was shown in search results |
+| `judged` | BOOLEAN | Whether the record was rated via judge |
+
+Cycle: `memory_search` marks shown records -> `memory_judge` sets `judged = true` -> `memory_status` shows `pending_judgments`.
+
+## recommendations
+
+Trainer recommendations pending approval.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `target_id` | TEXT | Target record UUID |
+| `action` | TEXT | Recommended action |
+| `reasoning` | TEXT | Reasoning |
+
+## metrics
+
+Metrics from trainer (aggregates).
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | TEXT | Metric name |
+| `value` | REAL | Value |
+
+## SQLite WAL mode
+
+The database operates in WAL (Write-Ahead Logging) mode:
+
+- Crash-safe writes with data integrity guarantees
+- Concurrent reads during writes
+- Single `memories.db` file + auxiliary `memories.db-wal` and `memories.db-shm`

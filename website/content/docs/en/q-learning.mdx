@@ -1,0 +1,109 @@
+---
+title: Q-Learning Router
+description: Adaptive strategy selection through reinforcement learning
+---
+
+# Q-Learning Router
+
+Engram uses a hierarchical Q-Learning router for adaptive search parameter selection. The router learns from agent feedback and optimizes strategy for specific usage patterns over time.
+
+## 4 decision levels
+
+The router makes decisions at four independent levels. Each level has its own Q-table.
+
+### 1. Search Strategy
+
+Selects the similarity threshold for filtering results.
+
+| Action | Description |
+|--------|-------------|
+| `high_threshold` | Only highly relevant results |
+| `medium_threshold` | Balance of precision and recall |
+| `low_threshold` | Maximum coverage |
+
+### 2. LLM Selection
+
+Selects the LLM model for auxiliary tasks (HyDE, scoring).
+
+| Action | Description |
+|--------|-------------|
+| `cheap` | Fast and inexpensive model |
+| `balanced` | Balance of speed and quality |
+| `expensive` | Maximum quality |
+
+### 3. Contextualization
+
+How to prepare results for the agent.
+
+| Action | Description |
+|--------|-------------|
+| `raw` | Return as-is |
+| `summarize` | Summarize via LLM |
+
+### 4. Proactivity
+
+Level of proactivity during search.
+
+| Action | Description |
+|--------|-------------|
+| `passive` | Only explicitly requested results |
+| `proactive` | Additional warnings and related records |
+
+## Epsilon-greedy exploration
+
+The router uses an epsilon-greedy strategy:
+
+- With probability **epsilon** (default 0.15) — random action selection (exploration)
+- With probability **1 - epsilon** — best action from Q-table (exploitation)
+
+This balances using proven strategies with exploring new ones.
+
+## Mode detection
+
+The router automatically detects the agent's working mode from query keywords:
+
+| Mode | Keywords | Priority |
+|------|----------|----------|
+| `debug` | bug, error, stack, trace, crash, fix, issue, panic | 1 (highest) |
+| `plan` | plan, estimate, risk, assess, schedule, timeline | 2 |
+| `architecture` | design, choose, structure, framework, pattern | 3 |
+| `review` | review, refactor, improve, clean, lint, optimize | 4 |
+| `coding` | implement, code, function, method, class, feature | 5 |
+| `routine` | update, version, config, dependency, setup, init | 6 (lowest) |
+
+Each mode has its own defaults for all 4 levels and defines memory type priorities.
+
+## Feedback loop
+
+Router learning cycle:
+
+1. **memory_search** — router selects strategy based on Q-table
+2. Search results are returned to the agent, the showing fact is recorded in `feedback_tracking`
+3. **memory_judge** — agent rates usefulness of found records
+4. Rating is passed to the router as reward
+5. Q-table updates: `Q(s,a) += alpha * (reward - Q(s,a))`
+
+### Scoring guide
+
+| Score | Interpretation |
+|-------|---------------|
+| 0.8-1.0 | Directly solved the problem |
+| 0.5-0.7 | Useful context |
+| 0.1-0.4 | Tangentially related |
+| no judge | Implicit low usefulness signal |
+
+## Q-table
+
+Stored in the SQLite `q_table` table:
+
+```sql
+CREATE TABLE q_table (
+    router_level TEXT,    -- search, llm, context, proactivity
+    state TEXT,           -- mode: debug, architecture, coding...
+    action TEXT,          -- level-specific action
+    value REAL,           -- Q-value
+    update_count INTEGER  -- number of updates
+);
+```
+
+The learning rate `alpha` (default 0.1) determines learning speed. The higher the `update_count`, the more stable the Q-table value.

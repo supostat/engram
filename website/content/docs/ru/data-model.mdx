@@ -1,0 +1,123 @@
+---
+title: Модель данных
+description: Таблицы SQLite и структура данных engram
+---
+
+# Модель данных
+
+Engram хранит все данные в SQLite (WAL mode) по пути `~/.engram/memories.db`.
+
+## memories
+
+Основная таблица записей.
+
+| Поле | Тип | Описание |
+|------|-----|---------|
+| `id` | TEXT PK | UUID записи |
+| `memory_type` | TEXT | `decision`, `pattern`, `bugfix`, `context`, `antipattern`, `insight` |
+| `context` | TEXT | Ситуация или контекст |
+| `action` | TEXT | Действие или решение |
+| `result` | TEXT | Результат |
+| `score` | REAL | Оценка качества (0.0-1.0) |
+| `embedding_context` | BLOB | Вектор эмбеддинга context |
+| `embedding_action` | BLOB | Вектор эмбеддинга action |
+| `embedding_result` | BLOB | Вектор эмбеддинга result |
+| `indexed` | BOOLEAN | Проиндексировано ли в HNSW |
+| `tags` | TEXT | JSON-массив тегов |
+| `project` | TEXT | Идентификатор проекта |
+| `parent_id` | TEXT | Родительская запись (каузальная цепочка) |
+| `source_ids` | TEXT | ID исходных записей (для insights) |
+| `insight_type` | TEXT | Тип insight (cluster, temporal, causal) |
+| `created_at` | TEXT | Дата создания (ISO 8601) |
+| `updated_at` | TEXT | Дата обновления |
+| `used_count` | INTEGER | Количество использований в поиске |
+| `last_used_at` | TEXT | Последнее использование |
+| `superseded_by` | TEXT | ID записи-замены (при консолидации) |
+
+## memories_fts
+
+Виртуальная таблица FTS5 для полнотекстового поиска через BM25.
+
+```sql
+CREATE VIRTUAL TABLE memories_fts USING fts5(
+    context,
+    action,
+    result,
+    content='memories',
+    content_rowid='rowid'
+);
+```
+
+Индексирует три текстовых поля записи. Используется для sparse-компоненты гибридного поиска.
+
+## q_table
+
+Таблица Q-Learning роутера. Хранит значения для 4 независимых уровней.
+
+| Поле | Тип | Описание |
+|------|-----|---------|
+| `router_level` | TEXT | Уровень: `search`, `llm`, `context`, `proactivity` |
+| `state` | TEXT | Состояние (mode: debug, architecture, coding, review, plan, routine) |
+| `action` | TEXT | Действие (зависит от уровня) |
+| `value` | REAL | Q-значение |
+| `update_count` | INTEGER | Количество обновлений |
+
+Действия по уровням:
+
+| Уровень | Действия |
+|---------|---------|
+| `search` | `high_threshold`, `medium_threshold`, `low_threshold` |
+| `llm` | `cheap`, `balanced`, `expensive` |
+| `context` | `raw`, `summarize` |
+| `proactivity` | `passive`, `proactive` |
+
+## consolidation_log
+
+Аудит операций консолидации.
+
+| Поле | Тип | Описание |
+|------|-----|---------|
+| `id` | INTEGER PK | Автоинкремент |
+| `action` | TEXT | Тип операции (merge, delete, archive) |
+| `source` | TEXT | Источник (auto, user) |
+| `details` | TEXT | JSON с деталями операции |
+| `created_at` | TEXT | Дата операции |
+
+## feedback_tracking
+
+Отслеживание feedback loop для Q-Learning.
+
+| Поле | Тип | Описание |
+|------|-----|---------|
+| `memory_id` | TEXT | UUID записи |
+| `searched_at` | TEXT | Когда запись была показана в результатах поиска |
+| `judged` | BOOLEAN | Была ли запись оценена через judge |
+
+Цикл: `memory_search` отмечает показанные записи -> `memory_judge` устанавливает `judged = true` -> `memory_status` показывает `pending_judgments`.
+
+## recommendations
+
+Рекомендации trainer, ожидающие одобрения.
+
+| Поле | Тип | Описание |
+|------|-----|---------|
+| `target_id` | TEXT | UUID целевой записи |
+| `action` | TEXT | Рекомендуемое действие |
+| `reasoning` | TEXT | Обоснование |
+
+## metrics
+
+Метрики от trainer (агрегаты).
+
+| Поле | Тип | Описание |
+|------|-----|---------|
+| `name` | TEXT | Название метрики |
+| `value` | REAL | Значение |
+
+## SQLite WAL mode
+
+База данных работает в WAL (Write-Ahead Logging) mode:
+
+- Crash-safe записи с гарантией целостности данных
+- Параллельное чтение во время записи
+- Один файл `memories.db` + вспомогательные `memories.db-wal` и `memories.db-shm`

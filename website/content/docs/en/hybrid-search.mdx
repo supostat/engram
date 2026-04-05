@@ -1,0 +1,85 @@
+---
+title: Hybrid Search
+description: Vector and full-text search in engram
+---
+
+# Hybrid Search
+
+Engram combines two search methods with alpha-weighted scoring for optimal results.
+
+## Two search methods
+
+### Vector search (HNSW cosine)
+
+The primary method. Uses HNSW (Hierarchical Navigable Small World) graph for approximate nearest neighbor search by cosine similarity.
+
+**Three indexes** — each memory field (`context`, `action`, `result`) has a separate HNSW index. The query searches all three indexes in parallel with result aggregation.
+
+HNSW parameters (configurable in `engram.toml`):
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `max_connections` | 16 | Maximum connections per node (M) |
+| `ef_construction` | 200 | Accuracy during graph construction |
+| `ef_search` | 40 | Accuracy during search (higher = more accurate, slower) |
+| `dimension` | 1024 | Vector dimension (determined by embedding model) |
+
+### Sparse search (BM25 via FTS5)
+
+Full-text search via SQLite FTS5 with BM25 scoring. Indexes three text fields (`context`, `action`, `result`) through the `memories_fts` virtual table.
+
+Effective for exact term matching, abbreviations, and proper names where vector search may be imprecise.
+
+## Alpha-weighted scoring
+
+The final score for each result is computed as a weighted combination:
+
+```
+final_score = 0.7 * vector_score + 0.3 * sparse_score
+```
+
+- **70% vector** — semantic understanding of the query
+- **30% sparse** — exact term matching
+
+Coefficients are hardcoded in `search_handler.rs`.
+
+## HyDE (Hypothetical Document Embeddings)
+
+For complex queries, engram uses HyDE — a technique that improves search through hypothetical document generation.
+
+Process:
+
+1. LLM receives the search query
+2. LLM generates a hypothetical memory record that could answer the query
+3. The hypothetical record is embedded instead of the original query
+4. Search runs against the hypothesis embedding
+
+HyDE improves search when the query is phrased in terms of a problem while relevant records describe solutions.
+
+## Graceful degradation
+
+When the embedding API is unavailable (network errors, invalid API key), search degrades to FTS5-only:
+
+- BM25 scoring only
+- No vector component
+- Response contains `degraded: true` flag
+
+## Cross-project search
+
+When the `project` parameter is specified:
+
+1. Searches the specified project with full weight
+2. Searches other projects with a reduced score multiplier
+3. Insights (type `insight`) are not project-bound and are always returned
+
+## Three-field embedding
+
+Each record stores three embedding vectors:
+
+| Field | Purpose |
+|-------|---------|
+| `embedding_context` | Situation semantics |
+| `embedding_action` | Action semantics |
+| `embedding_result` | Result semantics |
+
+The `engram-embeddings` module uses the `EmbeddingProvider` trait from `engram-llm-client`. Providers: Voyage AI (`voyage-code-3`, 1024 dim) or `deterministic` (for testing).

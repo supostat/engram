@@ -1,0 +1,178 @@
+---
+title: Протокол
+description: Unix socket JSON протокол и trainer stdout протокол
+---
+
+# Протокол
+
+Engram использует два JSON-протокола: Unix socket для связи MCP-сервер -> Rust core, и stdout JSON Lines для связи Rust core -> trainer.
+
+## Unix socket протокол
+
+Связь между MCP-сервером и Rust core осуществляется через Unix socket с newline-delimited JSON.
+
+### Формат запроса
+
+```json
+{
+  "id": "uuid-запроса",
+  "method": "memory_search",
+  "params": {
+    "query": "auth middleware",
+    "limit": 10
+  }
+}
+```
+
+| Поле | Тип | Описание |
+|------|-----|---------|
+| `id` | string | UUID для корреляции запроса и ответа |
+| `method` | string | Имя метода (совпадает с именем MCP-инструмента) |
+| `params` | object | Параметры метода |
+
+### Формат ответа (успех)
+
+```json
+{
+  "id": "uuid-запроса",
+  "ok": true,
+  "data": {
+    "memories": [],
+    "count": 0
+  },
+  "error": null
+}
+```
+
+### Формат ответа (ошибка)
+
+```json
+{
+  "id": "uuid-запроса",
+  "ok": false,
+  "data": null,
+  "error": {
+    "code": 1002,
+    "message": "[1002] not found: memory abc-123"
+  }
+}
+```
+
+| Поле | Тип | Описание |
+|------|-----|---------|
+| `id` | string | UUID запроса |
+| `ok` | boolean | Успешность операции |
+| `data` | object/null | Данные при успехе |
+| `error` | object/null | Ошибка при неудаче |
+| `error.code` | number | Числовой код ошибки |
+| `error.message` | string | Текстовое описание ошибки |
+
+### Разделитель
+
+Каждое сообщение (запрос или ответ) завершается символом `\n` (newline). Одна строка = один JSON-объект.
+
+### Доступные методы
+
+| Метод | Описание |
+|-------|---------|
+| `memory_store` | Сохранить запись |
+| `memory_search` | Поиск записей |
+| `memory_judge` | Оценить запись |
+| `memory_status` | Статус системы |
+| `memory_config` | Чтение конфигурации |
+| `memory_export` | Экспорт записей |
+| `memory_import` | Импорт записей |
+| `memory_consolidate_preview` | Превью консолидации |
+| `memory_consolidate` | LLM-анализ кандидатов |
+| `memory_consolidate_apply` | Применение рекомендаций |
+| `memory_train_generate` | Генерация insights |
+| `memory_train_list` | Список insights |
+| `memory_train_delete` | Удаление insight |
+
+## Trainer stdout протокол
+
+Trainer (Python) выводит результаты в stdout как JSON Lines. Каждая строка — JSON-объект с обязательным полем `type`.
+
+### progress
+
+Прогресс выполнения этапа.
+
+```json
+{
+  "type": "progress",
+  "stage": "clustering",
+  "percent": 45.0
+}
+```
+
+### insight
+
+Сгенерированный insight для сохранения как запись памяти.
+
+```json
+{
+  "type": "insight",
+  "id": "uuid",
+  "context": "Обнаружен кластер из 5 записей об обработке ошибок auth",
+  "action": "Использовать единый middleware для валидации токенов",
+  "result": "Уменьшение дублирования кода на 60%",
+  "insight_type": "cluster",
+  "tags": "auth,middleware",
+  "source_ids": "id1,id2,id3"
+}
+```
+
+### recommendation
+
+Рекомендация по существующей записи.
+
+```json
+{
+  "type": "recommendation",
+  "target_id": "uuid-существующей-записи",
+  "action": "merge",
+  "reasoning": "Записи описывают одно и то же решение с разных сторон"
+}
+```
+
+### metric
+
+Метрика анализа.
+
+```json
+{
+  "type": "metric",
+  "name": "cluster_count",
+  "value": 12.0
+}
+```
+
+### artifact
+
+Информация о созданном файле (ONNX-модель, токенизатор).
+
+```json
+{
+  "type": "artifact",
+  "path": "/home/user/.engram/models/text_generator.onnx",
+  "size_bytes": 15728640
+}
+```
+
+### complete
+
+Завершение работы trainer.
+
+```json
+{
+  "type": "complete",
+  "insights_generated": 7,
+  "duration_secs": 42.5
+}
+```
+
+## Маршрутизация
+
+Rust core использует `dispatch.rs` для маршрутизации запросов по полю `method`. Неизвестные методы возвращают ошибку 6007 (DispatchError).
+
+Trainer вызывается синхронно через `tokio::process::Command` с таймаутом. Stdout парсится построчно через `serde_json::from_str` с тегированной десериализацией (`#[serde(tag = "type")]`).
