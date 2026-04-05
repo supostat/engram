@@ -10,65 +10,54 @@ use ratatui::Frame;
 use crate::data::MemorySummary;
 use crate::theme;
 
-pub struct MemoriesTabState {
-    pub memories: Vec<MemorySummary>,
-    pub selected: usize,
-    pub detail_open: bool,
-}
-
-impl MemoriesTabState {
-    pub fn new() -> Self {
-        Self {
-            memories: Vec::new(),
-            selected: 0,
-            detail_open: false,
-        }
-    }
-
-    pub fn move_up(&mut self) {
-        self.selected = self.selected.saturating_sub(1);
-    }
-
-    pub fn move_down(&mut self) {
-        if !self.memories.is_empty() {
-            self.selected = (self.selected + 1).min(self.memories.len() - 1);
-        }
-    }
-
-    pub fn toggle_detail(&mut self) {
-        if !self.memories.is_empty() {
-            self.detail_open = !self.detail_open;
-        }
-    }
-
-    pub fn close_detail(&mut self) {
-        self.detail_open = false;
-    }
-
-    pub fn clamp_selection(&mut self) {
-        if self.memories.is_empty() {
-            self.selected = 0;
-        } else {
-            self.selected = self.selected.min(self.memories.len() - 1);
-        }
-    }
-}
+use super::MemoriesTabState;
 
 pub fn render_memories_tab(frame: &mut Frame, area: Rect, state: &mut MemoriesTabState) {
-    if state.memories.is_empty() {
-        render_empty(frame, area);
-        return;
+    let visible: Vec<&MemorySummary> = state.visible_memories().collect();
+
+    if state.search_active {
+        let [search_area, table_area] = Layout::vertical([
+            Constraint::Length(3),
+            Constraint::Fill(1),
+        ])
+        .areas(area);
+        render_search_input(frame, search_area, &state.search_query);
+        render_visible_table(frame, table_area, &visible, state.selected);
+    } else if visible.is_empty() {
+        render_empty(frame, area, state.type_filter.as_deref());
+    } else {
+        render_visible_table(frame, area, &visible, state.selected);
     }
 
-    render_table(frame, area, state);
-
-    if state.detail_open {
-        render_detail_popup(frame, frame.area(), state);
+    if state.detail_open
+        && let Some(memory) = visible.get(state.selected)
+    {
+        render_detail_popup(frame, frame.area(), memory);
     }
 }
 
-fn render_empty(frame: &mut Frame, area: Rect) {
-    let paragraph = Paragraph::new("No memories found")
+fn render_search_input(frame: &mut Frame, area: Rect, query: &str) {
+    let display = format!("{query}\u{2588}");
+    let input_line = Line::from(vec![
+        Span::styled("  / ", Style::default().fg(theme::PURPLE)),
+        Span::styled(display, Style::default().fg(theme::TEXT)),
+    ]);
+    let paragraph = Paragraph::new(input_line).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(theme::PURPLE))
+            .title(Span::styled("Search", Style::default().fg(theme::BLUE))),
+    );
+    frame.render_widget(paragraph, area);
+}
+
+fn render_empty(frame: &mut Frame, area: Rect, active_filter: Option<&str>) {
+    let message = if let Some(filter_type) = active_filter {
+        format!("No memories with type '{filter_type}'")
+    } else {
+        "No memories found".to_string()
+    };
+    let paragraph = Paragraph::new(message)
         .style(Style::default().fg(theme::MUTED))
         .alignment(ratatui::layout::Alignment::Center)
         .block(
@@ -84,15 +73,19 @@ fn type_color(memory_type: &str) -> ratatui::style::Color {
     match memory_type {
         "decision" => theme::PURPLE,
         "pattern" => theme::BLUE,
-        "bugfix" => theme::RED,
-        "antipattern" => theme::RED,
+        "bugfix" | "antipattern" => theme::RED,
         "context" => theme::MUTED,
         "insight" => theme::GREEN,
         _ => theme::TEXT,
     }
 }
 
-fn render_table(frame: &mut Frame, area: Rect, state: &mut MemoriesTabState) {
+fn render_visible_table(
+    frame: &mut Frame,
+    area: Rect,
+    visible: &[&MemorySummary],
+    selected: usize,
+) {
     let header = Row::new(vec!["Type", "Project", "Context", "Score", "Created"])
         .style(
             Style::default()
@@ -101,8 +94,7 @@ fn render_table(frame: &mut Frame, area: Rect, state: &mut MemoriesTabState) {
         )
         .bottom_margin(0);
 
-    let rows: Vec<Row> = state
-        .memories
+    let rows: Vec<Row> = visible
         .iter()
         .map(|memory| {
             let score_color = if memory.score >= 0.5 {
@@ -146,24 +138,21 @@ fn render_table(frame: &mut Frame, area: Rect, state: &mut MemoriesTabState) {
                 .borders(Borders::ALL)
                 .border_style(Style::default().fg(theme::MUTED))
                 .title(Span::styled(
-                    format!("Memories ({})", state.memories.len()),
+                    format!("Memories ({})", visible.len()),
                     Style::default().fg(theme::BLUE),
                 )),
         )
         .column_spacing(1);
 
-    let mut table_state = TableState::default().with_selected(Some(state.selected));
+    let mut table_state = TableState::default().with_selected(Some(selected));
     frame.render_stateful_widget(table, area, &mut table_state);
 
     let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight);
-    let mut scrollbar_state =
-        ScrollbarState::new(state.memories.len()).position(state.selected);
+    let mut scrollbar_state = ScrollbarState::new(visible.len()).position(selected);
     frame.render_stateful_widget(scrollbar, area, &mut scrollbar_state);
 }
 
-fn render_detail_popup(frame: &mut Frame, area: Rect, state: &MemoriesTabState) {
-    let memory = &state.memories[state.selected];
-
+fn render_detail_popup(frame: &mut Frame, area: Rect, memory: &MemorySummary) {
     let popup_area = centered_rect(80, 60, area);
     frame.render_widget(Clear, popup_area);
 
@@ -187,8 +176,11 @@ fn render_detail_popup(frame: &mut Frame, area: Rect, state: &MemoriesTabState) 
     ])
     .areas(inner);
 
+    let id_short = truncate_to_width(&memory.id, 12);
     let meta_text = Line::from(vec![
-        Span::styled("Project: ", Style::default().fg(theme::BLUE)),
+        Span::styled("ID: ", Style::default().fg(theme::BLUE)),
+        Span::styled(&id_short, Style::default().fg(theme::MUTED)),
+        Span::styled("  Project: ", Style::default().fg(theme::BLUE)),
         Span::styled(memory.project_display(), Style::default().fg(theme::TEXT)),
         Span::styled("  Score: ", Style::default().fg(theme::BLUE)),
         Span::styled(format!("{:.2}", memory.score), Style::default().fg(theme::GREEN)),

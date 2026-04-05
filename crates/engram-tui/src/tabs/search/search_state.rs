@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use ratatui::crossterm::event::KeyCode;
 
 use crate::data::SocketClient;
@@ -10,6 +12,7 @@ pub enum SearchKeyAction {
 }
 
 pub struct SearchResult {
+    pub id: String,
     pub memory_type: String,
     pub context: String,
     pub action: String,
@@ -33,6 +36,7 @@ pub struct SearchTabState {
     pub status: SearchStatus,
     pub detail_open: bool,
     pub input_active: bool,
+    pub status_message: Option<(String, Instant)>,
 }
 
 impl SearchTabState {
@@ -45,7 +49,18 @@ impl SearchTabState {
             status: SearchStatus::Idle,
             detail_open: false,
             input_active: true,
+            status_message: None,
         }
+    }
+
+    pub fn set_status_message(&mut self, message: String) {
+        self.status_message = Some((message, Instant::now()));
+    }
+
+    pub fn expired_status_message(&self) -> bool {
+        self.status_message
+            .as_ref()
+            .is_some_and(|(_, ts)| ts.elapsed().as_secs() >= 3)
     }
 
     pub fn insert_char(&mut self, character: char) {
@@ -90,9 +105,7 @@ impl SearchTabState {
         self.cursor_position += next_char.len_utf8();
     }
 
-    pub fn move_result_up(&mut self) {
-        self.selected = self.selected.saturating_sub(1);
-    }
+    pub fn move_result_up(&mut self) { self.selected = self.selected.saturating_sub(1); }
 
     pub fn move_result_down(&mut self) {
         if !self.results.is_empty() {
@@ -101,14 +114,10 @@ impl SearchTabState {
     }
 
     pub fn toggle_detail(&mut self) {
-        if !self.results.is_empty() {
-            self.detail_open = !self.detail_open;
-        }
+        if !self.results.is_empty() { self.detail_open = !self.detail_open; }
     }
 
-    pub fn close_detail(&mut self) {
-        self.detail_open = false;
-    }
+    pub fn close_detail(&mut self) { self.detail_open = false; }
 
     pub fn clear(&mut self) {
         self.query.clear();
@@ -135,7 +144,7 @@ impl SearchTabState {
         if self.input_active {
             self.handle_input_key(code, socket)
         } else {
-            self.handle_results_key(code)
+            self.handle_results_key(code, socket)
         }
     }
 
@@ -162,7 +171,11 @@ impl SearchTabState {
         SearchKeyAction::Handled
     }
 
-    fn handle_results_key(&mut self, code: KeyCode) -> SearchKeyAction {
+    fn handle_results_key(
+        &mut self,
+        code: KeyCode,
+        socket: &mut Option<SocketClient>,
+    ) -> SearchKeyAction {
         match code {
             KeyCode::Char('j') | KeyCode::Down => self.move_result_down(),
             KeyCode::Char('k') | KeyCode::Up => self.move_result_up(),
@@ -171,6 +184,8 @@ impl SearchTabState {
             KeyCode::Tab => return SearchKeyAction::NextTab,
             KeyCode::BackTab => return SearchKeyAction::PreviousTab,
             KeyCode::Char('q') => return SearchKeyAction::Quit,
+            KeyCode::Char('J') => self.judge_selected(socket),
+            KeyCode::Char('s') => self.store_search_as_memory(socket),
             _ => {}
         }
         SearchKeyAction::Handled
@@ -214,6 +229,7 @@ impl SearchTabState {
 
         for entry in entries {
             self.results.push(SearchResult {
+                id: json_string(&entry["id"]),
                 memory_type: json_string(&entry["memory_type"]),
                 context: json_string(&entry["context"]),
                 action: json_string(&entry["action"]),
@@ -227,6 +243,52 @@ impl SearchTabState {
         } else {
             SearchStatus::HasResults
         };
+    }
+
+    fn judge_selected(&mut self, socket: &mut Option<SocketClient>) {
+        if self.results.is_empty() {
+            return;
+        }
+        let Some(client) = socket.as_mut() else {
+            self.set_status_message("Socket offline".to_string());
+            return;
+        };
+        let memory_id = self.results[self.selected].id.clone();
+        let query = self.query.clone();
+        let params = serde_json::json!({
+            "memory_id": memory_id,
+            "query": query,
+        });
+        match client.call("memory_judge", params) {
+            Ok(data) => {
+                let score = data["score"].as_f64().unwrap_or(0.0);
+                self.results[self.selected].score = score;
+                self.set_status_message(format!("Judged: score {score:.2}"));
+            }
+            Err(error) => self.set_status_message(format!("Judge error: {error}")),
+        }
+    }
+
+    fn store_search_as_memory(&mut self, socket: &mut Option<SocketClient>) {
+        if self.query.trim().is_empty() {
+            return;
+        }
+        let Some(client) = socket.as_mut() else {
+            self.set_status_message("Socket offline".to_string());
+            return;
+        };
+        let top_context = self.results.first()
+            .map_or("no results".to_string(), |r| r.context.clone());
+        let params = serde_json::json!({
+            "memory_type": "context",
+            "context": format!("Searched for: {}", self.query),
+            "action": format!("Found {} results", self.results.len()),
+            "result": format!("Top result: {top_context}"),
+        });
+        match client.call("memory_store", params) {
+            Ok(_) => self.set_status_message("Search saved as memory".to_string()),
+            Err(error) => self.set_status_message(format!("Store error: {error}")),
+        }
     }
 }
 

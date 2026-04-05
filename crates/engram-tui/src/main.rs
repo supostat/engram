@@ -1,5 +1,7 @@
+mod actions;
 mod app;
 mod data;
+mod overlays;
 mod tabs;
 #[allow(dead_code)]
 mod theme;

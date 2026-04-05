@@ -1,7 +1,9 @@
+mod keys;
+
 use std::io;
 use std::time::{Duration, Instant};
 
-use ratatui::crossterm::event::{self, Event, KeyCode, KeyEventKind};
+use ratatui::crossterm::event::{self, Event, KeyEventKind};
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
@@ -9,11 +11,14 @@ use ratatui::widgets::{Block, Borders, Paragraph, Tabs};
 use ratatui::DefaultTerminal;
 use ratatui::Frame;
 
-use crate::data::{DatabaseReader, MemorySummary, QTableEntry, SocketClient};
+use crate::data::{DashboardStats, DatabaseReader, QTableEntry, SocketClient, load_stats};
+use crate::overlays::{
+    self, ConfirmDialog, FilterState, StatusMessage,
+    render_confirm_dialog, render_filter_popup, render_status_message,
+};
 use crate::tabs::{
     render_memories_tab, render_models_tab, render_qlearning_tab, render_search_tab,
-    render_status_tab, MemoriesTabState, ModelsTabState, SearchKeyAction, SearchStatus,
-    SearchTabState,
+    render_status_tab, MemoriesTabState, ModelsTabState, SearchStatus, SearchTabState,
 };
 use crate::theme;
 
@@ -53,17 +58,6 @@ impl Tab {
     }
 }
 
-pub struct DashboardStats {
-    pub memory_count: usize,
-    pub indexed_count: usize,
-    pub average_score: f64,
-    pub type_distribution: Vec<(String, usize)>,
-    pub project_distribution: Vec<(String, usize)>,
-    pub score_distribution: Vec<usize>,
-    pub feedback_judged: usize,
-    pub recent_memories: Vec<MemorySummary>,
-}
-
 pub struct App {
     tab: Tab,
     database: DatabaseReader,
@@ -76,6 +70,10 @@ pub struct App {
     models_state: ModelsTabState,
     should_quit: bool,
     last_refresh: Instant,
+    status_message: Option<StatusMessage>,
+    confirm_dialog: Option<ConfirmDialog>,
+    filter_state: Option<FilterState>,
+    consolidation_preview: Option<String>,
 }
 
 impl App {
@@ -106,6 +104,10 @@ impl App {
             models_state,
             should_quit: false,
             last_refresh: Instant::now(),
+            status_message: None,
+            confirm_dialog: None,
+            filter_state: None,
+            consolidation_preview: None,
         })
     }
 
@@ -113,6 +115,7 @@ impl App {
         while !self.should_quit {
             terminal.draw(|frame| self.render(frame))?;
             self.handle_events()?;
+            self.expire_status_message();
             self.refresh_if_stale();
         }
         Ok(())
@@ -130,57 +133,6 @@ impl App {
         }
         self.handle_key(key.code);
         Ok(())
-    }
-
-    fn handle_key(&mut self, code: KeyCode) {
-        if self.tab == Tab::Memories && self.memories_state.detail_open {
-            match code {
-                KeyCode::Esc | KeyCode::Enter => self.memories_state.close_detail(),
-                _ => {}
-            }
-            return;
-        }
-
-        if self.tab == Tab::Search && !matches!(self.search_state.status, SearchStatus::Offline) {
-            match self.search_state.handle_key(code, &mut self.socket) {
-                SearchKeyAction::Quit => self.should_quit = true,
-                SearchKeyAction::NextTab => self.next_tab(),
-                SearchKeyAction::PreviousTab => self.previous_tab(),
-                SearchKeyAction::Handled => {}
-            }
-            return;
-        }
-
-        if self.tab == Tab::Memories {
-            match code {
-                KeyCode::Char('j') | KeyCode::Down => {
-                    self.memories_state.move_down();
-                    return;
-                }
-                KeyCode::Char('k') | KeyCode::Up => {
-                    self.memories_state.move_up();
-                    return;
-                }
-                KeyCode::Enter => {
-                    self.memories_state.toggle_detail();
-                    return;
-                }
-                _ => {}
-            }
-        }
-
-        match code {
-            KeyCode::Char('q') | KeyCode::Esc => self.should_quit = true,
-            KeyCode::Tab => self.next_tab(),
-            KeyCode::BackTab => self.previous_tab(),
-            KeyCode::Char('1') => self.tab = Tab::Status,
-            KeyCode::Char('2') => self.tab = Tab::Memories,
-            KeyCode::Char('3') => self.tab = Tab::Search,
-            KeyCode::Char('4') => self.tab = Tab::QLearning,
-            KeyCode::Char('5') => self.tab = Tab::Models,
-            KeyCode::Char('r') => self.force_refresh(),
-            _ => {}
-        }
     }
 
     fn next_tab(&mut self) {
@@ -207,7 +159,16 @@ impl App {
         self.memories_state.memories = self.database.list_memories(500);
         self.memories_state.clamp_selection();
         self.models_state.models = self.database.models_info(&self.models_state.models_path);
+        self.models_state.clamp_selection();
         self.last_refresh = Instant::now();
+    }
+
+    fn expire_status_message(&mut self) {
+        if let Some(ref message) = self.status_message
+            && message.is_expired()
+        {
+            self.status_message = None;
+        }
     }
 
     fn render(&mut self, frame: &mut Frame) {
@@ -221,7 +182,17 @@ impl App {
         let current_tab = self.tab;
         self.render_header(frame, header_area);
         self.render_content(frame, content_area);
-        render_footer(frame, footer_area, current_tab);
+        self.render_footer(frame, footer_area, current_tab);
+
+        if let Some(ref dialog) = self.confirm_dialog {
+            render_confirm_dialog(frame, frame.area(), dialog);
+        }
+        if let Some(ref filter) = self.filter_state {
+            render_filter_popup(frame, frame.area(), filter);
+        }
+        if let Some(ref preview) = self.consolidation_preview {
+            overlays::render_consolidation_preview(frame, frame.area(), preview);
+        }
     }
 
     fn render_header(&self, frame: &mut Frame, area: Rect) {
@@ -254,8 +225,16 @@ impl App {
             Tab::Memories => render_memories_tab(frame, area, &mut self.memories_state),
             Tab::Search => render_search_tab(frame, area, &mut self.search_state),
             Tab::QLearning => render_qlearning_tab(frame, area, &self.q_table_entries),
-            Tab::Models => render_models_tab(frame, area, &self.models_state),
+            Tab::Models => render_models_tab(frame, area, &mut self.models_state),
         }
+    }
+
+    fn render_footer(&self, frame: &mut Frame, area: Rect, tab: Tab) {
+        if let Some(ref message) = self.status_message {
+            render_status_message(frame, area, message);
+            return;
+        }
+        render_footer(frame, area, tab);
     }
 }
 
@@ -282,26 +261,26 @@ fn render_footer(frame: &mut Frame, area: Rect, tab: Tab) {
     if tab == Tab::Search {
         return;
     }
-    let mut spans = vec![
-        Span::styled(" q", Style::default().fg(theme::PURPLE)),
-        Span::styled(": quit", Style::default().fg(theme::MUTED)),
-        Span::styled("  Tab", Style::default().fg(theme::PURPLE)),
-        Span::styled(": switch", Style::default().fg(theme::MUTED)),
-        Span::styled("  1-5", Style::default().fg(theme::PURPLE)),
-        Span::styled(": jump", Style::default().fg(theme::MUTED)),
-        Span::styled("  r", Style::default().fg(theme::PURPLE)),
-        Span::styled(": refresh", Style::default().fg(theme::MUTED)),
-    ];
+    let mut hints: Vec<(&str, &str)> =
+        vec![("q", "quit"), ("Tab", "switch"), ("1-5", "jump"), ("r", "refresh")];
     if tab == Tab::Memories {
-        spans.extend([
-            Span::styled("  j/k", Style::default().fg(theme::PURPLE)),
-            Span::styled(": scroll", Style::default().fg(theme::MUTED)),
-            Span::styled("  Enter", Style::default().fg(theme::PURPLE)),
-            Span::styled(": detail", Style::default().fg(theme::MUTED)),
-        ]);
+        hints.extend([("j", "judge"), ("d", "delete"), ("f", "filter"), ("/", "search")]);
     }
-    let footer = Paragraph::new(Line::from(spans));
-    frame.render_widget(footer, area);
+    if tab == Tab::Status {
+        hints.extend([("e", "export"), ("c", "consolidate")]);
+    }
+    let spans = footer_hint_spans(&hints);
+    frame.render_widget(Paragraph::new(Line::from(spans)), area);
+}
+
+fn footer_hint_spans(pairs: &[(&str, &str)]) -> Vec<Span<'static>> {
+    let mut spans = Vec::with_capacity(pairs.len() * 2);
+    for (key, description) in pairs {
+        let prefix = if spans.is_empty() { " " } else { "  " };
+        spans.push(Span::styled(format!("{prefix}{key}"), Style::default().fg(theme::PURPLE)));
+        spans.push(Span::styled(format!(": {description}"), Style::default().fg(theme::MUTED)));
+    }
+    spans
 }
 
 fn header_block() -> Block<'static> {
@@ -310,16 +289,3 @@ fn header_block() -> Block<'static> {
         .border_style(Style::default().fg(theme::MUTED))
 }
 
-fn load_stats(database: &DatabaseReader) -> DashboardStats {
-    let (_feedback_searched, feedback_judged) = database.feedback_stats();
-    DashboardStats {
-        memory_count: database.memory_count(),
-        indexed_count: database.indexed_count(),
-        average_score: database.average_score(),
-        type_distribution: database.type_distribution(),
-        project_distribution: database.project_distribution(),
-        score_distribution: database.score_distribution(),
-        feedback_judged,
-        recent_memories: database.recent_memories(20),
-    }
-}

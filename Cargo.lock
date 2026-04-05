@@ -789,6 +789,7 @@ dependencies = [
  "dirs",
  "ratatui",
  "rusqlite",
+ "serde_json",
 ]
 
 [[package]]

@@ -4,6 +4,7 @@ use std::path::Path;
 use rusqlite::{Connection, OpenFlags};
 
 pub struct MemorySummary {
+    pub id: String,
     pub memory_type: String,
     pub context: String,
     pub action: String,
@@ -100,7 +101,7 @@ impl DatabaseReader {
     }
 
     pub fn recent_memories(&self, limit: usize) -> Vec<MemorySummary> {
-        let query = "SELECT memory_type, context, COALESCE(action, ''), COALESCE(result, ''), \
+        let query = "SELECT id, memory_type, context, COALESCE(action, ''), COALESCE(result, ''), \
                      score, COALESCE(project, ''), created_at \
                      FROM memories ORDER BY created_at DESC LIMIT ?1";
         let Ok(mut statement) = self.connection.prepare(query) else {
@@ -108,13 +109,14 @@ impl DatabaseReader {
         };
         let Ok(rows) = statement.query_map([limit as i64], |row| {
             Ok(MemorySummary {
-                memory_type: row.get(0)?,
-                context: truncate_context(row.get::<_, String>(1)?),
-                action: row.get(2)?,
-                result: row.get(3)?,
-                score: row.get(4)?,
-                project: non_empty_string(row.get::<_, String>(5)?),
-                created_at: row.get(6)?,
+                id: row.get(0)?,
+                memory_type: row.get(1)?,
+                context: truncate_context(row.get::<_, String>(2)?),
+                action: row.get(3)?,
+                result: row.get(4)?,
+                score: row.get(5)?,
+                project: non_empty_string(row.get::<_, String>(6)?),
+                created_at: row.get(7)?,
             })
         }) else {
             return Vec::new();
@@ -123,7 +125,7 @@ impl DatabaseReader {
     }
 
     pub fn list_memories(&self, limit: usize) -> Vec<MemorySummary> {
-        let query = "SELECT memory_type, context, COALESCE(action, ''), COALESCE(result, ''), \
+        let query = "SELECT id, memory_type, context, COALESCE(action, ''), COALESCE(result, ''), \
                      score, COALESCE(project, ''), created_at \
                      FROM memories ORDER BY created_at DESC LIMIT ?1";
         let Ok(mut statement) = self.connection.prepare(query) else {
@@ -131,13 +133,14 @@ impl DatabaseReader {
         };
         let Ok(rows) = statement.query_map([limit as i64], |row| {
             Ok(MemorySummary {
-                memory_type: row.get(0)?,
-                context: row.get(1)?,
-                action: row.get(2)?,
-                result: row.get(3)?,
-                score: row.get(4)?,
-                project: non_empty_string(row.get::<_, String>(5)?),
-                created_at: row.get(6)?,
+                id: row.get(0)?,
+                memory_type: row.get(1)?,
+                context: row.get(2)?,
+                action: row.get(3)?,
+                result: row.get(4)?,
+                score: row.get(5)?,
+                project: non_empty_string(row.get::<_, String>(6)?),
+                created_at: row.get(7)?,
             })
         }) else {
             return Vec::new();
@@ -182,6 +185,27 @@ impl DatabaseReader {
             .collect();
         models.sort_by(|first, second| first.filename.cmp(&second.filename));
         models
+    }
+
+    pub fn delete_memory(&self, database_path: &str, memory_id: &str) -> io::Result<()> {
+        let write_connection =
+            Connection::open_with_flags(database_path, OpenFlags::SQLITE_OPEN_READ_WRITE)
+                .map_err(io::Error::other)?;
+        write_connection
+            .execute("DELETE FROM memories WHERE id = ?1", [memory_id])
+            .map_err(io::Error::other)?;
+        Ok(())
+    }
+
+    pub fn memory_types(&self) -> Vec<String> {
+        let query = "SELECT DISTINCT memory_type FROM memories ORDER BY memory_type";
+        let Ok(mut statement) = self.connection.prepare(query) else {
+            return Vec::new();
+        };
+        let Ok(rows) = statement.query_map([], |row| row.get::<_, String>(0)) else {
+            return Vec::new();
+        };
+        rows.flatten().collect()
     }
 
     fn query_count(&self, query: &str) -> usize {
@@ -245,4 +269,29 @@ fn format_unix_timestamp(seconds: u64) -> String {
     let month = remaining_days / 30 + 1;
     let day = remaining_days % 30 + 1;
     format!("{year}-{month:02}-{day:02}")
+}
+
+pub struct DashboardStats {
+    pub memory_count: usize,
+    pub indexed_count: usize,
+    pub average_score: f64,
+    pub type_distribution: Vec<(String, usize)>,
+    pub project_distribution: Vec<(String, usize)>,
+    pub score_distribution: Vec<usize>,
+    pub feedback_judged: usize,
+    pub recent_memories: Vec<MemorySummary>,
+}
+
+pub fn load_stats(database: &DatabaseReader) -> DashboardStats {
+    let (_feedback_searched, feedback_judged) = database.feedback_stats();
+    DashboardStats {
+        memory_count: database.memory_count(),
+        indexed_count: database.indexed_count(),
+        average_score: database.average_score(),
+        type_distribution: database.type_distribution(),
+        project_distribution: database.project_distribution(),
+        score_distribution: database.score_distribution(),
+        feedback_judged,
+        recent_memories: database.recent_memories(20),
+    }
 }

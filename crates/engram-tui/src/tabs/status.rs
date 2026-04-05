@@ -4,7 +4,7 @@ use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Bar, BarChart, BarGroup, Block, Borders, Paragraph, Row, Table};
 
-use crate::app::DashboardStats;
+use crate::data::DashboardStats;
 use crate::theme;
 
 pub fn render_status_tab(frame: &mut Frame, area: Rect, stats: &DashboardStats) {
