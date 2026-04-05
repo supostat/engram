@@ -187,6 +187,19 @@ impl DatabaseReader {
         models
     }
 
+    pub fn has_onnx_models(&self, models_path: &str) -> bool {
+        let path = Path::new(models_path);
+        let Ok(entries) = std::fs::read_dir(path) else {
+            return false;
+        };
+        entries.flatten().any(|entry| {
+            entry
+                .path()
+                .extension()
+                .is_some_and(|ext| ext == "onnx")
+        })
+    }
+
     pub fn delete_memory(&self, database_path: &str, memory_id: &str) -> io::Result<()> {
         let write_connection =
             Connection::open_with_flags(database_path, OpenFlags::SQLITE_OPEN_READ_WRITE)
@@ -280,12 +293,17 @@ pub struct DashboardStats {
     pub score_distribution: Vec<usize>,
     pub feedback_judged: usize,
     pub recent_memories: Vec<MemorySummary>,
+    pub hints: Vec<String>,
 }
 
-pub fn load_stats(database: &DatabaseReader) -> DashboardStats {
-    let (_feedback_searched, feedback_judged) = database.feedback_stats();
+pub fn load_stats(database: &DatabaseReader, models_path: &str) -> DashboardStats {
+    let (feedback_searched, feedback_judged) = database.feedback_stats();
+    let feedback_pending = feedback_searched.saturating_sub(feedback_judged);
+    let memory_count = database.memory_count();
+    let has_onnx = database.has_onnx_models(models_path);
+    let hints = build_hints(memory_count, feedback_pending, has_onnx);
     DashboardStats {
-        memory_count: database.memory_count(),
+        memory_count,
         indexed_count: database.indexed_count(),
         average_score: database.average_score(),
         type_distribution: database.type_distribution(),
@@ -293,5 +311,26 @@ pub fn load_stats(database: &DatabaseReader) -> DashboardStats {
         score_distribution: database.score_distribution(),
         feedback_judged,
         recent_memories: database.recent_memories(20),
+        hints,
     }
+}
+
+fn build_hints(memory_count: usize, pending_judgments: usize, has_onnx: bool) -> Vec<String> {
+    let mut hints = Vec::new();
+
+    if memory_count >= 20 && !has_onnx {
+        hints.push(format!(
+            "You have {memory_count} memories. Install trainer: \
+             pip install engram-trainer && engram train"
+        ));
+    }
+
+    if pending_judgments > 10 {
+        hints.push(format!(
+            "{pending_judgments} memories pending judgment. \
+             Use memory_judge to improve search quality"
+        ));
+    }
+
+    hints
 }

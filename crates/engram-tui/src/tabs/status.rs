@@ -8,11 +8,18 @@ use crate::data::DashboardStats;
 use crate::theme;
 
 pub fn render_status_tab(frame: &mut Frame, area: Rect, stats: &DashboardStats) {
-    let [cards_area, distributions_area, histogram_area, table_area] =
+    let hints_height = if stats.hints.is_empty() {
+        0
+    } else {
+        stats.hints.len() as u16 + 2
+    };
+
+    let [cards_area, distributions_area, histogram_area, hints_area, table_area] =
         Layout::vertical([
             Constraint::Length(5),
             Constraint::Length(10),
             Constraint::Length(6),
+            Constraint::Length(hints_height),
             Constraint::Fill(1),
         ])
         .areas(area);
@@ -20,6 +27,9 @@ pub fn render_status_tab(frame: &mut Frame, area: Rect, stats: &DashboardStats) 
     render_stat_cards(frame, cards_area, stats);
     render_distributions(frame, distributions_area, stats);
     render_score_histogram(frame, histogram_area, stats);
+    if !stats.hints.is_empty() {
+        render_hints(frame, hints_area, &stats.hints);
+    }
     render_recent_memories(frame, table_area, stats);
 }
 
@@ -156,6 +166,27 @@ fn render_score_histogram(frame: &mut Frame, area: Rect, stats: &DashboardStats)
         .value_style(Style::default().fg(theme::TEXT));
 
     frame.render_widget(chart, area);
+}
+
+fn render_hints(frame: &mut Frame, area: Rect, hints: &[String]) {
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(theme::MUTED))
+        .title(Span::styled("Hints", Style::default().fg(theme::AMBER)));
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+
+    let lines: Vec<Line> = hints
+        .iter()
+        .map(|hint| {
+            Line::from(Span::styled(
+                format!("💡 {hint}"),
+                Style::default().fg(theme::AMBER),
+            ))
+        })
+        .collect();
+
+    frame.render_widget(Paragraph::new(lines), inner);
 }
 
 fn render_recent_memories(frame: &mut Frame, area: Rect, stats: &DashboardStats) {

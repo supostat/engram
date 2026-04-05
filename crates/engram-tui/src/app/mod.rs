@@ -79,7 +79,7 @@ pub struct App {
 impl App {
     pub fn new(database_path: &str, models_path: &str, socket_path: &str) -> io::Result<Self> {
         let database = DatabaseReader::new(database_path)?;
-        let stats = load_stats(&database);
+        let stats = load_stats(&database, models_path);
         let q_table_entries = database.q_table_entries();
         let memories = database.list_memories(500);
         let models = database.models_info(models_path);
@@ -154,7 +154,7 @@ impl App {
     }
 
     fn force_refresh(&mut self) {
-        self.stats = load_stats(&self.database);
+        self.stats = load_stats(&self.database, &self.models_state.models_path);
         self.q_table_entries = self.database.q_table_entries();
         self.memories_state.memories = self.database.list_memories(500);
         self.memories_state.clamp_selection();

@@ -9,3 +9,4 @@ pub const MUTED: Color = Color::Rgb(100, 100, 140);
 pub const TEXT: Color = Color::Rgb(230, 230, 240);
 pub const GREEN: Color = Color::Rgb(74, 222, 128);
 pub const RED: Color = Color::Rgb(248, 113, 113);
+pub const AMBER: Color = Color::Rgb(234, 179, 8);
