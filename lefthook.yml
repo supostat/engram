@@ -1,0 +1,24 @@
+pre-commit:
+  parallel: true
+  commands:
+    rust-fmt:
+      glob: "*.rs"
+      run: cargo fmt --all -- --check
+    rust-clippy:
+      glob: "*.rs"
+      run: cargo clippy --all -- -D warnings
+    node-typecheck:
+      glob: "mcp-server/**/*.{ts,tsx}"
+      run: cd mcp-server && npm run typecheck
+
+pre-push:
+  parallel: true
+  commands:
+    rust-test:
+      run: cargo test --all
+    node-test:
+      glob: "mcp-server/**/*.{ts,tsx}"
+      run: cd mcp-server && npm test
+    website-build:
+      glob: "website/**/*.{ts,tsx,mdx,css}"
+      run: cd website && npm run build
