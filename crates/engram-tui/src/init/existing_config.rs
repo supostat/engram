@@ -52,8 +52,10 @@ impl ExistingConfig {
         let socket_path = table_string(&table, &["server", "socket_path"])
             .unwrap_or_else(|| "~/.engram/engram.sock".into());
 
-        let embedding_api_key = table_string(&table, &["secrets", "voyage_api_key"]);
-        let llm_api_key = table_string(&table, &["secrets", "openai_api_key"]);
+        let embedding_api_key = table_string(&table, &["embedding", "api_key"])
+            .or_else(|| std::env::var("ENGRAM_VOYAGE_API_KEY").ok());
+        let llm_api_key = table_string(&table, &["llm", "api_key"])
+            .or_else(|| std::env::var("ENGRAM_OPENAI_API_KEY").ok());
 
         Some(Self {
             embedding_provider,
