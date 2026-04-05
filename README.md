@@ -70,8 +70,14 @@ Add to your Claude Desktop / Claude Code config:
 
 ```bash
 pip install engram-trainer
-engram-trainer --db ~/.engram/engram.db
-engram-trainer --db ~/.engram/engram.db --deep  # LoRA fine-tuning (requires torch)
+
+# Direct invocation
+python -m engram_trainer --database ~/.engram/memories.db --models-path ~/.engram/models/
+python -m engram_trainer --database ~/.engram/memories.db --models-path ~/.engram/models/ --deep
+
+# Via CLI
+engram train
+engram train --deep  # LoRA fine-tuning (requires torch)
 ```
 
 ## Features
@@ -85,6 +91,18 @@ engram-trainer --db ~/.engram/engram.db --deep  # LoRA fine-tuning (requires tor
 - **Cross-project transfer** — project-scoped search with score multiplier, insights are project-agnostic
 - **Graceful degradation** — every API dependency has a local fallback (FTS for search, heuristics for judge)
 - **Local inference** — optional ONNX runtime for text generation (feature-gated)
+
+## Self-Learning Models
+
+Trainer produces three ONNX models stored in `~/.engram/models/`:
+
+| Model | Size | Algorithm | Purpose |
+|-------|------|-----------|---------|
+| `mode_classifier.onnx` | 13 KB | TF-IDF + LogisticRegression | Classifies query type (query/research/brainstorm/debugging) for Q-Learning router |
+| `ranking_model.onnx` | 23 KB | GradientBoosting | Re-ranks search results by score, usage, recency, length, and tags |
+| `text_generator.onnx` | ~312 MB | DistilGPT2 + LoRA | Local text generation replacing API calls for HyDE and routine operations |
+
+The first two models are trained during regular `engram train` runs. The text generator requires `engram train --deep` with PyTorch installed.
 
 ## Memory Types
 
@@ -154,10 +172,22 @@ Environment variables override config: `ENGRAM_VOYAGE_API_KEY`, `ENGRAM_OPENAI_A
 ## Testing
 
 ```bash
-cargo test --all              # 349 Rust tests
-cd mcp-server && npm test     # TypeScript typecheck
+cargo test --all              # 350 Rust tests
+cd mcp-server && npm test     # 7 vitest unit tests + typecheck
 cd trainer && pytest           # Python tests (pip install -e ".[dev]")
 cargo bench --all             # Criterion benchmarks
+```
+
+## Documentation
+
+Full documentation available at the website:
+- Russian: /ru/docs
+- English: /en/docs
+
+To run locally:
+
+```bash
+cd website && npm install && npm run dev
 ```
 
 ## License

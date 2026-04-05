@@ -10,7 +10,52 @@ Engram is a long-term memory system for AI agents. It stores decisions, patterns
 ## Features
 
 - **Hybrid search** — vector (HNSW cosine) + full-text (FTS5 BM25)
-- **Q-Learning router** — adaptive search strategy selection
-- **Self-learning** — clustering, temporal patterns, LoRA fine-tuning
+- **HyDE** — LLM generates a hypothetical memory, embedding is built from the hypothesis instead of the raw query
+- **Automatic deduplication** — cosine similarity > 0.95 at write time
+- **Consolidation** — preview → LLM analysis → apply (merge/delete/archive)
+- **Q-Learning router** — 4 levels: search strategy, LLM selection, contextualization, proactivity
+- **Three learning loops** — fast (Q-Learning per call), medium (trainer daily/weekly), deep (LoRA fine-tune)
+- **Cross-project transfer** — project-scoped search with score multiplier, insights are project-agnostic
+- **Graceful degradation** — every API dependency has a local fallback
 - **MCP integration** — works with Claude Desktop, Claude Code, Cursor
 - **CLI** — full-featured command-line interface
+
+## Three Learning Loops
+
+Engram uses three levels of adaptation, each with different speed and depth:
+
+- **Fast loop (Q-Learning)** — updates the Q-table after every call. The router adjusts search strategy, model selection, and contextualization level based on feedback. Latency — milliseconds.
+- **Medium loop (Trainer)** — runs periodically (daily or weekly). Clusters memories, identifies temporal patterns, trains the classifier and ranking model. Results are saved as ONNX models.
+- **Deep loop (LoRA fine-tune)** — fine-tunes DistilGPT2 on user data using LoRA adapters. Replaces API calls for HyDE and routine operations with local text generation.
+
+## Trained Models
+
+The trainer produces three ONNX models stored in `~/.engram/models/`:
+
+| Model | Size | Algorithm | Purpose |
+|-------|------|-----------|---------|
+| `mode_classifier.onnx` | 13 KB | TF-IDF + LogisticRegression | Classifies query type (query/research/brainstorm/debugging) for Q-Learning router |
+| `ranking_model.onnx` | 23 KB | GradientBoosting | Re-ranks search results by score, usage, recency, length, and tags |
+| `text_generator.onnx` | ~312 MB | DistilGPT2 + LoRA | Local text generation replacing API calls for HyDE and routine operations |
+
+The first two models are trained during regular `engram train` runs. The text generator requires `engram train --deep` with PyTorch installed.
+
+## Architecture
+
+Engram uses a two-process model:
+
+- **Rust core** (`engram-core`) — long-lived unix socket server or self-contained CLI. Contains all business logic: storage, search, embeddings, routing, consolidation, ONNX inference.
+- **TypeScript MCP server** (`@engram/mcp-server`) — thin MCP ↔ JSON-RPC translator. Manages the Rust process lifecycle.
+
+See [Architecture](/en/docs/architecture) for details.
+
+## Further Reading
+
+- [Getting Started](/en/docs/getting-started) — installation and first steps
+- [CLI](/en/docs/cli) — command-line interface commands
+- [MCP Tools](/en/docs/mcp-tools) — Claude Desktop and Cursor integration
+- [Configuration](/en/docs/configuration) — TOML config and environment variables
+- [Hybrid Search](/en/docs/hybrid-search) — how search works
+- [Q-Learning Router](/en/docs/q-learning) — adaptive routing
+- [Consolidation](/en/docs/consolidation) — memory deduplication and merging
+- [Trainer](/en/docs/trainer) — self-learning and model export
