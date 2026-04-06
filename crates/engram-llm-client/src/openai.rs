@@ -62,6 +62,7 @@ impl TextGenerator for OpenAITextGenerator {
         let body = serde_json::json!({
             "model": self.model,
             "messages": [{"role": "user", "content": prompt}],
+            "max_tokens": 200,
         });
 
         execute_with_retry(&self.retry_config, || {
