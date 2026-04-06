@@ -23,7 +23,7 @@ export class SocketClient {
   constructor(config: SocketClientConfig) {
     this.socketPath = config.socketPath;
     this.connectTimeoutMs = config.connectTimeoutMs ?? 5000;
-    this.requestTimeoutMs = config.requestTimeoutMs ?? 10000;
+    this.requestTimeoutMs = config.requestTimeoutMs ?? 30000;
   }
 
   async connect(): Promise<void> {
