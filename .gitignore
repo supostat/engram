@@ -24,6 +24,7 @@ target/
 
 # Python trainer
 trainer/.venv/
+trainer/build/
 trainer/*.egg-info/
 trainer/src/*.egg-info/
 __pycache__/
