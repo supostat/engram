@@ -1,9 +1,12 @@
+use std::time::Duration;
+
 use crate::error::{ApiError, map_http_status_to_error};
 use crate::provider::EmbeddingProvider;
 use crate::retry::{RetryConfig, execute_with_retry};
 
 pub const DEFAULT_VOYAGE_MODEL: &str = "voyage-code-3";
 pub const DEFAULT_VOYAGE_DIMENSION: usize = 1024;
+const HTTP_REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
 
 pub struct VoyageEmbeddingProvider {
     api_key: String,
@@ -35,7 +38,10 @@ impl VoyageEmbeddingProvider {
         if api_key.is_empty() {
             return Err(ApiError::InvalidApiKey("empty api key".into()));
         }
-        let client = reqwest::blocking::Client::new();
+        let client = reqwest::blocking::Client::builder()
+            .timeout(HTTP_REQUEST_TIMEOUT)
+            .build()
+            .map_err(|error| ApiError::EmbeddingApiUnavailable(error.to_string()))?;
         Ok(Self {
             api_key,
             client,

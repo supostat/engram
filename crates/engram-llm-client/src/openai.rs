@@ -1,8 +1,11 @@
+use std::time::Duration;
+
 use crate::error::{ApiError, map_http_status_to_error};
 use crate::provider::TextGenerator;
 use crate::retry::{RetryConfig, execute_with_retry};
 
 pub const DEFAULT_OPENAI_MODEL: &str = "gpt-4o-mini";
+const HTTP_REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
 
 pub struct OpenAITextGenerator {
     api_key: String,
@@ -31,7 +34,10 @@ impl OpenAITextGenerator {
         if api_key.is_empty() {
             return Err(ApiError::InvalidApiKey("empty api key".into()));
         }
-        let client = reqwest::blocking::Client::new();
+        let client = reqwest::blocking::Client::builder()
+            .timeout(HTTP_REQUEST_TIMEOUT)
+            .build()
+            .map_err(|error| ApiError::LlmApiUnavailable(error.to_string()))?;
         Ok(Self {
             api_key,
             client,
