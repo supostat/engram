@@ -26,7 +26,7 @@ fn build_deterministic_state() -> Arc<ServerState> {
     Arc::new(ServerState {
         database: Mutex::new(database),
         indexes: Mutex::new(indexes),
-        embedder: Mutex::new(embedder),
+        embedder,
         router: Mutex::new(router),
         config,
         database_path: String::new(),

@@ -28,7 +28,7 @@ impl Embedder {
     }
 
     pub fn embed_fields(
-        &mut self,
+        &self,
         context: &str,
         action: &str,
         result: &str,
@@ -51,7 +51,7 @@ impl Embedder {
     }
 
     pub fn embed_query(
-        &mut self,
+        &self,
         query: &str,
         provider: &dyn EmbeddingProvider,
         text_generator: Option<&dyn TextGenerator>,
@@ -64,7 +64,7 @@ impl Embedder {
         &self.cache
     }
 
-    pub fn clear_cache(&mut self) {
+    pub fn clear_cache(&self) {
         self.cache.clear();
     }
 
@@ -79,12 +79,12 @@ impl Embedder {
     }
 
     fn get_or_embed(
-        &mut self,
+        &self,
         text: &str,
         provider: &dyn EmbeddingProvider,
     ) -> Result<Vec<f32>, EmbeddingError> {
         if let Some(cached) = self.cache.get(text) {
-            return Ok(cached.clone());
+            return Ok(cached);
         }
         let embedding = provider.embed(text)?;
         self.cache.insert(text.to_string(), embedding.clone());

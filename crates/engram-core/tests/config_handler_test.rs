@@ -20,7 +20,7 @@ fn build_deterministic_state() -> Arc<ServerState> {
     Arc::new(ServerState {
         database: Mutex::new(database),
         indexes: Mutex::new(indexes),
-        embedder: Mutex::new(embedder),
+        embedder,
         router: Mutex::new(router),
         config,
         database_path: String::new(),
@@ -55,7 +55,7 @@ async fn config_get_reports_api_key_presence() {
     let state = Arc::new(ServerState {
         database: Mutex::new(database),
         indexes: Mutex::new(indexes),
-        embedder: Mutex::new(Embedder::new()),
+        embedder: Embedder::new(),
         router: Mutex::new(Router::new(0.1, 0.15)),
         config,
         database_path: String::new(),

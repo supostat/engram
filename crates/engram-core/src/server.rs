@@ -24,7 +24,7 @@ const ROUTER_DEFAULT_EPSILON: f32 = 0.15;
 pub struct ServerState {
     pub database: Mutex<Database>,
     pub indexes: Mutex<IndexSet>,
-    pub embedder: Mutex<Embedder>,
+    pub embedder: Embedder,
     pub router: Mutex<Router>,
     pub config: Config,
     pub database_path: String,
@@ -75,7 +75,7 @@ pub(crate) fn initialize_state(
     Ok(ServerState {
         database: Mutex::new(database),
         indexes: Mutex::new(indexes),
-        embedder: Mutex::new(embedder),
+        embedder,
         router: Mutex::new(router),
         config: config.clone(),
         database_path,

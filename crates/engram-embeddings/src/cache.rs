@@ -1,7 +1,8 @@
 use std::collections::HashMap;
+use std::sync::RwLock;
 
 pub struct EmbeddingCache {
-    entries: HashMap<String, Vec<f32>>,
+    entries: RwLock<HashMap<String, Vec<f32>>>,
 }
 
 impl Default for EmbeddingCache {
@@ -13,27 +14,27 @@ impl Default for EmbeddingCache {
 impl EmbeddingCache {
     pub fn new() -> Self {
         Self {
-            entries: HashMap::new(),
+            entries: RwLock::new(HashMap::new()),
         }
     }
 
-    pub fn get(&self, text: &str) -> Option<&Vec<f32>> {
-        self.entries.get(text)
+    pub fn get(&self, text: &str) -> Option<Vec<f32>> {
+        self.entries.read().unwrap().get(text).cloned()
     }
 
-    pub fn insert(&mut self, text: String, embedding: Vec<f32>) {
-        self.entries.insert(text, embedding);
+    pub fn insert(&self, text: String, embedding: Vec<f32>) {
+        self.entries.write().unwrap().insert(text, embedding);
     }
 
     pub fn len(&self) -> usize {
-        self.entries.len()
+        self.entries.read().unwrap().len()
     }
 
     pub fn is_empty(&self) -> bool {
-        self.entries.is_empty()
+        self.entries.read().unwrap().is_empty()
     }
 
-    pub fn clear(&mut self) {
-        self.entries.clear();
+    pub fn clear(&self) {
+        self.entries.write().unwrap().clear();
     }
 }

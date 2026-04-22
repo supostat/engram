@@ -1,5 +1,6 @@
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 use serde::Deserialize;
 
@@ -304,8 +305,53 @@ struct DeterministicEmbeddingProvider {
     dimension: usize,
 }
 
+// Test instrumentation for the deterministic provider. Gated behind
+// `DETERMINISTIC_PROVIDER_INSTRUMENTATION`, which defaults to OFF so
+// production users (TUI demo mode, local setups without API keys) pay
+// zero overhead. Tests call `enable_deterministic_provider_instrumentation`
+// before parallel assertions and `disable_deterministic_provider_instrumentation`
+// in teardown (typically via a drop-guard).
+static DETERMINISTIC_PROVIDER_INSTRUMENTATION: AtomicBool = AtomicBool::new(false);
+static DETERMINISTIC_PROVIDER_ENTRIES: AtomicUsize = AtomicUsize::new(0);
+static DETERMINISTIC_PROVIDER_MAX_CONCURRENT: AtomicUsize = AtomicUsize::new(0);
+
+/// Enable test-only instrumentation (counter + 20ms sleep) on the deterministic
+/// embedding provider. Off in production by default; tests enable it before
+/// reading concurrency counters.
+pub fn enable_deterministic_provider_instrumentation() {
+    DETERMINISTIC_PROVIDER_INSTRUMENTATION.store(true, Ordering::Relaxed);
+}
+
+/// Disable instrumentation. Tests should call this in teardown to avoid leaking
+/// state across serially-run suites.
+pub fn disable_deterministic_provider_instrumentation() {
+    DETERMINISTIC_PROVIDER_INSTRUMENTATION.store(false, Ordering::Relaxed);
+}
+
+pub fn deterministic_provider_max_concurrent() -> usize {
+    DETERMINISTIC_PROVIDER_MAX_CONCURRENT.load(Ordering::Relaxed)
+}
+
+pub fn reset_deterministic_provider_counters() {
+    DETERMINISTIC_PROVIDER_ENTRIES.store(0, Ordering::Relaxed);
+    DETERMINISTIC_PROVIDER_MAX_CONCURRENT.store(0, Ordering::Relaxed);
+}
+
 impl EmbeddingProvider for DeterministicEmbeddingProvider {
     fn embed(&self, text: &str) -> Result<Vec<f32>, engram_llm_client::ApiError> {
+        // Test-only instrumentation: when enabled via
+        // `enable_deterministic_provider_instrumentation`, each embed call
+        // records concurrent entries and sleeps 20ms to widen the overlap
+        // window for parallelism assertions. Production users never enable
+        // this — a relaxed atomic load is ~1ns, so overhead is effectively
+        // zero otherwise.
+        let instrumented = DETERMINISTIC_PROVIDER_INSTRUMENTATION.load(Ordering::Relaxed);
+        if instrumented {
+            let entries = DETERMINISTIC_PROVIDER_ENTRIES.fetch_add(1, Ordering::SeqCst) + 1;
+            DETERMINISTIC_PROVIDER_MAX_CONCURRENT.fetch_max(entries, Ordering::SeqCst);
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+
         let mut embedding = vec![0.0_f32; self.dimension];
         for (index, byte) in text.bytes().enumerate() {
             embedding[index % self.dimension] += byte as f32 / 255.0;
@@ -318,6 +364,10 @@ impl EmbeddingProvider for DeterministicEmbeddingProvider {
             .max(1e-10);
         for value in &mut embedding {
             *value /= norm;
+        }
+
+        if instrumented {
+            DETERMINISTIC_PROVIDER_ENTRIES.fetch_sub(1, Ordering::SeqCst);
         }
         Ok(embedding)
     }

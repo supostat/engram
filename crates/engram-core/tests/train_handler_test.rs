@@ -21,7 +21,7 @@ fn build_deterministic_state() -> Arc<ServerState> {
     Arc::new(ServerState {
         database: Mutex::new(database),
         indexes: Mutex::new(indexes),
-        embedder: Mutex::new(embedder),
+        embedder,
         router: Mutex::new(router),
         config,
         database_path: String::new(),
@@ -132,7 +132,7 @@ async fn train_generate_missing_binary() {
     let state = Arc::new(ServerState {
         database: Mutex::new(database),
         indexes: Mutex::new(indexes),
-        embedder: Mutex::new(Embedder::new()),
+        embedder: Embedder::new(),
         router: Mutex::new(Router::new(0.1, 0.15)),
         config,
         database_path: String::new(),

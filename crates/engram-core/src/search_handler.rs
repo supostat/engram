@@ -70,8 +70,8 @@ async fn embed_query(state: &Arc<ServerState>, query: &str) -> Result<Vec<f32>, 
         let provider = config.build_embedding_provider()?;
         let text_gen = config.build_text_generator().ok();
         let text_gen_ref = text_gen.as_deref();
-        let mut embedder = state_clone.embedder.lock().unwrap();
-        embedder
+        state_clone
+            .embedder
             .embed_query(&query_owned, provider.as_ref(), text_gen_ref)
             .map_err(|error| {
                 CoreError::Api(engram_llm_client::ApiError::EmbeddingApiUnavailable(
