@@ -67,6 +67,7 @@ fn save_indexes_if_mutating(method: &str, state: &Arc<ServerState>) -> Result<()
             | "memory_consolidate_apply"
             | "memory_import"
             | "memory_insights"
+            | "memory_migrate_apply"
             | "memory_train_generate"
             | "memory_train_delete"
     );

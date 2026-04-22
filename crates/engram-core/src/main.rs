@@ -72,6 +72,18 @@ enum Command {
     /// Initialize Engram: create config, database, print MCP setup
     Init,
 
+    /// Migrate memories from legacy ~/.engram/engram.db into the current project database.
+    /// Default filter: cwd basename exact match against memories.project; NULL project rows
+    /// are skipped unless --all is passed.
+    Migrate {
+        /// Include memories whose project field is NULL or differs from the cwd basename.
+        #[arg(long)]
+        all: bool,
+        /// Report what would be migrated without writing to the destination database.
+        #[arg(long)]
+        dry_run: bool,
+    },
+
     /// Training operations
     Train {
         #[command(subcommand)]
@@ -132,6 +144,9 @@ async fn main() {
 async fn run(parsed: EngramCli) -> Result<(), engram_core::CoreError> {
     match parsed.command {
         Command::Init => engram_core::init_handler::execute(),
+        Command::Migrate { all, dry_run } => {
+            engram_core::migrate_handler::execute(all, dry_run, &parsed.format)
+        }
         command => run_with_config(parsed.config, command, parsed.format).await,
     }
 }
@@ -198,7 +213,9 @@ fn build_dispatch_args(command: Command) -> (String, serde_json::Value) {
         Command::Status => ("memory_status".into(), json!({})),
         Command::Consolidate { action } => build_consolidate_args(action),
         Command::Train { action } => build_train_args(action),
-        Command::Server | Command::Version | Command::Init => unreachable!(),
+        Command::Server | Command::Version | Command::Init | Command::Migrate { .. } => {
+            unreachable!()
+        }
     }
 }
 

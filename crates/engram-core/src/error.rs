@@ -30,6 +30,8 @@ pub enum CoreError {
         legacy_path: String,
         project_path: String,
     },
+    MigrationSourceNotFound,
+    MigrationFailed(String),
     Consolidation(ConsolidateError),
 }
 
@@ -98,6 +100,15 @@ impl fmt::Display for CoreError {
                     formatter,
                     "[6017] legacy global database detected at {legacy_path}. Run `engram migrate` to import into project {project_path}, or `engram init` to start fresh."
                 )
+            }
+            Self::MigrationSourceNotFound => {
+                write!(
+                    formatter,
+                    "[6018] migration source not found: no legacy database at ~/.engram/engram.db (nothing to migrate)"
+                )
+            }
+            Self::MigrationFailed(message) => {
+                write!(formatter, "[6019] migration failed: {message}")
             }
             Self::Storage(error) => error.fmt(formatter),
             Self::Hnsw(error) => error.fmt(formatter),

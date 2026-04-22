@@ -210,6 +210,18 @@ impl Database {
         Ok(count)
     }
 
+    pub fn list_all_memories(&self) -> Result<Vec<Memory>, StorageError> {
+        let mut statement = self
+            .connection()
+            .prepare("SELECT * FROM memories WHERE superseded_by IS NULL")?;
+        let rows = statement.query_map([], row_to_memory)?;
+        let mut results = Vec::new();
+        for row in rows {
+            results.push(row?);
+        }
+        Ok(results)
+    }
+
     pub fn get_unindexed_memories(&self, limit: usize) -> Result<Vec<Memory>, StorageError> {
         let mut statement = self
             .connection()

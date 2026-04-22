@@ -10,6 +10,7 @@ pub mod indexes;
 pub mod init_handler;
 pub mod insights_handler;
 pub mod judge_handler;
+pub mod migrate_handler;
 pub mod output;
 pub mod persistence;
 pub mod protocol;

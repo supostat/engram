@@ -279,6 +279,8 @@ fn error_code(error: &CoreError) -> u32 {
         CoreError::TrainerMalformedOutput(_) => 6015,
         CoreError::ProjectDirNotFound => 6016,
         CoreError::LegacyDatabaseDetected { .. } => 6017,
+        CoreError::MigrationSourceNotFound => 6018,
+        CoreError::MigrationFailed(_) => 6019,
         CoreError::Storage(_) => 1000,
         CoreError::Hnsw(_) => 3000,
         CoreError::Api(_) => 2000,
