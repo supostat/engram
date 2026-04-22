@@ -25,6 +25,11 @@ pub enum CoreError {
     TrainerFailed(String),
     TrainerTimeout,
     TrainerMalformedOutput(String),
+    ProjectDirNotFound,
+    LegacyDatabaseDetected {
+        legacy_path: String,
+        project_path: String,
+    },
     Consolidation(ConsolidateError),
 }
 
@@ -78,6 +83,21 @@ impl fmt::Display for CoreError {
             }
             Self::TrainerMalformedOutput(message) => {
                 write!(formatter, "[6015] trainer malformed output: {message}")
+            }
+            Self::ProjectDirNotFound => {
+                write!(
+                    formatter,
+                    "[6016] project directory not found: no .engram/ in cwd or ancestors (run 'engram init')"
+                )
+            }
+            Self::LegacyDatabaseDetected {
+                legacy_path,
+                project_path,
+            } => {
+                write!(
+                    formatter,
+                    "[6017] legacy global database detected at {legacy_path}. Run `engram migrate` to import into project {project_path}, or `engram init` to start fresh."
+                )
             }
             Self::Storage(error) => error.fmt(formatter),
             Self::Hnsw(error) => error.fmt(formatter),

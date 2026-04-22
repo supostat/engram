@@ -23,6 +23,7 @@ fn build_deterministic_state() -> Arc<ServerState> {
         embedder: Mutex::new(embedder),
         router: Mutex::new(router),
         config,
+        database_path: String::new(),
     })
 }
 

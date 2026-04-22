@@ -23,6 +23,7 @@ fn build_test_state() -> Arc<ServerState> {
         embedder: Mutex::new(embedder),
         router: Mutex::new(router),
         config,
+        database_path: String::new(),
     })
 }
 
@@ -39,6 +40,7 @@ fn build_test_state_with_deterministic_embeddings() -> Arc<ServerState> {
         embedder: Mutex::new(embedder),
         router: Mutex::new(router),
         config,
+        database_path: String::new(),
     })
 }
 

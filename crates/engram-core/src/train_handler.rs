@@ -57,9 +57,14 @@ pub async fn handle_generate(state: &Arc<ServerState>, _params: Value) -> Result
     let trainer_binary = resolve_trainer_binary(&state.config.trainer.trainer_binary);
     validate_trainer_exists(&trainer_binary)?;
     let timeout_secs = state.config.trainer.trainer_timeout_secs;
-    let database_path = state.config.resolve_database_path();
     let models_path = expand_tilde(&state.config.trainer.models_path);
-    let output = spawn_trainer(&trainer_binary, &database_path, &models_path, timeout_secs).await?;
+    let output = spawn_trainer(
+        &trainer_binary,
+        &state.database_path,
+        &models_path,
+        timeout_secs,
+    )
+    .await?;
     let insights = parse_trainer_output(&output)?;
     let inserted_count = insert_generated_insights(state, &insights).await?;
     Ok(json!({

@@ -5,12 +5,16 @@ use serde_json::{Value, json};
 use engram_core::cli;
 use engram_core::config::Config;
 use engram_core::dispatch;
+use engram_core::error::CoreError;
 use engram_core::indexes::IndexSet;
 use engram_core::output::{OutputFormat, format_output};
 use engram_core::server::ServerState;
 use engram_embeddings::Embedder;
 use engram_router::Router;
 use engram_storage::Database;
+
+// Serializes tests that mutate process-global state (cwd, HOME).
+static ENV_LOCK: Mutex<()> = Mutex::new(());
 
 fn build_deterministic_state() -> Arc<ServerState> {
     let database = Database::in_memory().expect("in-memory database");
@@ -25,6 +29,7 @@ fn build_deterministic_state() -> Arc<ServerState> {
         embedder: Mutex::new(embedder),
         router: Mutex::new(router),
         config,
+        database_path: String::new(),
     })
 }
 
@@ -146,15 +151,11 @@ fn cli_version_output_contains_version() {
 async fn cli_build_state_creates_valid_state() {
     let mut config = Config::default();
     config.embedding.provider = "deterministic".into();
-    let temp_dir = tempfile::tempdir().expect("temp dir");
-    let database_path = temp_dir
-        .path()
-        .join("test.db")
-        .to_str()
-        .expect("path")
-        .to_string();
-    config.database.path = database_path;
-    let state = cli::build_state(&config).expect("build state");
+    let project = tempfile::tempdir().expect("project");
+    let home = tempfile::tempdir().expect("home");
+    std::fs::create_dir_all(project.path().join(".engram")).expect("create .engram");
+    let state =
+        cli::build_state_with_dirs(&config, project.path(), home.path()).expect("build state");
     let result = dispatch::route("memory_status", &state, json!({})).await;
     let data = result.expect("status should succeed");
     assert_eq!(data["memory_count"], 0);
@@ -172,4 +173,100 @@ fn output_text_format_handles_null() {
     let value = json!(null);
     let formatted = format_output(&value, &OutputFormat::Text);
     assert!(formatted.is_empty());
+}
+
+fn seed_project_database(project_dir: &std::path::Path) {
+    let engram_dir = project_dir.join(".engram");
+    std::fs::create_dir_all(&engram_dir).expect("create .engram");
+    let database_path = engram_dir.join("engram.db");
+    Database::open(database_path.to_str().expect("valid utf-8")).expect("open project database");
+}
+
+#[test]
+fn cli_build_state_walks_up_from_nested_dir() {
+    let _lock = ENV_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+
+    let project = tempfile::tempdir().expect("project");
+    seed_project_database(project.path());
+    let nested = project.path().join("sub").join("deep");
+    std::fs::create_dir_all(&nested).expect("create nested dirs");
+    let home = tempfile::tempdir().expect("home");
+
+    let mut config = Config::default();
+    config.embedding.provider = "deterministic".into();
+
+    let original_cwd = std::env::current_dir().expect("cwd");
+    let original_home = std::env::var("HOME").ok();
+    // SAFETY: serialized via ENV_LOCK; restored before returning.
+    std::env::set_current_dir(&nested).expect("chdir into nested");
+    unsafe {
+        std::env::set_var("HOME", home.path());
+    }
+    let result = cli::build_state(&config);
+    std::env::set_current_dir(&original_cwd).expect("restore cwd");
+    unsafe {
+        match &original_home {
+            Some(value) => std::env::set_var("HOME", value),
+            None => std::env::remove_var("HOME"),
+        }
+    }
+
+    let state = result.expect("walk-up from nested should resolve project");
+    let actual_db = std::path::Path::new(&state.database_path)
+        .canonicalize()
+        .expect("canonicalize resolved db path");
+    let expected_db = project
+        .path()
+        .join(".engram")
+        .join("engram.db")
+        .canonicalize()
+        .expect("canonicalize expected db path");
+    assert_eq!(actual_db, expected_db);
+}
+
+#[test]
+fn cli_build_state_legacy_database_error() {
+    let _lock = ENV_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+
+    // Project has .engram/ but NO engram.db; home has legacy engram.db → triggers [6017].
+    let project = tempfile::tempdir().expect("project");
+    std::fs::create_dir_all(project.path().join(".engram")).expect("create project .engram");
+
+    let home = tempfile::tempdir().expect("home");
+    let home_engram = home.path().join(".engram");
+    std::fs::create_dir_all(&home_engram).expect("create home .engram");
+    let legacy_db = home_engram.join("engram.db");
+    Database::open(legacy_db.to_str().expect("valid utf-8")).expect("create legacy db");
+
+    let mut config = Config::default();
+    config.embedding.provider = "deterministic".into();
+
+    let original_cwd = std::env::current_dir().expect("cwd");
+    let original_home = std::env::var("HOME").ok();
+    std::env::set_current_dir(project.path()).expect("chdir to project");
+    unsafe {
+        std::env::set_var("HOME", home.path());
+    }
+    let result = cli::build_state(&config);
+    std::env::set_current_dir(&original_cwd).expect("restore cwd");
+    unsafe {
+        match &original_home {
+            Some(value) => std::env::set_var("HOME", value),
+            None => std::env::remove_var("HOME"),
+        }
+    }
+
+    let error = match result {
+        Ok(_) => panic!("legacy db must be rejected"),
+        Err(err) => err,
+    };
+    assert!(
+        matches!(error, CoreError::LegacyDatabaseDetected { .. }),
+        "expected LegacyDatabaseDetected, got: {error}"
+    );
+    assert!(error.to_string().contains("[6017]"));
 }

@@ -1,5 +1,5 @@
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
 
@@ -11,8 +11,8 @@ use engram_llm_client::{
 
 use crate::error::CoreError;
 
-const CONFIG_LOCAL_PATH: &str = "engram.toml";
 const CONFIG_HOME_SUBDIR: &str = ".engram/engram.toml";
+const PROJECT_DIR_MARKER: &str = ".engram";
 
 const DEFAULT_DB_PATH: &str = "~/.engram/memories.db";
 const DEFAULT_SOCKET_PATH: &str = "~/.engram/engram.sock";
@@ -112,11 +112,6 @@ impl Default for ConsolidationConfig {
 
 impl Config {
     pub fn load() -> Result<Self, CoreError> {
-        let local_path = Path::new(CONFIG_LOCAL_PATH);
-        if local_path.exists() {
-            return Self::load_from_path(CONFIG_LOCAL_PATH);
-        }
-
         if let Some(home) = home_directory() {
             let home_config = Path::new(&home).join(CONFIG_HOME_SUBDIR);
             if home_config.exists() {
@@ -194,17 +189,11 @@ impl Config {
             .map_err(CoreError::Hnsw)
     }
 
-    pub fn resolve_database_path(&self) -> String {
-        expand_tilde(&self.database.path)
-    }
-
     fn apply_env_overrides(&mut self) {
-        if let Ok(value) = std::env::var("ENGRAM_DB_PATH") {
-            self.database.path = value;
-        }
-        if let Ok(value) = std::env::var("ENGRAM_SOCKET_PATH") {
-            self.server.socket_path = value;
-        }
+        // ENGRAM_DB_PATH / ENGRAM_SOCKET_PATH are honored directly by server.rs
+        // (resolve_database_path / resolve_socket_path). Copying them onto
+        // `self.database.path` / `self.server.socket_path` here would be redundant
+        // and could mask the per-project layout derived from `project_dir`.
         if let Ok(value) = std::env::var("ENGRAM_EMBEDDING_MODEL") {
             self.embedding.model = Some(value);
         }
@@ -270,6 +259,32 @@ impl Default for Config {
             trainer: TrainerConfig::default(),
         }
     }
+}
+
+pub fn resolve_project_dir(
+    start: &Path,
+    explicit_override: Option<&Path>,
+) -> Result<PathBuf, CoreError> {
+    if let Some(path) = explicit_override {
+        return Ok(path.to_path_buf());
+    }
+    if let Ok(env_path) = std::env::var("ENGRAM_PROJECT_DIR") {
+        let candidate = PathBuf::from(env_path);
+        if candidate.is_absolute() {
+            return Ok(candidate);
+        }
+    }
+    let mut current = start.to_path_buf();
+    loop {
+        if current.join(PROJECT_DIR_MARKER).is_dir() {
+            return Ok(current);
+        }
+        // `PathBuf::pop()` returns false at filesystem root, which terminates this loop safely.
+        if !current.pop() {
+            break;
+        }
+    }
+    Err(CoreError::ProjectDirNotFound)
 }
 
 pub fn expand_tilde(path: &str) -> String {

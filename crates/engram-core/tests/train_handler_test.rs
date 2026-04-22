@@ -24,6 +24,7 @@ fn build_deterministic_state() -> Arc<ServerState> {
         embedder: Mutex::new(embedder),
         router: Mutex::new(router),
         config,
+        database_path: String::new(),
     })
 }
 
@@ -134,6 +135,7 @@ async fn train_generate_missing_binary() {
         embedder: Mutex::new(Embedder::new()),
         router: Mutex::new(Router::new(0.1, 0.15)),
         config,
+        database_path: String::new(),
     });
     let result = dispatch::route("memory_train_generate", &state, json!({})).await;
     let error = result.expect_err("generate with missing binary should fail");

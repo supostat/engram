@@ -2,13 +2,63 @@
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { resolve } from "node:path";
+import { existsSync, statSync } from "node:fs";
+import { dirname, isAbsolute, join, resolve } from "node:path";
 import { homedir } from "node:os";
 import { Lifecycle } from "./lifecycle.js";
 import { TOOL_DEFINITIONS, executeTool } from "./tools.js";
 
+const PROJECT_DIR_MARKER = ".engram";
+const PROJECT_SOCKET_RELATIVE = join(PROJECT_DIR_MARKER, "engram.sock");
+
+class ProjectDirNotFoundError extends Error {
+  constructor(startDir: string) {
+    super(`no ${PROJECT_DIR_MARKER}/ found in ${startDir} or any ancestor`);
+    this.name = "ProjectDirNotFoundError";
+  }
+}
+
+function isExistingDirectory(candidate: string): boolean {
+  try {
+    return statSync(candidate).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+export function resolveProjectDir(start: string = process.cwd()): string {
+  const envOverride = process.env["ENGRAM_PROJECT_DIR"];
+  if (envOverride && isAbsolute(envOverride) && isExistingDirectory(envOverride)) {
+    return envOverride;
+  }
+  let current = resolve(start);
+  while (true) {
+    const marker = join(current, PROJECT_DIR_MARKER);
+    if (isExistingDirectory(marker)) {
+      return current;
+    }
+    const parent = dirname(current);
+    if (parent === current) {
+      throw new ProjectDirNotFoundError(start);
+    }
+    current = parent;
+  }
+}
+
 function resolveSocketPath(): string {
-  return process.env["ENGRAM_SOCKET_PATH"] ?? resolve(homedir(), ".engram", "engram.sock");
+  const envSocket = process.env["ENGRAM_SOCKET_PATH"];
+  if (envSocket) {
+    return envSocket;
+  }
+  try {
+    const projectDir = resolveProjectDir();
+    return join(projectDir, PROJECT_SOCKET_RELATIVE);
+  } catch (error) {
+    if (!(error instanceof ProjectDirNotFoundError)) {
+      throw error;
+    }
+    return resolve(homedir(), PROJECT_DIR_MARKER, "engram.sock");
+  }
 }
 
 function resolveEngramBinary(): string {
@@ -16,8 +66,13 @@ function resolveEngramBinary(): string {
 }
 
 async function main(): Promise<void> {
+  const socketPath = resolveSocketPath();
+  if (!existsSync(socketPath)) {
+    // Log only; lifecycle will spawn the daemon which creates the socket.
+    console.error(`[engram-mcp] socket not present yet at ${socketPath}`);
+  }
   const lifecycle = new Lifecycle({
-    socketPath: resolveSocketPath(),
+    socketPath,
     engramBinary: resolveEngramBinary(),
   });
 

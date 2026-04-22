@@ -1,3 +1,4 @@
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -8,11 +9,14 @@ use engram_embeddings::Embedder;
 use engram_router::Router;
 use engram_storage::Database;
 
-use crate::config::Config;
+use crate::config::{self, Config};
 use crate::dispatch;
 use crate::error::CoreError;
 use crate::indexes::IndexSet;
 use crate::protocol::{JsonRequest, JsonResponse};
+
+const PROJECT_DB_RELATIVE: &str = ".engram/engram.db";
+const PROJECT_SOCKET_RELATIVE: &str = ".engram/engram.sock";
 
 const ROUTER_DEFAULT_ALPHA: f32 = 0.1;
 const ROUTER_DEFAULT_EPSILON: f32 = 0.15;
@@ -23,20 +27,42 @@ pub struct ServerState {
     pub embedder: Mutex<Embedder>,
     pub router: Mutex<Router>,
     pub config: Config,
+    pub database_path: String,
 }
 
 pub async fn run(config: Config) -> Result<(), CoreError> {
-    let state = initialize_state(&config)?;
+    let cwd = std::env::current_dir()
+        .map_err(|error| CoreError::SocketError(format!("cwd unavailable: {error}")))?;
+    let home = home_dir_or_error()?;
+    let project_dir = config::resolve_project_dir(&cwd, None)?;
+    let state = initialize_state(&config, &project_dir, &home)?;
     warn_missing_api_keys(&config);
     let shared_state = Arc::new(state);
-    let socket_path = expand_tilde(&config.server.socket_path);
+    let socket_path = resolve_socket_path(&project_dir, &config);
     cleanup_stale_socket(&socket_path);
     let listener = bind_listener(&socket_path)?;
     accept_loop(listener, shared_state).await
 }
 
-pub(crate) fn initialize_state(config: &Config) -> Result<ServerState, CoreError> {
-    let database_path = config.resolve_database_path();
+pub fn check_legacy_database(project_dir: &Path, home_dir: &Path) -> Result<(), CoreError> {
+    let project_db = project_dir.join(PROJECT_DB_RELATIVE);
+    let home_db = home_dir.join(PROJECT_DB_RELATIVE);
+    if !project_db.exists() && home_db.exists() {
+        return Err(CoreError::LegacyDatabaseDetected {
+            legacy_path: home_db.to_string_lossy().to_string(),
+            project_path: project_dir.to_string_lossy().to_string(),
+        });
+    }
+    Ok(())
+}
+
+pub(crate) fn initialize_state(
+    config: &Config,
+    project_dir: &Path,
+    home_dir: &Path,
+) -> Result<ServerState, CoreError> {
+    check_legacy_database(project_dir, home_dir)?;
+    let database_path = resolve_database_path(project_dir, config);
     let database = Database::open(&database_path)?;
     let hnsw_config = config.clone();
     let indexes = crate::persistence::load_or_rebuild(
@@ -52,7 +78,39 @@ pub(crate) fn initialize_state(config: &Config) -> Result<ServerState, CoreError
         embedder: Mutex::new(embedder),
         router: Mutex::new(router),
         config: config.clone(),
+        database_path,
     })
+}
+
+fn resolve_database_path(project_dir: &Path, _config: &Config) -> String {
+    if let Ok(value) = std::env::var("ENGRAM_DB_PATH") {
+        return value;
+    }
+    project_dir
+        .join(PROJECT_DB_RELATIVE)
+        .to_string_lossy()
+        .to_string()
+}
+
+fn resolve_socket_path(project_dir: &Path, config: &Config) -> String {
+    let local_socket = project_dir.join(PROJECT_SOCKET_RELATIVE);
+    if let Ok(value) = std::env::var("ENGRAM_SOCKET_PATH") {
+        return value;
+    }
+    // Prefer project socket when the `.engram/` dir exists (walk-up already validated this).
+    if project_dir.join(".engram").is_dir() {
+        return local_socket.to_string_lossy().to_string();
+    }
+    expand_tilde(&config.server.socket_path)
+}
+
+fn home_dir_or_error() -> Result<PathBuf, CoreError> {
+    match std::env::var("HOME") {
+        Ok(value) if !value.is_empty() => Ok(PathBuf::from(value)),
+        _ => Err(CoreError::InitFailed(
+            "HOME environment variable not set".into(),
+        )),
+    }
 }
 
 pub(crate) fn resolve_index_directory(database_path: &str) -> String {
@@ -219,6 +277,8 @@ fn error_code(error: &CoreError) -> u32 {
         CoreError::TrainerFailed(_) => 6013,
         CoreError::TrainerTimeout => 6014,
         CoreError::TrainerMalformedOutput(_) => 6015,
+        CoreError::ProjectDirNotFound => 6016,
+        CoreError::LegacyDatabaseDetected { .. } => 6017,
         CoreError::Storage(_) => 1000,
         CoreError::Hnsw(_) => 3000,
         CoreError::Api(_) => 2000,
@@ -227,8 +287,7 @@ fn error_code(error: &CoreError) -> u32 {
 }
 
 fn save_indexes_on_shutdown(state: &Arc<ServerState>) -> Result<(), CoreError> {
-    let database_path = state.config.resolve_database_path();
-    let index_directory = resolve_index_directory(&database_path);
+    let index_directory = resolve_index_directory(&state.database_path);
     let indexes = state.indexes.lock().unwrap();
     crate::persistence::save_to_disk(&index_directory, &indexes)
 }

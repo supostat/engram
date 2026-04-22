@@ -1,12 +1,16 @@
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use serde_json::Value;
 
+use crate::config;
 use crate::dispatch;
 use crate::error::CoreError;
 use crate::output::{OutputFormat, format_output};
 use crate::persistence;
-use crate::server::{ServerState, initialize_state, resolve_index_directory};
+use crate::server::{
+    ServerState, check_legacy_database, initialize_state, resolve_index_directory,
+};
 
 pub async fn execute(
     state: Arc<ServerState>,
@@ -22,8 +26,38 @@ pub async fn execute(
 }
 
 pub fn build_state(config: &crate::config::Config) -> Result<Arc<ServerState>, CoreError> {
-    let state = initialize_state(config)?;
+    let cwd = std::env::current_dir()
+        .map_err(|error| CoreError::InitFailed(format!("cwd unavailable: {error}")))?;
+    let home = home_dir_or_error()?;
+    build_state_with_dirs(config, &cwd, &home)
+}
+
+pub fn build_state_with_dirs(
+    config: &crate::config::Config,
+    cwd: &std::path::Path,
+    home_dir: &std::path::Path,
+) -> Result<Arc<ServerState>, CoreError> {
+    let project_dir = match config::resolve_project_dir(cwd, None) {
+        Ok(path) => path,
+        Err(CoreError::ProjectDirNotFound) => {
+            return Err(CoreError::InitFailed(
+                "no .engram/ directory found in cwd or ancestors — run 'engram init' in your project root".into(),
+            ));
+        }
+        Err(other) => return Err(other),
+    };
+    check_legacy_database(&project_dir, home_dir)?;
+    let state = initialize_state(config, &project_dir, home_dir)?;
     Ok(Arc::new(state))
+}
+
+fn home_dir_or_error() -> Result<PathBuf, CoreError> {
+    match std::env::var("HOME") {
+        Ok(value) if !value.is_empty() => Ok(PathBuf::from(value)),
+        _ => Err(CoreError::InitFailed(
+            "HOME environment variable not set".into(),
+        )),
+    }
 }
 
 fn save_indexes_if_mutating(method: &str, state: &Arc<ServerState>) -> Result<(), CoreError> {
@@ -39,8 +73,7 @@ fn save_indexes_if_mutating(method: &str, state: &Arc<ServerState>) -> Result<()
     if !mutating {
         return Ok(());
     }
-    let database_path = state.config.resolve_database_path();
-    let index_directory = resolve_index_directory(&database_path);
+    let index_directory = resolve_index_directory(&state.database_path);
     let indexes = state.indexes.lock().unwrap();
     persistence::save_to_disk(&index_directory, &indexes)
 }

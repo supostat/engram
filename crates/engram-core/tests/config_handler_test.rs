@@ -23,6 +23,7 @@ fn build_deterministic_state() -> Arc<ServerState> {
         embedder: Mutex::new(embedder),
         router: Mutex::new(router),
         config,
+        database_path: String::new(),
     })
 }
 
@@ -57,6 +58,7 @@ async fn config_get_reports_api_key_presence() {
         embedder: Mutex::new(Embedder::new()),
         router: Mutex::new(Router::new(0.1, 0.15)),
         config,
+        database_path: String::new(),
     });
     let data = dispatch::route("memory_config", &state, json!({"action": "get"}))
         .await
