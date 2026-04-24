@@ -14,7 +14,7 @@ pub async fn handle(state: &Arc<ServerState>, _params: Value) -> Result<Value, C
         let memory_count = count_memories(&database)?;
         let indexed_count = count_indexed_memories(&database)?;
         let pending_judgments = database.get_pending_judgments(usize::MAX)?.len();
-        let index_size = state_clone.indexes.lock().unwrap().len();
+        let index_size = state_clone.indexes.read().unwrap().len();
         let hints = build_hints(&state_clone.config, memory_count, pending_judgments);
         Ok::<Value, CoreError>(json!({
             "memory_count": memory_count,

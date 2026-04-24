@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 
 use serde_json::json;
 
@@ -19,7 +19,7 @@ fn build_deterministic_state() -> Arc<ServerState> {
     let router = Router::new(0.1, 0.15);
     Arc::new(ServerState {
         database: Mutex::new(database),
-        indexes: Mutex::new(indexes),
+        indexes: RwLock::new(indexes),
         embedder,
         router: Mutex::new(router),
         config,
@@ -54,7 +54,7 @@ async fn config_get_reports_api_key_presence() {
     let indexes = IndexSet::new(|| config.build_hnsw_params()).expect("index set");
     let state = Arc::new(ServerState {
         database: Mutex::new(database),
-        indexes: Mutex::new(indexes),
+        indexes: RwLock::new(indexes),
         embedder: Embedder::new(),
         router: Mutex::new(Router::new(0.1, 0.15)),
         config,

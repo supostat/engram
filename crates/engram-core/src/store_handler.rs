@@ -117,7 +117,7 @@ async fn persist_memory(
     };
     let state_idx = Arc::clone(state);
     tokio::task::spawn_blocking(move || {
-        let mut indexes = state_idx.indexes.lock().unwrap();
+        let mut indexes = state_idx.indexes.write().unwrap();
         indexes.insert(hashed_id, &memory_id_owned, &embedding_owned, rng_value)?;
         Ok::<(), CoreError>(())
     })

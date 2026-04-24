@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 
 use serde_json::json;
 
@@ -19,7 +19,7 @@ fn build_deterministic_state() -> Arc<ServerState> {
     let router = Router::new(0.1, 0.15);
     Arc::new(ServerState {
         database: Mutex::new(database),
-        indexes: Mutex::new(indexes),
+        indexes: RwLock::new(indexes),
         embedder,
         router: Mutex::new(router),
         config,

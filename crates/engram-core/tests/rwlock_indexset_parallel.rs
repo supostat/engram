@@ -8,8 +8,11 @@ use engram_core::config::{
 };
 use engram_core::dispatch;
 use engram_core::indexes::IndexSet;
+use engram_core::indexes::instrumentation::{
+    self, disable_reader_tracking, enable_reader_tracking, reset_reader_counters,
+};
 use engram_core::server::ServerState;
-use engram_embeddings::Embedder;
+use engram_embeddings::{Embedder, ThreeFieldEmbedding};
 use engram_router::Router;
 use engram_storage::Database;
 
@@ -18,21 +21,24 @@ use engram_storage::Database;
 // exists solely to prevent interleaving.
 static COUNTER_LOCK: Mutex<()> = Mutex::new(());
 
-// RAII guard: enables instrumentation on construction, disables on drop
-// (including panic). This ensures the deterministic provider's 20ms sleep
-// never leaks outside the test scope into any subsequent test or binary.
+// RAII guard: enables deterministic-provider + reader-tracking instrumentation
+// on construction, disables both on drop (including panic). Counters are
+// reset before enabling to clear any stale state from prior test runs.
 struct InstrumentationGuard;
 
 impl InstrumentationGuard {
     fn new() -> Self {
         reset_deterministic_provider_counters();
+        reset_reader_counters();
         enable_deterministic_provider_instrumentation();
+        enable_reader_tracking();
         Self
     }
 }
 
 impl Drop for InstrumentationGuard {
     fn drop(&mut self) {
+        disable_reader_tracking();
         disable_deterministic_provider_instrumentation();
     }
 }
@@ -54,63 +60,37 @@ fn build_deterministic_state() -> Arc<ServerState> {
     })
 }
 
-// The `COUNTER_LOCK` guard must span the awaits — it serializes the entire
-// test against any other test that also reads the global
-// deterministic-provider counters. There is no blocking I/O under the lock.
-#[allow(clippy::await_holding_lock)]
-#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn parallel_store_requests_do_not_serialize_on_embedder() {
-    let _counter_lock = COUNTER_LOCK
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner());
-    let _instrumentation = InstrumentationGuard::new();
-
-    let state = build_deterministic_state();
-    let mut handles = Vec::new();
-    for index in 0..5 {
-        let state_clone = Arc::clone(&state);
-        let params = json!({
-            "memory_type": "decision",
-            "context": format!("parallel-context-{index}"),
-            "action": format!("parallel-action-{index}"),
-            "result": format!("parallel-result-{index}"),
-        });
-        handles.push(tokio::spawn(async move {
-            dispatch::route("memory_store", &state_clone, params).await
-        }));
-    }
-    for handle in handles {
-        handle
-            .await
-            .expect("task joined")
-            .expect("dispatch succeeded");
-    }
-
-    let max_concurrent = deterministic_provider_max_concurrent();
-    assert!(
-        max_concurrent >= 2,
-        "expected concurrent embedder calls, got max={max_concurrent}"
-    );
+fn seed_one_memory(state: &Arc<ServerState>) {
+    let embedding = ThreeFieldEmbedding {
+        context: vec![0.1; 1024],
+        action: vec![0.1; 1024],
+        result: vec![0.1; 1024],
+    };
+    let mut indexes = state.indexes.write().unwrap();
+    indexes
+        .insert(1, "seed-memory-id", &embedding, 0.5)
+        .expect("seed insert");
 }
 
-// `memory_search` takes the same embedder path as `memory_store` via
-// `config.build_embedding_provider()` inside a `spawn_blocking` closure.
-// This test confirms that concurrent search requests also run the provider
-// in parallel (no accidental serialization behind a shared mutex).
+// The `COUNTER_LOCK` guard must span the awaits — it serializes the entire
+// test against any other test that also reads the global instrumentation
+// counters. There is no blocking I/O under the lock.
 #[allow(clippy::await_holding_lock)]
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn parallel_search_requests_do_not_serialize_on_embedder() {
+async fn parallel_searches_overlap_with_rwlock() {
     let _counter_lock = COUNTER_LOCK
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
     let _instrumentation = InstrumentationGuard::new();
 
     let state = build_deterministic_state();
+    seed_one_memory(&state);
+
     let mut handles = Vec::new();
-    for index in 0..5 {
+    for index in 0..10 {
         let state_clone = Arc::clone(&state);
         let params = json!({
-            "query": format!("parallel-search-query-{index}"),
+            "query": format!("rwlock-search-query-{index}"),
             "limit": 3,
         });
         handles.push(tokio::spawn(async move {
@@ -124,9 +104,57 @@ async fn parallel_search_requests_do_not_serialize_on_embedder() {
             .expect("dispatch succeeded");
     }
 
-    let max_concurrent = deterministic_provider_max_concurrent();
+    let embedder_max = deterministic_provider_max_concurrent();
     assert!(
-        max_concurrent >= 2,
-        "expected concurrent embedder calls during search, got max={max_concurrent}"
+        embedder_max >= 2,
+        "expected concurrent embedder calls during search, got max={embedder_max}"
     );
+    let reader_max = instrumentation::concurrent_readers_max();
+    assert!(
+        reader_max >= 2,
+        "expected concurrent index readers under RwLock, got max={reader_max}"
+    );
+}
+
+#[allow(clippy::await_holding_lock)]
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn search_continues_during_store_with_rwlock() {
+    let _counter_lock = COUNTER_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let _instrumentation = InstrumentationGuard::new();
+
+    let state = build_deterministic_state();
+    seed_one_memory(&state);
+
+    let mut handles = Vec::new();
+    for index in 0..5 {
+        let state_clone = Arc::clone(&state);
+        let params = json!({
+            "query": format!("rwlock-mixed-search-{index}"),
+            "limit": 3,
+        });
+        handles.push(tokio::spawn(async move {
+            dispatch::route("memory_search", &state_clone, params).await
+        }));
+    }
+    {
+        let state_clone = Arc::clone(&state);
+        let params = json!({
+            "memory_type": "decision",
+            "context": "rwlock-mixed-context",
+            "action": "rwlock-mixed-action",
+            "result": "rwlock-mixed-result",
+        });
+        handles.push(tokio::spawn(async move {
+            dispatch::route("memory_store", &state_clone, params).await
+        }));
+    }
+
+    for handle in handles {
+        handle
+            .await
+            .expect("task joined")
+            .expect("dispatch succeeded");
+    }
 }

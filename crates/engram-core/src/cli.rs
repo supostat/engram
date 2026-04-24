@@ -75,6 +75,6 @@ fn save_indexes_if_mutating(method: &str, state: &Arc<ServerState>) -> Result<()
         return Ok(());
     }
     let index_directory = resolve_index_directory(&state.database_path);
-    let indexes = state.indexes.lock().unwrap();
+    let indexes = state.indexes.read().unwrap();
     persistence::save_to_disk(&index_directory, &indexes)
 }

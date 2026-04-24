@@ -1,5 +1,5 @@
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::UnixListener;
@@ -23,7 +23,7 @@ const ROUTER_DEFAULT_EPSILON: f32 = 0.15;
 
 pub struct ServerState {
     pub database: Mutex<Database>,
-    pub indexes: Mutex<IndexSet>,
+    pub indexes: RwLock<IndexSet>,
     pub embedder: Embedder,
     pub router: Mutex<Router>,
     pub config: Config,
@@ -74,7 +74,7 @@ pub(crate) fn initialize_state(
     let router = Router::new(ROUTER_DEFAULT_ALPHA, ROUTER_DEFAULT_EPSILON);
     Ok(ServerState {
         database: Mutex::new(database),
-        indexes: Mutex::new(indexes),
+        indexes: RwLock::new(indexes),
         embedder,
         router: Mutex::new(router),
         config: config.clone(),
@@ -183,7 +183,7 @@ fn reindex_unindexed_memories(state: &ServerState) {
     if unindexed.is_empty() {
         return;
     }
-    let mut indexes = state.indexes.lock().unwrap();
+    let mut indexes = state.indexes.write().unwrap();
     for memory_id in &unindexed {
         let _ = reindex_single_memory(&database, &mut indexes, memory_id);
     }
@@ -290,7 +290,7 @@ fn error_code(error: &CoreError) -> u32 {
 
 fn save_indexes_on_shutdown(state: &Arc<ServerState>) -> Result<(), CoreError> {
     let index_directory = resolve_index_directory(&state.database_path);
-    let indexes = state.indexes.lock().unwrap();
+    let indexes = state.indexes.read().unwrap();
     crate::persistence::save_to_disk(&index_directory, &indexes)
 }
 

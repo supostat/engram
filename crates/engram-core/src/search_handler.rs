@@ -7,6 +7,7 @@ use serde_json::{Value, json};
 use engram_router::Mode;
 
 use crate::error::CoreError;
+use crate::indexes::instrumentation::ReaderTracker;
 use crate::server::ServerState;
 use crate::timestamp::current_utc_timestamp;
 
@@ -91,7 +92,8 @@ async fn search_vector_index(
     let embedding_owned = query_embedding.to_vec();
     let state_clone = Arc::clone(state);
     tokio::task::spawn_blocking(move || {
-        let indexes = state_clone.indexes.lock().unwrap();
+        let _tracker = ReaderTracker::new();
+        let indexes = state_clone.indexes.read().unwrap();
         let raw_results = indexes
             .search(&embedding_owned, top_k)
             .map_err(CoreError::Hnsw)?;

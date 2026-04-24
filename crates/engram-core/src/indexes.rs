@@ -115,3 +115,54 @@ fn merge_scores(scores: &mut HashMap<u64, f32>, results: &[(u64, f32)]) {
             .or_insert(similarity);
     }
 }
+
+pub mod instrumentation {
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+
+    static READER_TRACKING_ENABLED: AtomicBool = AtomicBool::new(false);
+    static CURRENT_READERS: AtomicUsize = AtomicUsize::new(0);
+    static MAX_READERS: AtomicUsize = AtomicUsize::new(0);
+
+    pub fn enable_reader_tracking() {
+        READER_TRACKING_ENABLED.store(true, Ordering::Relaxed);
+    }
+
+    pub fn disable_reader_tracking() {
+        READER_TRACKING_ENABLED.store(false, Ordering::Relaxed);
+    }
+
+    pub fn reset_reader_counters() {
+        CURRENT_READERS.store(0, Ordering::Relaxed);
+        MAX_READERS.store(0, Ordering::Relaxed);
+    }
+
+    pub fn concurrent_readers_max() -> usize {
+        MAX_READERS.load(Ordering::Relaxed)
+    }
+
+    pub struct ReaderTracker;
+
+    impl ReaderTracker {
+        pub fn new() -> Self {
+            if READER_TRACKING_ENABLED.load(Ordering::Relaxed) {
+                let current = CURRENT_READERS.fetch_add(1, Ordering::AcqRel) + 1;
+                MAX_READERS.fetch_max(current, Ordering::AcqRel);
+            }
+            Self
+        }
+    }
+
+    impl Drop for ReaderTracker {
+        fn drop(&mut self) {
+            if READER_TRACKING_ENABLED.load(Ordering::Relaxed) {
+                CURRENT_READERS.fetch_sub(1, Ordering::AcqRel);
+            }
+        }
+    }
+
+    impl Default for ReaderTracker {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
+}
