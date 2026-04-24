@@ -174,7 +174,13 @@ fn spawn_background_reindex(state: Arc<ServerState>) {
     });
 }
 
-fn reindex_unindexed_memories(state: &ServerState) {
+/// Reindex unindexed memories from SQLite into the HNSW index.
+///
+/// **Unstable:** exposed for latency benchmarking only
+/// (`crates/engram-core/tests/search_latency_bench.rs`). Not part of the public
+/// API contract; may change or be removed without notice.
+#[doc(hidden)]
+pub fn reindex_unindexed_memories(state: &ServerState) {
     let database = state.database.lock().unwrap();
     let unindexed = match query_unindexed_ids(&database) {
         Ok(ids) => ids,
