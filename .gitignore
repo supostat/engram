@@ -39,3 +39,4 @@ __pycache__/
 *.tsbuildinfo
 .turbo/
 .engram/
+.dev-workflow-upgrade-backup
