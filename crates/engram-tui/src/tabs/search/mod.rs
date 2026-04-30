@@ -40,7 +40,7 @@ fn render_offline(frame: &mut Frame, area: Rect) {
                 \x20 Server not running\n\
                 \x20 Start with: engram server\n\n\
                 \x20 Search requires a connection to engram-core via\n\
-                \x20 unix socket (~/.engram/engram.sock)";
+                \x20 unix socket (.engram/engram.sock or ~/.engram/engram.sock)";
     let paragraph = Paragraph::new(text)
         .style(Style::default().fg(theme::MUTED))
         .block(

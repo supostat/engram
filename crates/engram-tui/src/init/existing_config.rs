@@ -46,10 +46,11 @@ impl ExistingConfig {
             table_string(&table, &["embedding", "model"]).unwrap_or_else(|| "unknown".into());
         let llm_provider = table_string(&table, &["llm", "provider"])?;
         let llm_model = table_string(&table, &["llm", "model"]).unwrap_or_else(|| "unknown".into());
+        let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
         let database_path = table_string(&table, &["database", "path"])
-            .unwrap_or_else(|| "~/.engram/memories.db".into());
+            .unwrap_or_else(|| crate::paths::resolve_database_path(&cwd, None));
         let socket_path = table_string(&table, &["server", "socket_path"])
-            .unwrap_or_else(|| "~/.engram/engram.sock".into());
+            .unwrap_or_else(|| crate::paths::resolve_socket_path(&cwd, None));
 
         let embedding_api_key = table_string(&table, &["embedding", "api_key"])
             .or_else(|| std::env::var("ENGRAM_VOYAGE_API_KEY").ok());
@@ -69,7 +70,7 @@ impl ExistingConfig {
     }
 
     pub fn collect_stats(&self) -> EngineStats {
-        let expanded_database = expand_tilde(&self.database_path);
+        let expanded_database = crate::paths::expand_tilde(&self.database_path);
         let (memory_count, indexed_count, average_score) = read_database_stats(&expanded_database);
         let (model_count, models_size_bytes) = read_models_stats();
         EngineStats {
@@ -82,8 +83,8 @@ impl ExistingConfig {
     }
 
     pub fn run_health_check(&self) -> HealthStatus {
-        let expanded_database = expand_tilde(&self.database_path);
-        let expanded_socket = expand_tilde(&self.socket_path);
+        let expanded_database = crate::paths::expand_tilde(&self.database_path);
+        let expanded_socket = crate::paths::expand_tilde(&self.socket_path);
 
         let (database_found, database_memory_count, database_size_bytes) =
             check_database(&expanded_database);
@@ -151,16 +152,6 @@ fn table_string(table: &Value, keys: &[&str]) -> Option<String> {
     current.as_str().map(|s| s.to_string())
 }
 
-fn expand_tilde(path: &str) -> String {
-    if !path.starts_with('~') {
-        return path.to_string();
-    }
-    let Some(home) = dirs::home_dir() else {
-        return path.to_string();
-    };
-    home.join(&path[2..]).to_string_lossy().into_owned()
-}
-
 fn read_database_stats(database_path: &str) -> (usize, usize, f64) {
     let path = Path::new(database_path);
     if !path.exists() {
@@ -215,14 +206,13 @@ fn check_database(database_path: &str) -> (bool, usize, u64) {
 }
 
 fn check_hnsw() -> (bool, u64) {
-    let Some(home) = dirs::home_dir() else {
-        return (false, 0);
-    };
-    let hnsw_path = home.join(".engram/indexes.hnsw");
+    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    let hnsw_path_str = crate::paths::resolve_hnsw_path(&cwd);
+    let hnsw_path = Path::new(&hnsw_path_str);
     if !hnsw_path.exists() {
         return (false, 0);
     }
-    let size = fs::metadata(&hnsw_path).map(|m| m.len()).unwrap_or(0);
+    let size = fs::metadata(hnsw_path).map(|m| m.len()).unwrap_or(0);
     (true, size)
 }
 

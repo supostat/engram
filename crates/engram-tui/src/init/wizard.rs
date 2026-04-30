@@ -100,13 +100,14 @@ pub const MCP_LABELS: [&str; 4] = ["Claude Desktop", "Claude Code", "Cursor", "S
 
 impl InitWizard {
     pub fn new() -> Self {
-        let default_database_path = dirs::home_dir()
-            .map(|home| {
-                home.join(".engram/memories.db")
-                    .to_string_lossy()
-                    .into_owned()
-            })
-            .unwrap_or_else(|| "~/.engram/memories.db".into());
+        let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+        let default_database_path = match crate::paths::resolve_project_dir(&cwd, None) {
+            Some(project_dir) => project_dir
+                .join(".engram/engram.db")
+                .to_string_lossy()
+                .into_owned(),
+            None => cwd.join(".engram/engram.db").to_string_lossy().into_owned(),
+        };
 
         let existing_config = ExistingConfig::load();
         let (initial_step, cached_stats) = match &existing_config {
