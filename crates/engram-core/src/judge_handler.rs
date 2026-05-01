@@ -68,15 +68,15 @@ async fn compute_and_apply_score(
 ) -> Result<Value, CoreError> {
     let id_owned = memory_id.to_string();
     let query_owned = query.to_string();
-    let config = state.config.clone();
     let state_clone = Arc::clone(state);
     let result = tokio::task::spawn_blocking(move || {
         let database = state_clone.database.lock().unwrap();
         let memory = database.get_memory(&id_owned)?;
         let judge_input = build_judge_input(&memory);
-        let text_gen = config.build_text_generator().ok();
-        let judge = match text_gen.as_deref() {
-            Some(generator) => CombinedJudge::with_llm(generator),
+        let judge = match state_clone.text_generator.as_deref() {
+            Some(generator) => {
+                CombinedJudge::with_llm(generator as &dyn engram_llm_client::TextGenerator)
+            }
             None => CombinedJudge::heuristic_only(),
         };
         let judge_score = judge.score(&query_owned, &judge_input);

@@ -8,6 +8,7 @@ use engram_core::indexes::IndexSet;
 use engram_core::server::ServerState;
 use engram_core::train_handler::{TrainerMessage, parse_trainer_output};
 use engram_embeddings::Embedder;
+use engram_llm_client::{EmbeddingProvider, TextGenerator};
 use engram_router::Router;
 use engram_storage::Database;
 
@@ -18,6 +19,13 @@ fn build_deterministic_state() -> Arc<ServerState> {
     let indexes = IndexSet::new(|| config.build_hnsw_params()).expect("index set");
     let embedder = Embedder::new();
     let router = Router::new(0.1, 0.15);
+    let embedding_provider: Arc<dyn EmbeddingProvider + Send + Sync> = Arc::from(
+        config
+            .build_embedding_provider()
+            .expect("embedding provider"),
+    );
+    let text_generator: Option<Arc<dyn TextGenerator + Send + Sync>> =
+        config.build_text_generator().ok().map(Arc::from);
     Arc::new(ServerState {
         database: Mutex::new(database),
         indexes: RwLock::new(indexes),
@@ -25,6 +33,8 @@ fn build_deterministic_state() -> Arc<ServerState> {
         router: Mutex::new(router),
         config,
         database_path: String::new(),
+        embedding_provider,
+        text_generator,
     })
 }
 
@@ -129,6 +139,13 @@ async fn train_generate_missing_binary() {
     config.trainer.trainer_binary = "nonexistent-engram-trainer-binary".into();
     let database = Database::in_memory().expect("in-memory database");
     let indexes = IndexSet::new(|| config.build_hnsw_params()).expect("index set");
+    let embedding_provider: Arc<dyn EmbeddingProvider + Send + Sync> = Arc::from(
+        config
+            .build_embedding_provider()
+            .expect("embedding provider"),
+    );
+    let text_generator: Option<Arc<dyn TextGenerator + Send + Sync>> =
+        config.build_text_generator().ok().map(Arc::from);
     let state = Arc::new(ServerState {
         database: Mutex::new(database),
         indexes: RwLock::new(indexes),
@@ -136,6 +153,8 @@ async fn train_generate_missing_binary() {
         router: Mutex::new(Router::new(0.1, 0.15)),
         config,
         database_path: String::new(),
+        embedding_provider,
+        text_generator,
     });
     let result = dispatch::route("memory_train_generate", &state, json!({})).await;
     let error = result.expect_err("generate with missing binary should fail");

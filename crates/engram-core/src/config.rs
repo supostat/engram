@@ -133,7 +133,9 @@ impl Config {
         Ok(config)
     }
 
-    pub fn build_embedding_provider(&self) -> Result<Box<dyn EmbeddingProvider>, CoreError> {
+    pub fn build_embedding_provider(
+        &self,
+    ) -> Result<Box<dyn EmbeddingProvider + Send + Sync>, CoreError> {
         let dimension = self
             .embedding
             .dimension
@@ -156,7 +158,7 @@ impl Config {
         }
     }
 
-    pub fn build_text_generator(&self) -> Result<Box<dyn TextGenerator>, CoreError> {
+    pub fn build_text_generator(&self) -> Result<Box<dyn TextGenerator + Send + Sync>, CoreError> {
         match self.llm.provider.as_str() {
             "openai" => {
                 let api_key = self

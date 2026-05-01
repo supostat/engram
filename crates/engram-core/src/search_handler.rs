@@ -64,16 +64,17 @@ fn resolve_top_k(params: &SearchParams, state: &Arc<ServerState>, mode: Mode) ->
 }
 
 async fn embed_query(state: &Arc<ServerState>, query: &str) -> Result<Vec<f32>, CoreError> {
-    let config = state.config.clone();
     let query_owned = query.to_string();
     let state_clone = Arc::clone(state);
     tokio::task::spawn_blocking(move || {
-        let provider = config.build_embedding_provider()?;
-        let text_gen = config.build_text_generator().ok();
-        let text_gen_ref = text_gen.as_deref();
+        let provider = state_clone.embedding_provider.as_ref();
+        let text_gen_ref = state_clone
+            .text_generator
+            .as_deref()
+            .map(|generator| generator as &dyn engram_llm_client::TextGenerator);
         state_clone
             .embedder
-            .embed_query(&query_owned, provider.as_ref(), text_gen_ref)
+            .embed_query(&query_owned, provider, text_gen_ref)
             .map_err(|error| {
                 CoreError::Api(engram_llm_client::ApiError::EmbeddingApiUnavailable(
                     error.to_string(),

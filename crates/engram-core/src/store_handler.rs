@@ -41,18 +41,19 @@ async fn compute_embedding(
     state: &Arc<ServerState>,
     params: &StoreParams,
 ) -> Result<engram_embeddings::ThreeFieldEmbedding, CoreError> {
-    let config = state.config.clone();
     let context = params.context.clone();
     let action = params.action.clone();
     let result = params.result.clone();
     let state_clone = Arc::clone(state);
     tokio::task::spawn_blocking(move || {
-        let provider = config.build_embedding_provider()?;
-        let text_gen = config.build_text_generator().ok();
-        let text_gen_ref = text_gen.as_deref();
+        let provider = state_clone.embedding_provider.as_ref();
+        let text_gen_ref = state_clone
+            .text_generator
+            .as_deref()
+            .map(|generator| generator as &dyn engram_llm_client::TextGenerator);
         state_clone
             .embedder
-            .embed_fields(&context, &action, &result, provider.as_ref(), text_gen_ref)
+            .embed_fields(&context, &action, &result, provider, text_gen_ref)
             .map_err(|error| {
                 CoreError::Api(engram_llm_client::ApiError::EmbeddingApiUnavailable(
                     error.to_string(),

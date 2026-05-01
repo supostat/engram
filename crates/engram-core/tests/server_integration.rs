@@ -8,15 +8,24 @@ use engram_core::error::CoreError;
 use engram_core::indexes::IndexSet;
 use engram_core::server::ServerState;
 use engram_embeddings::Embedder;
+use engram_llm_client::{EmbeddingProvider, TextGenerator};
 use engram_router::Router;
 use engram_storage::Database;
 
 fn build_test_state() -> Arc<ServerState> {
     let database = Database::in_memory().expect("in-memory database");
-    let config = Config::default();
+    let mut config = Config::default();
+    config.embedding.provider = "deterministic".into();
     let indexes = IndexSet::new(|| config.build_hnsw_params()).expect("index set");
     let embedder = Embedder::new();
     let router = Router::new(0.1, 0.15);
+    let embedding_provider: Arc<dyn EmbeddingProvider + Send + Sync> = Arc::from(
+        config
+            .build_embedding_provider()
+            .expect("embedding provider"),
+    );
+    let text_generator: Option<Arc<dyn TextGenerator + Send + Sync>> =
+        config.build_text_generator().ok().map(Arc::from);
     Arc::new(ServerState {
         database: Mutex::new(database),
         indexes: RwLock::new(indexes),
@@ -24,6 +33,8 @@ fn build_test_state() -> Arc<ServerState> {
         router: Mutex::new(router),
         config,
         database_path: String::new(),
+        embedding_provider,
+        text_generator,
     })
 }
 
@@ -34,6 +45,13 @@ fn build_test_state_with_deterministic_embeddings() -> Arc<ServerState> {
     let indexes = IndexSet::new(|| config.build_hnsw_params()).expect("index set");
     let embedder = Embedder::new();
     let router = Router::new(0.1, 0.15);
+    let embedding_provider: Arc<dyn EmbeddingProvider + Send + Sync> = Arc::from(
+        config
+            .build_embedding_provider()
+            .expect("embedding provider"),
+    );
+    let text_generator: Option<Arc<dyn TextGenerator + Send + Sync>> =
+        config.build_text_generator().ok().map(Arc::from);
     Arc::new(ServerState {
         database: Mutex::new(database),
         indexes: RwLock::new(indexes),
@@ -41,6 +59,8 @@ fn build_test_state_with_deterministic_embeddings() -> Arc<ServerState> {
         router: Mutex::new(router),
         config,
         database_path: String::new(),
+        embedding_provider,
+        text_generator,
     })
 }
 

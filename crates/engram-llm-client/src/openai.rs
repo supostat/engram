@@ -38,6 +38,7 @@ impl OpenAITextGenerator {
             .timeout(HTTP_REQUEST_TIMEOUT)
             .build()
             .map_err(|error| ApiError::LlmApiUnavailable(error.to_string()))?;
+        instrumentation::record_construction();
         Ok(Self {
             api_key,
             client,
@@ -95,5 +96,34 @@ impl TextGenerator for OpenAITextGenerator {
 
     fn model_name(&self) -> &str {
         &self.model
+    }
+}
+
+pub mod instrumentation {
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+
+    static CLIENT_CONSTRUCTION_TRACKING_ENABLED: AtomicBool = AtomicBool::new(false);
+    static CLIENT_CONSTRUCTION_COUNT: AtomicUsize = AtomicUsize::new(0);
+
+    pub fn enable_client_construction_tracking() {
+        CLIENT_CONSTRUCTION_TRACKING_ENABLED.store(true, Ordering::Relaxed);
+    }
+
+    pub fn disable_client_construction_tracking() {
+        CLIENT_CONSTRUCTION_TRACKING_ENABLED.store(false, Ordering::Relaxed);
+    }
+
+    pub fn reset_client_construction_count() {
+        CLIENT_CONSTRUCTION_COUNT.store(0, Ordering::Relaxed);
+    }
+
+    pub fn client_construction_count() -> usize {
+        CLIENT_CONSTRUCTION_COUNT.load(Ordering::Relaxed)
+    }
+
+    pub(crate) fn record_construction() {
+        if CLIENT_CONSTRUCTION_TRACKING_ENABLED.load(Ordering::Relaxed) {
+            CLIENT_CONSTRUCTION_COUNT.fetch_add(1, Ordering::Relaxed);
+        }
     }
 }

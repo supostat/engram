@@ -6,6 +6,7 @@ use tokio::net::UnixListener;
 use tokio::signal::unix::{SignalKind, signal};
 
 use engram_embeddings::Embedder;
+use engram_llm_client::{EmbeddingProvider, TextGenerator};
 use engram_router::Router;
 use engram_storage::Database;
 
@@ -28,6 +29,8 @@ pub struct ServerState {
     pub router: Mutex<Router>,
     pub config: Config,
     pub database_path: String,
+    pub embedding_provider: Arc<dyn EmbeddingProvider + Send + Sync>,
+    pub text_generator: Option<Arc<dyn TextGenerator + Send + Sync>>,
 }
 
 pub async fn run(config: Config) -> Result<(), CoreError> {
@@ -65,6 +68,16 @@ pub(crate) fn initialize_state(
     let database_path = resolve_database_path(project_dir, config);
     let database = Database::open(&database_path)?;
     crate::migrations::run_pending(&database)?;
+    let embedding_provider: Arc<dyn EmbeddingProvider + Send + Sync> =
+        Arc::from(config.build_embedding_provider()?);
+    let text_generator: Option<Arc<dyn TextGenerator + Send + Sync>> =
+        match config.build_text_generator() {
+            Ok(generator) => Some(Arc::from(generator)),
+            Err(error) => {
+                eprintln!("warning: text generator unavailable, running in degraded mode: {error}");
+                None
+            }
+        };
     let hnsw_config = config.clone();
     let indexes = crate::persistence::load_or_rebuild(
         &resolve_index_directory(&database_path),
@@ -80,6 +93,8 @@ pub(crate) fn initialize_state(
         router: Mutex::new(router),
         config: config.clone(),
         database_path,
+        embedding_provider,
+        text_generator,
     })
 }
 

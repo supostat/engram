@@ -52,13 +52,14 @@ pub async fn handle_analyze(state: &Arc<ServerState>, params: Value) -> Result<V
         .min_score
         .unwrap_or(state.config.consolidation.min_score);
     validate_consolidation_params(stale_days, min_score)?;
-    let config = state.config.clone();
     let state_clone = Arc::clone(state);
     let result = tokio::task::spawn_blocking(move || {
         let database = state_clone.database.lock().unwrap();
         let preview = engram_consolidate::preview(&database, stale_days, min_score)?;
-        let text_gen = config.build_text_generator().ok();
-        let text_gen_ref = text_gen.as_deref();
+        let text_gen_ref = state_clone
+            .text_generator
+            .as_deref()
+            .map(|generator| generator as &dyn engram_llm_client::TextGenerator);
         let analysis = engram_consolidate::analyze(&database, &preview, text_gen_ref)?;
         Ok::<_, CoreError>(json!({
             "analyzed_count": analysis.analyzed_count,
@@ -86,13 +87,14 @@ pub async fn handle_apply(state: &Arc<ServerState>, params: Value) -> Result<Val
         .min_score
         .unwrap_or(state.config.consolidation.min_score);
     validate_consolidation_params(stale_days, min_score)?;
-    let config = state.config.clone();
     let state_clone = Arc::clone(state);
     let result = tokio::task::spawn_blocking(move || {
         let database = state_clone.database.lock().unwrap();
         let preview = engram_consolidate::preview(&database, stale_days, min_score)?;
-        let text_gen = config.build_text_generator().ok();
-        let text_gen_ref = text_gen.as_deref();
+        let text_gen_ref = state_clone
+            .text_generator
+            .as_deref()
+            .map(|generator| generator as &dyn engram_llm_client::TextGenerator);
         let analysis = engram_consolidate::analyze(&database, &preview, text_gen_ref)?;
         let apply_result =
             engram_consolidate::apply(&database, &analysis.recommendations, "server")?;

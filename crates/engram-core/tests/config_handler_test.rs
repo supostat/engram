@@ -7,6 +7,7 @@ use engram_core::dispatch;
 use engram_core::indexes::IndexSet;
 use engram_core::server::ServerState;
 use engram_embeddings::Embedder;
+use engram_llm_client::{EmbeddingProvider, TextGenerator};
 use engram_router::Router;
 use engram_storage::Database;
 
@@ -17,6 +18,13 @@ fn build_deterministic_state() -> Arc<ServerState> {
     let indexes = IndexSet::new(|| config.build_hnsw_params()).expect("index set");
     let embedder = Embedder::new();
     let router = Router::new(0.1, 0.15);
+    let embedding_provider: Arc<dyn EmbeddingProvider + Send + Sync> = Arc::from(
+        config
+            .build_embedding_provider()
+            .expect("embedding provider"),
+    );
+    let text_generator: Option<Arc<dyn TextGenerator + Send + Sync>> =
+        config.build_text_generator().ok().map(Arc::from);
     Arc::new(ServerState {
         database: Mutex::new(database),
         indexes: RwLock::new(indexes),
@@ -24,6 +32,8 @@ fn build_deterministic_state() -> Arc<ServerState> {
         router: Mutex::new(router),
         config,
         database_path: String::new(),
+        embedding_provider,
+        text_generator,
     })
 }
 
@@ -44,22 +54,39 @@ async fn config_get_returns_sanitized_config() {
     assert!(data["consolidation"]["stale_days"].is_u64());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn config_get_reports_api_key_presence() {
-    let mut config = Config::default();
-    config.embedding.provider = "deterministic".into();
-    config.embedding.api_key = Some("test-voyage-key".into());
-    config.llm.api_key = Some("test-openai-key".into());
-    let database = Database::in_memory().expect("in-memory database");
-    let indexes = IndexSet::new(|| config.build_hnsw_params()).expect("index set");
-    let state = Arc::new(ServerState {
-        database: Mutex::new(database),
-        indexes: RwLock::new(indexes),
-        embedder: Embedder::new(),
-        router: Mutex::new(Router::new(0.1, 0.15)),
-        config,
-        database_path: String::new(),
-    });
+    // OpenAI/Voyage clients wrap reqwest::blocking, which spins up an
+    // internal tokio runtime — illegal to construct or drop inside an async
+    // context. Build the state inside spawn_blocking and release the last
+    // Arc clone in another spawn_blocking after the assertions finish.
+    let state = tokio::task::spawn_blocking(|| {
+        let mut config = Config::default();
+        config.embedding.provider = "deterministic".into();
+        config.embedding.api_key = Some("test-voyage-key".into());
+        config.llm.api_key = Some("test-openai-key".into());
+        let database = Database::in_memory().expect("in-memory database");
+        let indexes = IndexSet::new(|| config.build_hnsw_params()).expect("index set");
+        let embedding_provider: Arc<dyn EmbeddingProvider + Send + Sync> = Arc::from(
+            config
+                .build_embedding_provider()
+                .expect("embedding provider"),
+        );
+        let text_generator: Option<Arc<dyn TextGenerator + Send + Sync>> =
+            config.build_text_generator().ok().map(Arc::from);
+        Arc::new(ServerState {
+            database: Mutex::new(database),
+            indexes: RwLock::new(indexes),
+            embedder: Embedder::new(),
+            router: Mutex::new(Router::new(0.1, 0.15)),
+            config,
+            database_path: String::new(),
+            embedding_provider,
+            text_generator,
+        })
+    })
+    .await
+    .expect("build state");
     let data = dispatch::route("memory_config", &state, json!({"action": "get"}))
         .await
         .expect("get should succeed");
@@ -67,6 +94,9 @@ async fn config_get_reports_api_key_presence() {
     assert_eq!(data["llm"]["has_api_key"], true);
     assert!(data["embedding"].get("api_key").is_none());
     assert!(data["llm"].get("api_key").is_none());
+    tokio::task::spawn_blocking(move || drop(state))
+        .await
+        .expect("drop state off-runtime");
 }
 
 #[tokio::test]
