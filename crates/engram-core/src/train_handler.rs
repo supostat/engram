@@ -9,6 +9,7 @@ use crate::config::expand_tilde;
 use crate::error::CoreError;
 use crate::export_handler::memory_to_portable_json;
 use crate::server::ServerState;
+use crate::tags_normalize::{TagsInput, normalize_tags};
 use crate::timestamp::current_utc_timestamp;
 
 const INSIGHT_MEMORY_TYPE: &str = "insight";
@@ -189,7 +190,12 @@ async fn insert_generated_insights(
     state: &Arc<ServerState>,
     messages: &[TrainerMessage],
 ) -> Result<u64, CoreError> {
-    let insights: Vec<Memory> = messages.iter().filter_map(build_insight_memory).collect();
+    let mut insights: Vec<Memory> = Vec::new();
+    for message in messages {
+        if let Some(memory) = build_insight_memory(message)? {
+            insights.push(memory);
+        }
+    }
     let count = insights.len() as u64;
     if insights.is_empty() {
         return Ok(0);
@@ -204,7 +210,7 @@ async fn insert_generated_insights(
     .map_err(|error| CoreError::SocketError(error.to_string()))?
 }
 
-fn build_insight_memory(message: &TrainerMessage) -> Option<Memory> {
+fn build_insight_memory(message: &TrainerMessage) -> Result<Option<Memory>, CoreError> {
     match message {
         TrainerMessage::Insight {
             id,
@@ -216,7 +222,8 @@ fn build_insight_memory(message: &TrainerMessage) -> Option<Memory> {
             source_ids,
         } => {
             let timestamp = current_utc_timestamp();
-            Some(Memory {
+            let normalized_tags = normalize_tags(tags.clone().map(TagsInput::Encoded));
+            Ok(Some(Memory {
                 id: id.clone(),
                 memory_type: INSIGHT_MEMORY_TYPE.to_string(),
                 context: context.clone(),
@@ -227,7 +234,7 @@ fn build_insight_memory(message: &TrainerMessage) -> Option<Memory> {
                 embedding_action: None,
                 embedding_result: None,
                 indexed: false,
-                tags: tags.clone(),
+                tags: normalized_tags,
                 project: None,
                 parent_id: None,
                 source_ids: source_ids.clone(),
@@ -237,9 +244,9 @@ fn build_insight_memory(message: &TrainerMessage) -> Option<Memory> {
                 used_count: 0,
                 last_used_at: None,
                 superseded_by: None,
-            })
+            }))
         }
-        _ => None,
+        _ => Ok(None),
     }
 }
 

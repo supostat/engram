@@ -114,6 +114,13 @@ CREATE TABLE IF NOT EXISTS metrics (
 )
 "#;
 
+pub const CREATE_SCHEMA_META: &str = r#"
+CREATE TABLE IF NOT EXISTS schema_meta (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+)
+"#;
+
 const SCHEMA_STATEMENTS: &[&str] = &[
     CREATE_MEMORIES,
     CREATE_MEMORIES_FTS,
@@ -125,6 +132,7 @@ const SCHEMA_STATEMENTS: &[&str] = &[
     CREATE_FEEDBACK_TRACKING,
     CREATE_RECOMMENDATIONS,
     CREATE_METRICS,
+    CREATE_SCHEMA_META,
 ];
 
 pub fn apply_schema(connection: &rusqlite::Connection) -> Result<(), StorageError> {

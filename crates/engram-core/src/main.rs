@@ -234,7 +234,14 @@ fn build_store_args(
         "memory_type": memory_type.unwrap_or_else(|| "decision".into()),
     });
     if let Some(tags_value) = tags {
-        params["tags"] = serde_json::Value::String(tags_value);
+        let tag_array: Vec<String> = tags_value
+            .split(',')
+            .map(|tag| tag.trim().to_string())
+            .filter(|tag| !tag.is_empty())
+            .collect();
+        if !tag_array.is_empty() {
+            params["tags"] = serde_json::json!(tag_array);
+        }
     }
     if let Some(project_value) = project {
         params["project"] = serde_json::Value::String(project_value);

@@ -67,7 +67,7 @@ async fn export_includes_stored_memories() {
     let memory = &memories[0];
     assert_eq!(memory["memory_type"], "decision");
     assert_eq!(memory["context"], "export test context");
-    assert_eq!(memory["tags"], "test,export");
+    assert_eq!(memory["tags"], r#"["test","export"]"#);
     assert_eq!(memory["project"], "engram");
     assert!(memory.get("embedding_context").is_none());
     assert!(memory.get("embedding_action").is_none());

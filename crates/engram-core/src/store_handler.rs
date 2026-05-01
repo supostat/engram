@@ -7,6 +7,7 @@ use engram_storage::Memory;
 
 use crate::error::CoreError;
 use crate::server::ServerState;
+use crate::tags_normalize::{TagsInput, normalize_tags};
 use crate::timestamp::current_utc_timestamp;
 
 const MAX_FIELD_LENGTH: usize = 10_000;
@@ -17,20 +18,21 @@ struct StoreParams {
     context: String,
     action: String,
     result: String,
-    tags: Option<String>,
+    tags: Option<TagsInput>,
     project: Option<String>,
 }
 
 pub async fn handle(state: &Arc<ServerState>, params: Value) -> Result<Value, CoreError> {
-    let parsed: StoreParams = serde_json::from_value(params)
+    let mut parsed: StoreParams = serde_json::from_value(params)
         .map_err(|error| CoreError::DispatchError(error.to_string()))?;
     validate_field_length("context", &parsed.context)?;
     validate_field_length("action", &parsed.action)?;
     validate_field_length("result", &parsed.result)?;
+    let normalized_tags = normalize_tags(parsed.tags.take());
     let memory_id = uuid::Uuid::new_v4().to_string();
     let timestamp = current_utc_timestamp();
     let embedding = compute_embedding(state, &parsed).await?;
-    let memory = build_memory(&memory_id, &timestamp, &parsed, &embedding);
+    let memory = build_memory(&memory_id, &timestamp, &parsed, normalized_tags, &embedding);
     persist_memory(state, &memory, &memory_id, &embedding).await?;
     Ok(json!({ "id": memory_id, "indexed": true }))
 }
@@ -65,6 +67,7 @@ fn build_memory(
     memory_id: &str,
     timestamp: &str,
     params: &StoreParams,
+    normalized_tags: Option<String>,
     embedding: &engram_embeddings::ThreeFieldEmbedding,
 ) -> Memory {
     Memory {
@@ -78,7 +81,7 @@ fn build_memory(
         embedding_action: Some(f32_vec_to_bytes(&embedding.action)),
         embedding_result: Some(f32_vec_to_bytes(&embedding.result)),
         indexed: true,
-        tags: params.tags.clone(),
+        tags: normalized_tags,
         project: params.project.clone(),
         parent_id: None,
         source_ids: None,

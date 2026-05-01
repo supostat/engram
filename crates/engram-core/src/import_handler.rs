@@ -7,6 +7,7 @@ use engram_storage::Memory;
 
 use crate::error::CoreError;
 use crate::server::ServerState;
+use crate::tags_normalize::{TagsInput, normalize_tags};
 
 #[derive(Deserialize)]
 struct ImportParams {
@@ -60,7 +61,7 @@ fn insert_non_duplicate_memories(
             skipped += 1;
             continue;
         }
-        let memory = imported_memory_to_storage(entry);
+        let memory = imported_memory_to_storage(entry)?;
         database
             .insert_memory(&memory)
             .map_err(|error| CoreError::ImportFailed(error.to_string()))?;
@@ -77,8 +78,9 @@ fn memory_exists(database: &engram_storage::Database, id: &str) -> Result<bool, 
     }
 }
 
-fn imported_memory_to_storage(entry: &ImportedMemory) -> Memory {
-    Memory {
+fn imported_memory_to_storage(entry: &ImportedMemory) -> Result<Memory, CoreError> {
+    let tags = normalize_tags(entry.tags.clone().map(TagsInput::Encoded));
+    Ok(Memory {
         id: entry.id.clone(),
         memory_type: entry.memory_type.clone(),
         context: entry.context.clone(),
@@ -89,7 +91,7 @@ fn imported_memory_to_storage(entry: &ImportedMemory) -> Memory {
         embedding_action: None,
         embedding_result: None,
         indexed: false,
-        tags: entry.tags.clone(),
+        tags,
         project: entry.project.clone(),
         parent_id: entry.parent_id.clone(),
         source_ids: entry.source_ids.clone(),
@@ -99,5 +101,5 @@ fn imported_memory_to_storage(entry: &ImportedMemory) -> Memory {
         used_count: entry.used_count,
         last_used_at: entry.last_used_at.clone(),
         superseded_by: None,
-    }
+    })
 }

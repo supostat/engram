@@ -182,19 +182,13 @@ fn filter_by_tags(memories: Vec<Value>, required_tags: &Option<Vec<String>>) -> 
 }
 
 fn memory_has_all_tags(memory: &Value, required_lower: &[String]) -> bool {
-    let tags_value = match memory.get("tags") {
-        Some(value) if !value.is_null() => value,
+    let raw = match memory.get("tags").and_then(Value::as_str) {
+        Some(value) if !value.is_empty() => value,
         _ => return false,
     };
-    let stored_tags: Vec<String> = match tags_value.as_str() {
-        Some(raw) => match serde_json::from_str::<Vec<String>>(raw) {
-            Ok(parsed) => parsed,
-            Err(_) => return false,
-        },
-        None => match serde_json::from_value::<Vec<String>>(tags_value.clone()) {
-            Ok(parsed) => parsed,
-            Err(_) => return false,
-        },
+    let stored_tags: Vec<String> = match serde_json::from_str(raw) {
+        Ok(parsed) => parsed,
+        Err(_) => return false,
     };
     let stored_lower: Vec<String> = stored_tags.iter().map(|tag| tag.to_lowercase()).collect();
     required_lower

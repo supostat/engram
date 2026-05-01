@@ -11,6 +11,7 @@ pub mod init_handler;
 pub mod insights_handler;
 pub mod judge_handler;
 pub mod migrate_handler;
+pub mod migrations;
 pub mod output;
 pub mod persistence;
 pub mod protocol;
@@ -18,6 +19,7 @@ pub mod search_handler;
 pub mod server;
 pub mod status_handler;
 pub mod store_handler;
+pub mod tags_normalize;
 pub mod timestamp;
 pub mod train_handler;
 

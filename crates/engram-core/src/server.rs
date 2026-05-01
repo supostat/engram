@@ -64,6 +64,7 @@ pub(crate) fn initialize_state(
     check_legacy_database(project_dir, home_dir)?;
     let database_path = resolve_database_path(project_dir, config);
     let database = Database::open(&database_path)?;
+    crate::migrations::run_pending(&database)?;
     let hnsw_config = config.clone();
     let indexes = crate::persistence::load_or_rebuild(
         &resolve_index_directory(&database_path),

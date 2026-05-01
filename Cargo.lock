@@ -749,6 +749,7 @@ dependencies = [
  "engram-router",
  "engram-storage",
  "hdrhistogram",
+ "rusqlite",
  "serde",
  "serde_json",
  "tempfile",
