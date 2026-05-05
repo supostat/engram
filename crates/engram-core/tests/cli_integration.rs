@@ -22,7 +22,7 @@ fn build_deterministic_state() -> Arc<ServerState> {
     let mut config = Config::default();
     config.embedding.provider = "deterministic".into();
     let indexes = IndexSet::new(|| config.build_hnsw_params()).expect("index set");
-    let embedder = Embedder::new();
+    let embedder = Embedder::new(0);
     let router = Router::new(0.1, 0.15);
     let embedding_provider: Arc<dyn EmbeddingProvider + Send + Sync> = Arc::from(
         config

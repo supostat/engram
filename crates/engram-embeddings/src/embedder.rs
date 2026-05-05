@@ -12,18 +12,20 @@ pub struct ThreeFieldEmbedding {
 
 pub struct Embedder {
     cache: EmbeddingCache,
+    hyde_threshold: usize,
 }
 
 impl Default for Embedder {
     fn default() -> Self {
-        Self::new()
+        Self::new(0)
     }
 }
 
 impl Embedder {
-    pub fn new() -> Self {
+    pub fn new(hyde_threshold: usize) -> Self {
         Self {
             cache: EmbeddingCache::new(),
+            hyde_threshold,
         }
     }
 
@@ -56,8 +58,15 @@ impl Embedder {
         provider: &dyn EmbeddingProvider,
         text_generator: Option<&dyn TextGenerator>,
     ) -> Result<Vec<f32>, EmbeddingError> {
+        if let Some(cached) = self.cache.get(query) {
+            return Ok(cached);
+        }
         let prepared = self.prepare_text(query, text_generator);
-        self.get_or_embed(&prepared, provider)
+        let embedding = provider
+            .embed(&prepared)
+            .map_err(EmbeddingError::ProviderError)?;
+        self.cache.insert(query.to_string(), embedding.clone());
+        Ok(embedding)
     }
 
     pub fn cache(&self) -> &EmbeddingCache {
@@ -69,7 +78,7 @@ impl Embedder {
     }
 
     fn prepare_text(&self, text: &str, text_generator: Option<&dyn TextGenerator>) -> String {
-        if hyde::should_use_hyde(text)
+        if hyde::should_use_hyde(text, self.hyde_threshold)
             && let Some(generator) = text_generator
             && let Ok(hypothesis) = hyde::generate_hypothesis(text, generator)
         {

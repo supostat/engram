@@ -84,7 +84,7 @@ pub(crate) fn initialize_state(
         &database,
         || hnsw_config.build_hnsw_params(),
     )?;
-    let embedder = Embedder::new();
+    let embedder = Embedder::new(config.embedding.hyde_threshold);
     let router = Router::new(ROUTER_DEFAULT_ALPHA, ROUTER_DEFAULT_EPSILON);
     Ok(ServerState {
         database: Mutex::new(database),

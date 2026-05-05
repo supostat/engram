@@ -20,6 +20,7 @@ const DEFAULT_SOCKET_PATH: &str = "~/.engram/engram.sock";
 const DEFAULT_EMBEDDING_PROVIDER: &str = "voyage";
 const DEFAULT_EMBEDDING_MODEL: &str = "voyage-code-3";
 const DEFAULT_EMBEDDING_DIMENSION: usize = 1024;
+const DEFAULT_HYDE_THRESHOLD: usize = 0;
 const DEFAULT_LLM_PROVIDER: &str = "openai";
 const DEFAULT_LLM_MODEL: &str = "gpt-4o-mini";
 const DEFAULT_REINDEX_INTERVAL_SECS: u64 = 3600;
@@ -56,6 +57,8 @@ pub struct EmbeddingConfig {
     pub api_key: Option<String>,
     pub model: Option<String>,
     pub dimension: Option<usize>,
+    #[serde(default)]
+    pub hyde_threshold: usize,
 }
 
 #[derive(Deserialize, Clone)]
@@ -242,6 +245,7 @@ impl Default for Config {
                 api_key: None,
                 model: Some(DEFAULT_EMBEDDING_MODEL.into()),
                 dimension: Some(DEFAULT_EMBEDDING_DIMENSION),
+                hyde_threshold: DEFAULT_HYDE_THRESHOLD,
             },
             llm: LlmConfig {
                 provider: DEFAULT_LLM_PROVIDER.into(),

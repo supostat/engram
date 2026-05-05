@@ -202,3 +202,60 @@ fn build_text_generator_local_provider_name() {
         Ok(_) => panic!("expected error for nonexistent model path"),
     }
 }
+
+#[test]
+fn default_hyde_threshold_is_zero() {
+    let config = Config::default();
+    assert_eq!(config.embedding.hyde_threshold, 0);
+}
+
+#[test]
+fn parses_hyde_threshold_from_toml() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let config_path = temp_dir.path().join("engram.toml");
+    let toml_content = r#"
+[database]
+path = "/x/db"
+[embedding]
+provider = "voyage"
+hyde_threshold = 20
+[llm]
+provider = "openai"
+[server]
+socket_path = "/tmp/x.sock"
+reindex_interval_secs = 1800
+[hnsw]
+max_connections = 16
+ef_construction = 200
+ef_search = 40
+dimension = 1024
+"#;
+    std::fs::write(&config_path, toml_content).unwrap();
+    let config = Config::load_from_path(config_path.to_str().unwrap()).unwrap();
+    assert_eq!(config.embedding.hyde_threshold, 20);
+}
+
+#[test]
+fn missing_hyde_threshold_in_toml_defaults_to_zero() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let config_path = temp_dir.path().join("engram.toml");
+    let toml_content = r#"
+[database]
+path = "/x/db"
+[embedding]
+provider = "voyage"
+[llm]
+provider = "openai"
+[server]
+socket_path = "/tmp/x.sock"
+reindex_interval_secs = 1800
+[hnsw]
+max_connections = 16
+ef_construction = 200
+ef_search = 40
+dimension = 1024
+"#;
+    std::fs::write(&config_path, toml_content).unwrap();
+    let config = Config::load_from_path(config_path.to_str().unwrap()).unwrap();
+    assert_eq!(config.embedding.hyde_threshold, 0);
+}
