@@ -68,11 +68,11 @@ pub fn execute() -> Result<(), CoreError> {
         .map_err(|error| CoreError::InitFailed(format!("cwd unavailable: {error}")))?;
     let home = home_directory()
         .ok_or_else(|| CoreError::InitFailed("HOME environment variable not set".into()))?;
+    try_interactive_wizard();
     execute_with_dirs(&cwd, Path::new(&home))
 }
 
 pub fn execute_with_dirs(project_dir: &Path, home_dir: &Path) -> Result<(), CoreError> {
-    try_interactive_wizard();
     validate_socket_path(project_dir)?;
 
     let home_config_path = home_dir.join(ENGRAM_DIRECTORY).join(CONFIG_FILENAME);

@@ -53,6 +53,11 @@
 - `engram-tui` per-project discovery now matches the server's discovery rules
   (ADR 2026-04-22).
 - Init wizard correctly detects API keys on the status screen.
+- `init_handler::execute_with_dirs` no longer triggers the interactive
+  `engram-tui init` wizard; the TTY-attached check moved up to `execute()`.
+  Previously the wizard ran inside `execute_with_dirs`, which made every
+  init test hang under any TTY-attached test runner (e.g. `lefthook
+  pre-push`) by spawning an interactive subprocess.
 
 ### Documentation
 - README, AGENT.md, and `website/content/docs/{en,ru}` brought into sync with
