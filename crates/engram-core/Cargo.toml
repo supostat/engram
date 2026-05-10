@@ -1,6 +1,6 @@
 [package]
 name = "engram-core"
-version = "0.1.0"
+version = "0.2.0"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
@@ -16,13 +16,13 @@ name = "engram"
 path = "src/main.rs"
 
 [dependencies]
-engram-consolidate = { path = "../engram-consolidate" }
-engram-storage = { path = "../engram-storage" }
-engram-hnsw = { path = "../engram-hnsw" }
-engram-embeddings = { path = "../engram-embeddings" }
-engram-llm-client = { path = "../engram-llm-client", features = ["local"] }
-engram-judge = { path = "../engram-judge" }
-engram-router = { path = "../engram-router" }
+engram-consolidate = { path = "../engram-consolidate", version = "0.2.0" }
+engram-storage = { path = "../engram-storage", version = "0.2.0" }
+engram-hnsw = { path = "../engram-hnsw", version = "0.2.0" }
+engram-embeddings = { path = "../engram-embeddings", version = "0.2.0" }
+engram-llm-client = { path = "../engram-llm-client", version = "0.2.0", features = ["local"] }
+engram-judge = { path = "../engram-judge", version = "0.2.0" }
+engram-router = { path = "../engram-router", version = "0.2.0" }
 rusqlite = { version = "0.39", features = ["bundled", "vtab"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
