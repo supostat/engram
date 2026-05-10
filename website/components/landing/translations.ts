@@ -6,7 +6,7 @@ export const translations = {
     heroSubtitle: 'AI-память для агентов',
     heroDescription: 'Хранит решения. Учится. Находит релевантное.',
     heroButton: 'Начать',
-    heroStats: ['11 MCP-инструментов', '350+ тестов', '8 крейтов'],
+    heroStats: ['11 MCP-инструментов', '470+ тестов', '9 крейтов'],
     scrollHint: 'Узнать больше',
 
     featuresTitle: 'Возможности',
@@ -28,6 +28,9 @@ export const translations = {
     featureCrossProject: 'Кросс-проект',
     featureCrossProjectDescription:
       'Перенос знаний между проектами. Опыт из одного проекта доступен во всех остальных.',
+    featureTuiDashboard: 'TUI-дашборд',
+    featureTuiDashboardDescription:
+      'Терминальный интерфейс с пятью вкладками: статус, память, поиск, Q-Learning, модели. Подключается к серверу через unix-сокет.',
 
     howItWorksTitle: 'Как это работает',
     stepStore: 'Сохранение',
@@ -55,7 +58,7 @@ export const translations = {
     heroSubtitle: 'AI memory for agents',
     heroDescription: 'Stores decisions. Learns. Finds what matters.',
     heroButton: 'Get Started',
-    heroStats: ['11 MCP tools', '350+ tests', '8 crates'],
+    heroStats: ['11 MCP tools', '470+ tests', '9 crates'],
     scrollHint: 'Learn more',
 
     featuresTitle: 'Features',
@@ -77,6 +80,9 @@ export const translations = {
     featureCrossProject: 'Cross-Project',
     featureCrossProjectDescription:
       'Knowledge transfer between projects. Experience from one project is available across all others.',
+    featureTuiDashboard: 'TUI Dashboard',
+    featureTuiDashboardDescription:
+      'Terminal interface with five tabs: status, memories, search, Q-Learning, models. Connects to the server via Unix socket.',
 
     howItWorksTitle: 'How It Works',
     stepStore: 'Store',

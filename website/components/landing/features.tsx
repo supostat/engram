@@ -15,6 +15,7 @@ const featureIcons = [
   <svg key="quality" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>,
   <svg key="insights" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.59 13.51l6.83 3.98M15.41 6.51l-6.82 3.98"/></svg>,
   <svg key="cross" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4M7 8h2M7 12h2M15 8h2M15 12h2"/></svg>,
+  <svg key="tui" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="18" rx="2"/><path d="M2 8h20"/><path d="M5 5.5h.01M8 5.5h.01M11 5.5h.01"/><path d="M5 12h6M5 16h10"/></svg>,
 ];
 
 export function Features({ lang }: FeaturesProps) {
@@ -29,6 +30,7 @@ export function Features({ lang }: FeaturesProps) {
     { title: t.featureQualityScoring, description: t.featureQualityScoringDescription },
     { title: t.featureInsights, description: t.featureInsightsDescription },
     { title: t.featureCrossProject, description: t.featureCrossProjectDescription },
+    { title: t.featureTuiDashboard, description: t.featureTuiDashboardDescription },
   ];
 
   return (
