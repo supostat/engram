@@ -40,3 +40,4 @@ __pycache__/
 .turbo/
 .engram/
 .dev-workflow-upgrade-backup
+.release-notes-*.md
