@@ -45,16 +45,16 @@ Coefficients are hardcoded in `search_handler.rs`.
 
 ## HyDE (Hypothetical Document Embeddings)
 
-For complex queries, engram uses HyDE — a technique that improves search through hypothetical document generation.
+HyDE is **disabled by default** (`embedding.hyde_threshold = 0`). Set `hyde_threshold` to a positive integer `N` in `engram.toml` to enable HyDE for queries shorter than `N` words.
 
-Process:
+When enabled:
 
-1. LLM receives the search query
+1. LLM receives the short search query
 2. LLM generates a hypothetical memory record that could answer the query
 3. The hypothetical record is embedded instead of the original query
 4. Search runs against the hypothesis embedding
 
-HyDE improves search when the query is phrased in terms of a problem while relevant records describe solutions.
+HyDE improves recall when the query is phrased in terms of a problem while relevant records describe solutions. Trade-off: the LLM call adds ~1.5s on a cache miss. The embedding cache is keyed by the **original query** (not the generated hypothesis), so repeated identical queries hit the cache without an extra LLM call.
 
 ## Graceful degradation
 

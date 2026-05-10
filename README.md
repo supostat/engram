@@ -80,9 +80,9 @@ Add to your Claude Desktop / Claude Code config:
 ```bash
 pip install engram-trainer
 
-# Direct invocation
-python -m engram_trainer --database ~/.engram/memories.db --models-path ~/.engram/models/
-python -m engram_trainer --database ~/.engram/memories.db --models-path ~/.engram/models/ --deep
+# Direct invocation (point --database at the per-project DB)
+python -m engram_trainer --database .engram/engram.db --models-path ~/.engram/models/
+python -m engram_trainer --database .engram/engram.db --models-path ~/.engram/models/ --deep
 
 # Via CLI (requires engram-core server running)
 engram train
@@ -92,7 +92,7 @@ engram train --deep  # LoRA fine-tuning (requires torch)
 ## Features
 
 - **Hybrid search** — HNSW vector (cosine) + BM25 sparse (FTS5), alpha-weighted
-- **HyDE** — LLM generates hypothetical memory, embeds hypothesis instead of raw query
+- **HyDE** — opt-in via `embedding.hyde_threshold > 0` (disabled by default). When enabled, LLM generates a hypothetical memory and embeds the hypothesis instead of the raw query. Cache is keyed by the original query, so repeated calls hit the cache instantly.
 - **Automatic deduplication** — cosine similarity > 0.95 at write time
 - **Consolidation** — preview → LLM analysis → apply (merge/delete/archive)
 - **Q-Learning router** — 4 levels: search strategy, LLM selection, contextualization, proactivity
@@ -144,21 +144,32 @@ website/                Documentation site (Fumadocs)
 
 ## Configuration
 
+Engram splits state across two locations:
+
+- **Global** (`~/.engram/`) — `engram.toml` (API keys, defaults), `models/` (ONNX artifacts shared across projects).
+- **Per-project** (`<project>/.engram/`) — `engram.db` (SQLite), `engram.sock` (Unix socket). Discovery walks up from cwd looking for `.engram/`, similar to `.git`.
+
 `~/.engram/engram.toml`:
 
 ```toml
 [database]
+# Fallback only — runtime prefers per-project <project>/.engram/engram.db
+# (or ENGRAM_DB_PATH override). This value is used only when no .engram/
+# marker is found while walking up from cwd.
 path = "~/.engram/memories.db"
 
 [embedding]
-provider = "voyage"     # voyage | deterministic
+provider = "voyage"        # voyage | deterministic
 model = "voyage-code-3"
+hyde_threshold = 0          # 0 = HyDE disabled (default); N>0 = enable for queries shorter than N words
 
 [llm]
-provider = "openai"     # openai | local
+provider = "openai"         # openai | local
 model = "gpt-4o-mini"
 
 [server]
+# Fallback only — runtime prefers <project>/.engram/engram.sock
+# (or ENGRAM_SOCKET_PATH override) when a project .engram/ exists.
 socket_path = "~/.engram/engram.sock"
 reindex_interval_secs = 3600
 
@@ -179,6 +190,19 @@ models_path = "~/.engram/models"
 ```
 
 Environment variables override config: `ENGRAM_VOYAGE_API_KEY`, `ENGRAM_OPENAI_API_KEY`, `ENGRAM_DB_PATH`, `ENGRAM_SOCKET_PATH`, `ENGRAM_EMBEDDING_MODEL`, `ENGRAM_LLM_MODEL`, `ENGRAM_TRAINER_BINARY`, `ENGRAM_TRAINER_TIMEOUT`, `ENGRAM_MODELS_PATH`.
+
+### Migrating from a previous global install
+
+If you have memories in `~/.engram/engram.db` from before per-project layout, import them with:
+
+```bash
+cd /path/to/project
+engram migrate --dry-run   # preview what would be imported
+engram migrate             # default: only rows whose project field matches the cwd basename
+engram migrate --all       # also import NULL-project / mismatched rows
+```
+
+`engram server` aborts on startup if it finds a legacy `~/.engram/engram.db` but no `<project>/.engram/engram.db` — the error message points at this command.
 
 ## Testing
 

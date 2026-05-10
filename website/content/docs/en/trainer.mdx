@@ -24,7 +24,7 @@ A Python process analyzes accumulated records and generates insights — derived
 Fine-tunes a model on memory data. Exports an ONNX model for local generation without API calls.
 
 ```bash
-engram-trainer --db ~/.engram/memories.db --deep
+engram-trainer --db .engram/engram.db --deep
 ```
 
 ## Trainer
@@ -38,9 +38,11 @@ pip install engram-trainer
 ### Usage
 
 ```bash
-engram-trainer --db ~/.engram/memories.db
-engram-trainer --db ~/.engram/memories.db --models-path ~/.engram/models
+engram-trainer --db .engram/engram.db
+engram-trainer --db .engram/engram.db --models-path ~/.engram/models
 ```
+
+The trainer's `--db` flag points at the per-project SQLite database created by `engram init` (`<project>/.engram/engram.db`). The `--models-path` is global by design — ONNX artifacts are large and reused across projects, so they live under `~/.engram/models/`.
 
 Or via MCP:
 

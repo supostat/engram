@@ -5,7 +5,7 @@ description: SQLite tables and data structures in engram
 
 # Data Model
 
-Engram stores all data in SQLite (WAL mode) at `~/.engram/memories.db`.
+Engram stores all data in SQLite (WAL mode) at `<project>/.engram/engram.db`. The path is resolved per-project: discovery walks up from cwd looking for `.engram/`, like `.git`. See [Configuration → Path resolution](/en/docs/configuration#path-resolution) for env overrides and the legacy fallback.
 
 ## memories
 

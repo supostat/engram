@@ -24,7 +24,7 @@ Python-процесс анализирует накопленные записи
 Тонкая настройка модели на данных из памяти. Экспортирует ONNX-модель для локальной генерации без API-вызовов.
 
 ```bash
-engram-trainer --db ~/.engram/memories.db --deep
+engram-trainer --db .engram/engram.db --deep
 ```
 
 ## Trainer
@@ -38,9 +38,11 @@ pip install engram-trainer
 ### Запуск
 
 ```bash
-engram-trainer --db ~/.engram/memories.db
-engram-trainer --db ~/.engram/memories.db --models-path ~/.engram/models
+engram-trainer --db .engram/engram.db
+engram-trainer --db .engram/engram.db --models-path ~/.engram/models
 ```
+
+Флаг `--db` указывает на per-project SQLite-базу, созданную `engram init` (`<project>/.engram/engram.db`). Флаг `--models-path` остаётся глобальным по дизайну — ONNX-артефакты крупные и переиспользуются между проектами, поэтому хранятся под `~/.engram/models/`.
 
 Или через MCP:
 

@@ -5,31 +5,51 @@ description: engram.toml config file and environment variables
 
 # Configuration
 
-Engram looks for configuration in the following order:
+Engram splits state across two locations:
 
-1. `./engram.toml` — current directory
-2. `~/.engram/engram.toml` — home directory
-3. Default values — if no config file found
+- **Global** (`~/.engram/`) — `engram.toml` (the only config file engram reads), `models/` (ONNX artifacts shared across projects).
+- **Per-project** (`<project>/.engram/`) — `engram.db` (SQLite) and `engram.sock` (Unix socket). Discovery walks up from cwd looking for `.engram/`, like `.git`.
 
-Environment variables always override file values.
+Engram looks for the config file in the following order:
+
+1. `--config <path>` CLI flag — explicit override
+2. `./engram.toml` — current directory
+3. `~/.engram/engram.toml` — global config
+4. Built-in defaults — if no config file is found
+
+Environment variables always override file values. There is no per-project config file by design — global config holds API keys and defaults, while per-project state (DB, socket) is resolved at runtime.
+
+## Path resolution
+
+Database and socket paths are resolved at runtime, not from the config file:
+
+| Resource | Priority order |
+|----------|----------------|
+| Database | `ENGRAM_DB_PATH` env → `<project>/.engram/engram.db` (per-project, found by walking up from cwd) → `~/.engram/memories.db` (legacy fallback) |
+| Socket   | `ENGRAM_SOCKET_PATH` env → `<project>/.engram/engram.sock` (when a project `.engram/` exists) → `server.socket_path` from `engram.toml` (with `~` expanded) |
+
+The `database.path` and `server.socket_path` values in `engram.toml` are kept as fallbacks for the case when no `.engram/` marker is found while walking up. `engram server` aborts on startup if a legacy `~/.engram/engram.db` exists but no per-project `.engram/engram.db` does — the error points at `engram migrate`.
 
 ## engram.toml structure
 
 ```toml
 [database]
+# Fallback only — runtime prefers per-project .engram/engram.db.
 path = "~/.engram/memories.db"
 
 [embedding]
 provider = "voyage"         # voyage | deterministic
 model = "voyage-code-3"
-# api_key = "..."          # or via ENGRAM_VOYAGE_API_KEY
+# api_key = "..."           # or via ENGRAM_VOYAGE_API_KEY
+hyde_threshold = 0          # 0 = HyDE disabled (default); N>0 enables HyDE for queries shorter than N words
 
 [llm]
 provider = "openai"         # openai | local
 model = "gpt-4o-mini"
-# api_key = "..."          # or via ENGRAM_OPENAI_API_KEY
+# api_key = "..."           # or via ENGRAM_OPENAI_API_KEY
 
 [server]
+# Fallback only — runtime prefers per-project .engram/engram.sock.
 socket_path = "~/.engram/engram.sock"
 reindex_interval_secs = 3600
 
@@ -55,7 +75,7 @@ models_path = "~/.engram/models"
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `path` | `~/.engram/memories.db` | Path to SQLite database |
+| `path` | `~/.engram/memories.db` | Fallback SQLite path (overridden at runtime by per-project `.engram/engram.db` — see [Path resolution](#path-resolution)) |
 
 ### embedding
 
@@ -65,8 +85,11 @@ models_path = "~/.engram/models"
 | `model` | `voyage-code-3` | Embedding model |
 | `api_key` | — | API key (prefer environment variable) |
 | `dimension` | `1024` | Embedding vector dimension |
+| `hyde_threshold` | `0` | HyDE opt-in: `0` disables HyDE; `N > 0` enables it for queries with fewer than `N` words |
 
 The `deterministic` provider requires no API key and generates deterministic embeddings from text. Suitable for testing.
+
+When `hyde_threshold > 0`, short queries trigger an LLM call that produces a hypothetical memory, and the embedding is built from the hypothesis instead of the raw query. Trade-off: cache miss adds ~1.5s latency per query but improves recall on terse queries; cache is keyed by the **original query**, so repeated identical queries hit the cache without an extra LLM call.
 
 ### llm
 
@@ -82,7 +105,7 @@ The `local` provider uses an ONNX model from `trainer.models_path` for local gen
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `socket_path` | `~/.engram/engram.sock` | Unix socket path |
+| `socket_path` | `~/.engram/engram.sock` | Fallback Unix socket path (overridden at runtime by per-project `.engram/engram.sock` — see [Path resolution](#path-resolution)) |
 | `reindex_interval_secs` | `3600` | Reindex interval (seconds, 0 = disabled) |
 
 ### hnsw
@@ -126,14 +149,19 @@ The `local` provider uses an ONNX model from `trainer.models_path` for local gen
 ## Default paths
 
 ```
-~/.engram/
-  engram.toml          # configuration
-  memories.db          # SQLite database
-  engram.sock          # Unix socket server
-  models/              # ONNX models from trainer
-  *.hnsw               # serialized HNSW indexes
+~/.engram/                       # global — shared across projects
+  engram.toml                    # configuration (API keys, defaults)
+  models/                        # ONNX models from trainer
+
+<project>/.engram/               # per-project — created by `engram init`
+  engram.db                      # SQLite database
+  engram.sock                    # Unix socket server
+  *.hnsw                         # serialized HNSW indexes
+  AGENT.md                       # bundled agent instructions
 ```
 
 ## Initialization
 
-The `engram init` command creates the `~/.engram/` directory with default configuration and an empty database. If the directory already exists, init skips creating existing files.
+The `engram init` command creates the project's `.engram/` directory in the current working directory (with `engram.db`, the bundled `AGENT.md`, an `.mcp.json`, and a `.engram/` entry in `.gitignore`). On first run it also writes a default `~/.engram/engram.toml` if none exists. Existing files are never overwritten.
+
+To import data from a previous global install (`~/.engram/engram.db`), see [`engram migrate`](/en/docs/cli#engram-migrate).

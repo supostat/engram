@@ -22,10 +22,13 @@ npm install -g @engram/mcp-server
 ### Инициализация
 
 ```bash
+cd /path/to/your/project
 engram init
 ```
 
-Команда создаст `~/.engram/` с конфигурацией и базой данных.
+Команда создаёт `<project>/.engram/` (содержит `engram.db`, упакованный `AGENT.md` и `.mcp.json`) и добавляет `.engram/` в `.gitignore`. При первом запуске также пишет дефолтный глобальный конфиг в `~/.engram/engram.toml` (там же — API-ключи). Состояние per-project — discovery поднимается вверх от cwd в поисках директории `.engram/`, как `.git`.
+
+Если у вас остались записи в legacy глобальной базе (`~/.engram/engram.db`), импортируйте их через `engram migrate` — см. [CLI](/ru/docs/cli#engram-migrate).
 
 ## Подключение к Claude
 

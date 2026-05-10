@@ -14,7 +14,7 @@ Global flags:
 
 ## engram init
 
-Initializes the `~/.engram/` directory with configuration, database, and prints MCP server setup instructions.
+Initializes the project's `.engram/` directory in the current working directory (creating `engram.db`, bundled `AGENT.md`, `.mcp.json`, and a `.engram/` entry in `.gitignore`). On first run also writes a default `~/.engram/engram.toml` if none exists, then prints MCP server setup instructions.
 
 ```bash
 engram init
@@ -30,7 +30,23 @@ Starts a Unix socket server to accept JSON requests from the MCP server.
 engram server
 ```
 
-Listens on `~/.engram/engram.sock` (configurable via `server.socket_path`). Runs background reindexing at `reindex_interval_secs` interval.
+Resolves the socket path in this order: `ENGRAM_SOCKET_PATH` env override → `<project>/.engram/engram.sock` (when a `.engram/` marker is found by walking up from cwd, like `.git`) → `server.socket_path` from `engram.toml` (legacy fallback). The database is resolved analogously via `ENGRAM_DB_PATH` → `<project>/.engram/engram.db`. If the per-project DB is missing but a legacy `~/.engram/engram.db` exists, startup aborts with a hint to run `engram migrate`. Background reindexing runs at `reindex_interval_secs` interval.
+
+## engram migrate
+
+Imports memories from the legacy global database (`~/.engram/engram.db`) into the current project's `<project>/.engram/engram.db`. By default filters rows whose `project` field exactly matches the cwd basename; rows with a NULL `project` are skipped unless `--all` is passed.
+
+```bash
+cd /path/to/project
+engram migrate --dry-run   # preview only — write nothing
+engram migrate             # import rows tagged with current project
+engram migrate --all       # also import NULL-project / mismatched rows
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--all` | off | Include rows whose `project` is NULL or differs from the cwd basename |
+| `--dry-run` | off | Report what would be migrated without writing to the destination |
 
 ## engram store
 

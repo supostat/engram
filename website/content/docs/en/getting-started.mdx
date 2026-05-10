@@ -22,10 +22,13 @@ npm install -g @engram/mcp-server
 ### Initialize
 
 ```bash
+cd /path/to/your/project
 engram init
 ```
 
-This creates `~/.engram/` with configuration and database.
+This creates `<project>/.engram/` (containing `engram.db`, the bundled `AGENT.md`, and an `.mcp.json`) and adds a `.engram/` entry to `.gitignore`. On first run it also writes the default global config to `~/.engram/engram.toml` (API keys go there). State is per-project — discovery walks up from cwd looking for `.engram/`, like `.git`.
+
+If you have memories in a previous global install (`~/.engram/engram.db`), import them with `engram migrate` — see [CLI](/en/docs/cli#engram-migrate).
 
 ## Connect to Claude
 

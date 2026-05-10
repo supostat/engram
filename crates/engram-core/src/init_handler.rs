@@ -19,13 +19,24 @@ const UNIX_SOCKET_PATH_MAX_BYTES: usize = 104;
 const MCP_NPX_PACKAGE: &str = "@engram/mcp-server";
 const DEFAULT_ENGRAM_BIN_NAME: &str = "engram";
 
-const DEFAULT_CONFIG_TEMPLATE: &str = r#"[database]
+const DEFAULT_CONFIG_TEMPLATE: &str = r#"# Global engram config. Runtime always prefers per-project state under
+# <project>/.engram/{engram.db, engram.sock} (discovered by walking up from cwd
+# like .git). The database.path and server.socket_path values below are
+# fallbacks used only when no .engram/ marker is found and no ENGRAM_DB_PATH /
+# ENGRAM_SOCKET_PATH env override is set.
+
+[database]
 path = "~/.engram/memories.db"
 
 [embedding]
 provider = "voyage"
 model = "voyage-code-3"
 dimension = 1024
+# hyde_threshold: opt-in HyDE. 0 = disabled (default). N>0 = enable HyDE
+# when the query has fewer than N words. HyDE adds ~1.5s latency on cache
+# miss but improves recall on terse queries; cache is keyed by the
+# original query so repeated calls are instant.
+hyde_threshold = 0
 
 [llm]
 provider = "openai"

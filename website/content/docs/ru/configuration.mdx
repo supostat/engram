@@ -5,31 +5,51 @@ description: Файл конфигурации engram.toml и переменны
 
 # Конфигурация
 
-Engram ищет конфигурацию в следующем порядке:
+Engram разделяет состояние на две локации:
 
-1. `./engram.toml` — текущая директория
-2. `~/.engram/engram.toml` — домашняя директория
-3. Значения по умолчанию — если файл не найден
+- **Глобальная** (`~/.engram/`) — `engram.toml` (единственный конфиг-файл, который читает engram), `models/` (ONNX-артефакты, переиспользуемые между проектами).
+- **Per-project** (`<project>/.engram/`) — `engram.db` (SQLite) и `engram.sock` (Unix-сокет). Discovery поднимается вверх от cwd в поисках директории `.engram/`, как `.git`.
 
-Переменные окружения всегда перезаписывают значения из файла.
+Engram ищет конфигурационный файл в следующем порядке:
+
+1. `--config <path>` CLI-флаг — явное переопределение
+2. `./engram.toml` — текущая директория
+3. `~/.engram/engram.toml` — глобальный конфиг
+4. Встроенные значения по умолчанию — если файл не найден
+
+Переменные окружения всегда перезаписывают значения из файла. Per-project конфиг-файл не предусмотрен по дизайну: глобальный конфиг хранит API-ключи и дефолты, а per-project состояние (БД, сокет) разрешается в рантайме.
+
+## Разрешение путей
+
+Пути к базе и сокету разрешаются в рантайме, а не из конфига:
+
+| Ресурс | Порядок приоритета |
+|--------|---------------------|
+| База данных | `ENGRAM_DB_PATH` env → `<project>/.engram/engram.db` (per-project, найден подъёмом вверх от cwd) → `~/.engram/memories.db` (legacy fallback) |
+| Сокет | `ENGRAM_SOCKET_PATH` env → `<project>/.engram/engram.sock` (если существует project `.engram/`) → `server.socket_path` из `engram.toml` (с раскрытием `~`) |
+
+Значения `database.path` и `server.socket_path` в `engram.toml` остаются как fallback'и для случаев, когда маркер `.engram/` не найден при подъёме. `engram server` прерывает запуск, если найден legacy `~/.engram/engram.db`, но нет per-project `.engram/engram.db` — в сообщении об ошибке указана команда `engram migrate`.
 
 ## Структура engram.toml
 
 ```toml
 [database]
+# Только fallback — рантайм предпочитает per-project .engram/engram.db.
 path = "~/.engram/memories.db"
 
 [embedding]
 provider = "voyage"         # voyage | deterministic
 model = "voyage-code-3"
-# api_key = "..."          # или через ENGRAM_VOYAGE_API_KEY
+# api_key = "..."           # или через ENGRAM_VOYAGE_API_KEY
+hyde_threshold = 0          # 0 = HyDE выключен (по умолчанию); N>0 включает HyDE для запросов короче N слов
 
 [llm]
 provider = "openai"         # openai | local
 model = "gpt-4o-mini"
-# api_key = "..."          # или через ENGRAM_OPENAI_API_KEY
+# api_key = "..."           # или через ENGRAM_OPENAI_API_KEY
 
 [server]
+# Только fallback — рантайм предпочитает per-project .engram/engram.sock.
 socket_path = "~/.engram/engram.sock"
 reindex_interval_secs = 3600
 
@@ -55,7 +75,7 @@ models_path = "~/.engram/models"
 
 | Параметр | По умолчанию | Описание |
 |----------|-------------|----------|
-| `path` | `~/.engram/memories.db` | Путь к SQLite базе данных |
+| `path` | `~/.engram/memories.db` | Fallback-путь к SQLite (в рантайме перекрывается per-project `.engram/engram.db` — см. [Разрешение путей](#разрешение-путей)) |
 
 ### embedding
 
@@ -65,8 +85,11 @@ models_path = "~/.engram/models"
 | `model` | `voyage-code-3` | Модель эмбеддингов |
 | `api_key` | — | API-ключ (предпочтительно через переменную окружения) |
 | `dimension` | `1024` | Размерность вектора эмбеддинга |
+| `hyde_threshold` | `0` | HyDE opt-in: `0` отключает HyDE; `N > 0` включает его для запросов короче `N` слов |
 
 Провайдер `deterministic` не требует API-ключа и генерирует детерминированные эмбеддинги из текста. Подходит для тестирования.
+
+При `hyde_threshold > 0` короткие запросы запускают LLM-вызов, который генерирует гипотетическое воспоминание, и эмбеддинг строится по гипотезе вместо сырого запроса. Trade-off: cache miss добавляет ~1.5s на запрос, но улучшает recall на коротких запросах; кеш ключуется по **оригинальному запросу**, поэтому повторные одинаковые запросы попадают в кеш без дополнительного LLM-вызова.
 
 ### llm
 
@@ -82,7 +105,7 @@ models_path = "~/.engram/models"
 
 | Параметр | По умолчанию | Описание |
 |----------|-------------|----------|
-| `socket_path` | `~/.engram/engram.sock` | Путь к Unix-сокету сервера |
+| `socket_path` | `~/.engram/engram.sock` | Fallback-путь к Unix-сокету (в рантайме перекрывается per-project `.engram/engram.sock` — см. [Разрешение путей](#разрешение-путей)) |
 | `reindex_interval_secs` | `3600` | Интервал переиндексации (секунды, 0 = выключено) |
 
 ### hnsw
@@ -126,14 +149,19 @@ models_path = "~/.engram/models"
 ## Пути по умолчанию
 
 ```
-~/.engram/
-  engram.toml          # конфигурация
-  memories.db          # SQLite база данных
-  engram.sock          # Unix-сокет сервера
-  models/              # ONNX-модели trainer
-  *.hnsw               # сериализованные HNSW-индексы
+~/.engram/                       # глобальная — общая для всех проектов
+  engram.toml                    # конфигурация (API-ключи, дефолты)
+  models/                        # ONNX-модели trainer
+
+<project>/.engram/               # per-project — создаётся через `engram init`
+  engram.db                      # SQLite база данных
+  engram.sock                    # Unix-сокет сервера
+  *.hnsw                         # сериализованные HNSW-индексы
+  AGENT.md                       # упакованные инструкции для агента
 ```
 
 ## Инициализация
 
-Команда `engram init` создает директорию `~/.engram/` с конфигурацией по умолчанию и пустой базой данных. Если директория уже существует, init пропускает создание существующих файлов.
+Команда `engram init` создаёт директорию `.engram/` в текущем рабочем каталоге (с `engram.db`, упакованным `AGENT.md`, `.mcp.json` и записью `.engram/` в `.gitignore`). При первом запуске также пишет дефолтный `~/.engram/engram.toml`, если его нет. Существующие файлы никогда не перезаписываются.
+
+Чтобы импортировать данные из предыдущего глобального инсталла (`~/.engram/engram.db`), см. [`engram migrate`](/ru/docs/cli#engram-migrate).

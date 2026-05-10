@@ -32,9 +32,11 @@ Engram is a memory system for AI agents. Use it to store decisions, patterns, an
 {
   "query": "authentication middleware architecture",
   "limit": 10,
-  "project": "my-project"
+  "project": "my-project",
+  "tags": ["auth", "middleware"]
 }
 ```
+Optional `tags` (array of strings) filters results to memories that carry **all** specified tags.
 
 **memory_judge** — Rate a memory's quality. Feeds the Q-Learning router to improve future search.
 ```json
@@ -168,6 +170,6 @@ memory_consolidate_apply({})             → apply merges/deletes
 ## Search Behavior
 
 - **Hybrid search**: 70% vector similarity (HNSW cosine) + 30% sparse match (BM25 via FTS5)
-- **HyDE**: for complex queries, LLM generates a hypothetical memory, then embeds the hypothesis
+- **HyDE**: opt-in via `embedding.hyde_threshold > 0` (disabled by default). When enabled, an LLM generates a hypothetical memory for queries shorter than the threshold and embeds the hypothesis instead of the raw query. Cache is keyed by the original query, so repeated identical queries hit the cache without an extra LLM call.
 - **Cross-project**: searches current project first, applies score multiplier for other projects
 - **Graceful degradation**: if embedding API is unavailable, falls back to FTS5-only search

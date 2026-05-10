@@ -39,7 +39,8 @@ Finds relevant records using hybrid search: 70% vector (HNSW cosine) + 30% full-
 {
   "query": "authentication middleware architecture",
   "limit": 10,
-  "project": "my-project"
+  "project": "my-project",
+  "tags": ["auth", "middleware"]
 }
 ```
 
@@ -48,6 +49,7 @@ Finds relevant records using hybrid search: 70% vector (HNSW cosine) + 30% full-
 | `query` | string | yes | Search query |
 | `limit` | number | no | Maximum results (default 10) |
 | `project` | string | no | Filter by project |
+| `tags` | array of strings | no | Filter results to memories that carry **all** specified tags |
 
 ## memory_judge
 

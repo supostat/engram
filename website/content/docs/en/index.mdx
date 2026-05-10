@@ -10,7 +10,7 @@ Engram is a long-term memory system for AI agents. It stores decisions, patterns
 ## Features
 
 - **Hybrid search** — vector (HNSW cosine) + full-text (FTS5 BM25)
-- **HyDE** — LLM generates a hypothetical memory, embedding is built from the hypothesis instead of the raw query
+- **HyDE** — opt-in via `embedding.hyde_threshold > 0` (disabled by default). When enabled, LLM generates a hypothetical memory and the embedding is built from the hypothesis instead of the raw query.
 - **Automatic deduplication** — cosine similarity > 0.95 at write time
 - **Consolidation** — preview → LLM analysis → apply (merge/delete/archive)
 - **Q-Learning router** — 4 levels: search strategy, LLM selection, contextualization, proactivity
