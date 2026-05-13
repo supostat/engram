@@ -209,7 +209,7 @@ fn mcp_json_fallback_to_npx() {
         .as_array()
         .expect("args array");
     assert_eq!(args.len(), 1);
-    assert_eq!(args[0].as_str().unwrap(), "@engram/mcp-server");
+    assert_eq!(args[0].as_str().unwrap(), "@engramm/engram-mcp-server");
     let env_block = parsed["mcpServers"]["engram"]["env"]
         .as_object()
         .expect("env block must be present when ENGRAM_BIN is set");

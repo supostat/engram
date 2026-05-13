@@ -14,9 +14,9 @@ const SOCKET_FILENAME: &str = "engram.sock";
 const MCP_JSON_FILENAME: &str = ".mcp.json";
 const GITIGNORE_FILENAME: &str = ".gitignore";
 const GITIGNORE_MARKER: &str = ".engram/";
-const AGENT_MD_CONTENT: &str = include_str!("../../../AGENT.md");
+const AGENT_MD_CONTENT: &str = include_str!("../AGENT.md");
 const UNIX_SOCKET_PATH_MAX_BYTES: usize = 104;
-const MCP_NPX_PACKAGE: &str = "@engram/mcp-server";
+const MCP_NPX_PACKAGE: &str = "@engramm/engram-mcp-server";
 const DEFAULT_ENGRAM_BIN_NAME: &str = "engram";
 
 const DEFAULT_CONFIG_TEMPLATE: &str = r#"# Global engram config. Runtime always prefers per-project state under
