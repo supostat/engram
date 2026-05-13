@@ -25,16 +25,20 @@ jobs:
             ARGS="--dry-run"
           fi
           for crate in engram-hnsw engram-router engram-storage engram-llm-client engram-embeddings engram-judge engram-consolidate engram-memory; do
-            VERSION=$(cargo metadata --no-deps --format-version=1 \
-              | python3 -c "import sys,json; pkgs=json.load(sys.stdin)['packages']; print(next(p['version'] for p in pkgs if p['name']=='$crate'))")
-            if [ "${{ inputs.dry_run }}" != "true" ] \
-                && curl -sf -o /dev/null "https://crates.io/api/v1/crates/$crate/$VERSION"; then
-              echo "Skipping $crate@$VERSION (already published)"
-              continue
-            fi
-            echo "Publishing $crate@$VERSION..."
-            cargo publish -p $crate $ARGS
-            if [ "${{ inputs.dry_run }}" != "true" ]; then
-              sleep 30  # wait for crates.io index update
+            echo "Publishing $crate..."
+            set +e
+            OUTPUT=$(cargo publish -p $crate $ARGS 2>&1)
+            EXIT=$?
+            set -e
+            echo "$OUTPUT"
+            if [ $EXIT -eq 0 ]; then
+              if [ "${{ inputs.dry_run }}" != "true" ]; then
+                sleep 30  # wait for crates.io index update
+              fi
+            elif echo "$OUTPUT" | grep -q "already exists on crates.io"; then
+              echo "Skipping $crate (already published at this version)"
+            else
+              echo "::error::cargo publish failed for $crate"
+              exit $EXIT
             fi
           done
