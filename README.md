@@ -11,7 +11,7 @@ Memory system for AI agents. Stores decisions, patterns, and bugfixes with seman
 └──────────────┬──────────────────────────────────────┘
                │ MCP protocol (stdio)
 ┌──────────────▼──────────────────────────────────────┐
-│  @engram/mcp-server          (TypeScript)           │
+│  @engramm/engram-mcp-server          (TypeScript)           │
 │  Thin translation layer: MCP ↔ JSON-RPC             │
 └──────────────┬──────────────────────────────────────┘
                │ Unix socket (JSON, newline-delimited)
@@ -69,7 +69,7 @@ Add to your Claude Desktop / Claude Code config:
   "mcpServers": {
     "engram": {
       "command": "npx",
-      "args": ["-y", "@engram/mcp-server"]
+      "args": ["-y", "@engramm/engram-mcp-server"]
     }
   }
 }

@@ -1,5 +1,5 @@
 {
-  "name": "@engram/mcp-server",
+  "name": "@engramm/engram-mcp-server",
   "version": "0.2.0",
   "description": "MCP server for Engram memory system",
   "type": "module",

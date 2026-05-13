@@ -28,7 +28,7 @@ MCP-клиент (Claude Desktop / Cursor / Claude Code)
         │
         │  HTTP + SSE (MCP-протокол)
         ▼
-TypeScript MCP-сервер (@engram/mcp-server)
+TypeScript MCP-сервер (@engramm/engram-mcp-server)
         │
         │  Unix socket + JSON
         ▼
@@ -109,7 +109,7 @@ Recoverable ошибки: система продолжает работать, 
 
 MCP-сервер управляет жизненным циклом Rust-ядра:
 
-1. При запуске `@engram/mcp-server` проверяет наличие unix socket (`engram.sock`)
+1. При запуске `@engramm/engram-mcp-server` проверяет наличие unix socket (`engram.sock`)
 2. Если socket не существует — MCP-сервер запускает Rust-ядро (`engram-core`) как дочерний процесс
 3. Ждёт появления socket (с таймаутом)
 4. Подключается и начинает обслуживать MCP-запросы
@@ -530,7 +530,7 @@ trait TextGenerator:
 
 ---
 
-## 5. TypeScript MCP-сервер (@engram/mcp-server)
+## 5. TypeScript MCP-сервер (@engramm/engram-mcp-server)
 
 ### 5.1 Зависимости
 
@@ -558,7 +558,7 @@ trait TextGenerator:
   "mcpServers": {
     "engram": {
       "command": "npx",
-      "args": ["@engram/mcp-server"],
+      "args": ["@engramm/engram-mcp-server"],
       "env": {
         "ENGRAM_VOYAGE_API_KEY": "...",
         "ENGRAM_LLM_API_KEY": "..."
@@ -570,7 +570,7 @@ trait TextGenerator:
 
 **Claude Code:**
 ```
-claude mcp add engram -- npx @engram/mcp-server
+claude mcp add engram -- npx @engramm/engram-mcp-server
 ```
 
 **Cursor** (`.cursor/mcp.json`):
@@ -579,7 +579,7 @@ claude mcp add engram -- npx @engram/mcp-server
   "mcpServers": {
     "engram": {
       "command": "npx",
-      "args": ["@engram/mcp-server"],
+      "args": ["@engramm/engram-mcp-server"],
       "env": {
         "ENGRAM_VOYAGE_API_KEY": "...",
         "ENGRAM_LLM_API_KEY": "..."
@@ -1217,7 +1217,7 @@ engram/
 9. `engram-core` (CLI) — тесты всех команд, форматирование вывода (json/text/jsonl), персистентный HNSW → реализация
 
 ### Фаза 4: MCP
-10. `@engram/mcp-server` — тесты lifecycle, socket-client, tools → реализация
+10. `@engramm/engram-mcp-server` — тесты lifecycle, socket-client, tools → реализация
 11. E2E тесты — полный цикл через MCP и CLI, degradation, feedback loop
 
 ### Фаза 5: Самообучение (средний контур)

@@ -91,5 +91,5 @@ Initial release.
 - Heuristic and LLM-based quality scoring (engram-judge)
 - Memory consolidation: dedup, analysis, apply (engram-consolidate)
 - CLI and unix socket server (engram-core)
-- MCP server for AI agent integration (@engram/mcp-server)
+- MCP server for AI agent integration (@engramm/engram-mcp-server)
 - Self-learning trainer with clustering, temporal analysis, LoRA fine-tuning (engram-trainer)
