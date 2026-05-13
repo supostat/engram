@@ -8,7 +8,7 @@ authors.workspace = true
 homepage.workspace = true
 description = "Hierarchical Q-Learning router"
 readme = "README.md"
-keywords = ["q-learning", "reinforcement-learning", "routing", "adaptive"]
+keywords = ["q-learning", "reinforcement", "routing", "adaptive"]
 categories = ["algorithms"]
 
 [dev-dependencies]

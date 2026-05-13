@@ -24,8 +24,15 @@ jobs:
           if [ "${{ inputs.dry_run }}" = "true" ]; then
             ARGS="--dry-run"
           fi
-          for crate in engram-hnsw engram-router engram-storage engram-llm-client engram-embeddings engram-judge engram-consolidate engram-core; do
-            echo "Publishing $crate..."
+          for crate in engram-hnsw engram-router engram-storage engram-llm-client engram-embeddings engram-judge engram-consolidate engram-memory; do
+            VERSION=$(cargo metadata --no-deps --format-version=1 \
+              | python3 -c "import sys,json; pkgs=json.load(sys.stdin)['packages']; print(next(p['version'] for p in pkgs if p['name']=='$crate'))")
+            if [ "${{ inputs.dry_run }}" != "true" ] \
+                && curl -sf -o /dev/null "https://crates.io/api/v1/crates/$crate/$VERSION"; then
+              echo "Skipping $crate@$VERSION (already published)"
+              continue
+            fi
+            echo "Publishing $crate@$VERSION..."
             cargo publish -p $crate $ARGS
             if [ "${{ inputs.dry_run }}" != "true" ]; then
               sleep 30  # wait for crates.io index update
