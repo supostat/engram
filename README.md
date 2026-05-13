@@ -207,7 +207,7 @@ engram migrate --all       # also import NULL-project / mismatched rows
 ## Testing
 
 ```bash
-cargo test --all              # 350 Rust tests
+cargo test --all              # 470+ Rust tests
 cd mcp-server && npm test     # 7 vitest unit tests + typecheck
 cd trainer && pytest           # Python tests (pip install -e ".[dev]")
 cargo bench --all             # Criterion benchmarks
