@@ -44,7 +44,7 @@ Two-process model:
 ### CLI
 
 ```bash
-cargo install engram-core --locked
+cargo install engram-memory --locked
 engram init
 engram store --context "Refactored auth module" --action "Split into middleware + handler" --result "Reduced coupling, easier to test"
 engram search --query "auth architecture"

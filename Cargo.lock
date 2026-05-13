@@ -737,28 +737,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "engram-core"
-version = "0.2.0"
-dependencies = [
- "clap",
- "engram-consolidate",
- "engram-embeddings",
- "engram-hnsw",
- "engram-judge",
- "engram-llm-client",
- "engram-router",
- "engram-storage",
- "hdrhistogram",
- "rusqlite",
- "serde",
- "serde_json",
- "tempfile",
- "tokio",
- "toml",
- "uuid",
-]
-
-[[package]]
 name = "engram-embeddings"
 version = "0.2.0"
 dependencies = [
@@ -791,6 +769,28 @@ dependencies = [
  "serde",
  "serde_json",
  "tokenizers",
+]
+
+[[package]]
+name = "engram-memory"
+version = "0.2.0"
+dependencies = [
+ "clap",
+ "engram-consolidate",
+ "engram-embeddings",
+ "engram-hnsw",
+ "engram-judge",
+ "engram-llm-client",
+ "engram-router",
+ "engram-storage",
+ "hdrhistogram",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "toml",
+ "uuid",
 ]
 
 [[package]]
