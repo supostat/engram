@@ -15,7 +15,12 @@ pub async fn handle(state: &Arc<ServerState>, _params: Value) -> Result<Value, C
         let indexed_count = count_indexed_memories(&database)?;
         let pending_judgments = database.get_pending_judgments(usize::MAX)?.len();
         let index_size = state_clone.indexes.read().unwrap().len();
-        let hints = build_hints(&state_clone.config, memory_count, pending_judgments);
+        let hints = build_hints(
+            &state_clone.config,
+            &state_clone.database_path,
+            memory_count,
+            pending_judgments,
+        );
         Ok::<Value, CoreError>(json!({
             "memory_count": memory_count,
             "indexed_count": indexed_count,
@@ -28,7 +33,12 @@ pub async fn handle(state: &Arc<ServerState>, _params: Value) -> Result<Value, C
     .map_err(|error| CoreError::SocketError(error.to_string()))?
 }
 
-fn build_hints(config: &Config, memory_count: usize, pending_judgments: usize) -> Vec<String> {
+fn build_hints(
+    config: &Config,
+    database_path: &str,
+    memory_count: usize,
+    pending_judgments: usize,
+) -> Vec<String> {
     let mut hints = Vec::new();
     let models_path = expand_tilde(&config.trainer.models_path);
     let has_onnx = directory_contains_onnx(&models_path);
@@ -40,7 +50,10 @@ fn build_hints(config: &Config, memory_count: usize, pending_judgments: usize) -
         ));
     }
 
-    if memory_count >= 20 && has_onnx && onnx_models_older_than_database(config, &models_path) {
+    if memory_count >= 20
+        && has_onnx
+        && onnx_models_older_than_database(database_path, &models_path)
+    {
         hints.push("Models may be outdated. Re-run: engram train".to_string());
     }
 
@@ -74,9 +87,8 @@ fn directory_contains_onnx(path: &str) -> bool {
         .any(|entry| entry.path().extension().is_some_and(|ext| ext == "onnx"))
 }
 
-fn onnx_models_older_than_database(config: &Config, models_path: &str) -> bool {
-    let database_path = expand_tilde(&config.database.path);
-    let database_modified = Path::new(&database_path)
+fn onnx_models_older_than_database(database_path: &str, models_path: &str) -> bool {
+    let database_modified = Path::new(database_path)
         .metadata()
         .ok()
         .and_then(|meta| meta.modified().ok());

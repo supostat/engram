@@ -42,14 +42,17 @@ async fn config_get_returns_sanitized_config() {
     let state = build_deterministic_state();
     let result = dispatch::route("memory_config", &state, json!({"action": "get"})).await;
     let data = result.expect("get should succeed");
-    assert!(data["database"]["path"].is_string());
+    // database.path is Option<String>; default Config has None (= null in JSON).
+    // Test that the field is present and is either string (configured) or null (default).
+    assert!(data["database"]["path"].is_string() || data["database"]["path"].is_null());
     assert!(data["embedding"]["provider"].is_string());
     assert!(data["embedding"].get("api_key").is_none());
     assert_eq!(data["embedding"]["has_api_key"], false);
     assert!(data["llm"]["provider"].is_string());
     assert!(data["llm"].get("api_key").is_none());
     assert_eq!(data["llm"]["has_api_key"], false);
-    assert!(data["server"]["socket_path"].is_string());
+    // server.socket_path is Option<String>; default Config has None.
+    assert!(data["server"]["socket_path"].is_string() || data["server"]["socket_path"].is_null());
     assert!(data["hnsw"]["max_connections"].is_u64());
     assert!(data["consolidation"]["stale_days"].is_u64());
 }

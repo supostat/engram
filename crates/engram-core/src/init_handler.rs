@@ -21,12 +21,9 @@ const DEFAULT_ENGRAM_BIN_NAME: &str = "engram";
 
 const DEFAULT_CONFIG_TEMPLATE: &str = r#"# Global engram config. Runtime always prefers per-project state under
 # <project>/.engram/{engram.db, engram.sock} (discovered by walking up from cwd
-# like .git). The database.path and server.socket_path values below are
-# fallbacks used only when no .engram/ marker is found and no ENGRAM_DB_PATH /
-# ENGRAM_SOCKET_PATH env override is set.
-
-[database]
-path = "~/.engram/memories.db"
+# like .git). No database.path setting is needed for normal use; the runtime
+# resolves it from the project marker, and ENGRAM_DB_PATH env var overrides
+# both.
 
 [embedding]
 provider = "voyage"
@@ -43,7 +40,10 @@ provider = "openai"
 model = "gpt-4o-mini"
 
 [server]
-socket_path = "~/.engram/engram.sock"
+# socket_path is optional and only used as a last-resort fallback when no
+# project .engram/ marker is found and ENGRAM_SOCKET_PATH is not set.
+# Uncomment to provide an explicit fallback location:
+# socket_path = "~/.engram/engram.sock"
 reindex_interval_secs = 3600
 
 [hnsw]

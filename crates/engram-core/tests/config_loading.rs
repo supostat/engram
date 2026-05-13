@@ -3,10 +3,10 @@ use engram_core::{Config, CoreError};
 #[test]
 fn default_config_has_expected_values() {
     let config = Config::default();
-    assert_eq!(config.database.path, "~/.engram/memories.db");
+    assert_eq!(config.database.path, None);
     assert_eq!(config.embedding.provider, "voyage");
     assert_eq!(config.llm.provider, "openai");
-    assert_eq!(config.server.socket_path, "~/.engram/engram.sock");
+    assert_eq!(config.server.socket_path, None);
     assert_eq!(config.server.reindex_interval_secs, 3600);
     assert_eq!(config.hnsw.max_connections, 16);
     assert_eq!(config.hnsw.ef_construction, 200);
@@ -58,7 +58,7 @@ dimension = 512
 "#;
     std::fs::write(&config_path, toml_content).unwrap();
     let config = Config::load_from_path(config_path.to_str().unwrap()).unwrap();
-    assert_eq!(config.database.path, "/custom/memories.db");
+    assert_eq!(config.database.path.as_deref(), Some("/custom/memories.db"));
     assert_eq!(config.hnsw.max_connections, 32);
     assert_eq!(config.hnsw.dimension, 512);
     assert_eq!(config.server.reindex_interval_secs, 1800);

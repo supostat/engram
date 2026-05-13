@@ -41,7 +41,7 @@ pub async fn run(config: Config) -> Result<(), CoreError> {
     let state = initialize_state(&config, &project_dir, &home)?;
     warn_missing_api_keys(&config);
     let shared_state = Arc::new(state);
-    let socket_path = resolve_socket_path(&project_dir, &config);
+    let socket_path = resolve_socket_path(&project_dir, &config)?;
     cleanup_stale_socket(&socket_path);
     let listener = bind_listener(&socket_path)?;
     accept_loop(listener, shared_state).await
@@ -65,7 +65,7 @@ pub(crate) fn initialize_state(
     home_dir: &Path,
 ) -> Result<ServerState, CoreError> {
     check_legacy_database(project_dir, home_dir)?;
-    let database_path = resolve_database_path(project_dir, config);
+    let database_path = resolve_database_path(project_dir);
     let database = Database::open(&database_path)?;
     crate::migrations::run_pending(&database)?;
     let embedding_provider: Arc<dyn EmbeddingProvider + Send + Sync> =
@@ -98,7 +98,7 @@ pub(crate) fn initialize_state(
     })
 }
 
-fn resolve_database_path(project_dir: &Path, _config: &Config) -> String {
+fn resolve_database_path(project_dir: &Path) -> String {
     if let Ok(value) = std::env::var("ENGRAM_DB_PATH") {
         return value;
     }
@@ -108,16 +108,25 @@ fn resolve_database_path(project_dir: &Path, _config: &Config) -> String {
         .to_string()
 }
 
-fn resolve_socket_path(project_dir: &Path, config: &Config) -> String {
-    let local_socket = project_dir.join(PROJECT_SOCKET_RELATIVE);
+fn resolve_socket_path(project_dir: &Path, config: &Config) -> Result<String, CoreError> {
     if let Ok(value) = std::env::var("ENGRAM_SOCKET_PATH") {
-        return value;
+        return Ok(value);
     }
     // Prefer project socket when the `.engram/` dir exists (walk-up already validated this).
     if project_dir.join(".engram").is_dir() {
-        return local_socket.to_string_lossy().to_string();
+        return Ok(project_dir
+            .join(PROJECT_SOCKET_RELATIVE)
+            .to_string_lossy()
+            .to_string());
     }
-    expand_tilde(&config.server.socket_path)
+    match config.server.socket_path.as_deref() {
+        Some(fallback) => Ok(expand_tilde(fallback)),
+        None => Err(CoreError::SocketError(
+            "no socket path available: no project .engram/ marker found, \
+             ENGRAM_SOCKET_PATH not set, and server.socket_path not configured"
+                .into(),
+        )),
+    }
 }
 
 fn home_dir_or_error() -> Result<PathBuf, CoreError> {

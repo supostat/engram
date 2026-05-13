@@ -15,8 +15,6 @@ use crate::error::CoreError;
 const CONFIG_HOME_SUBDIR: &str = ".engram/engram.toml";
 const PROJECT_DIR_MARKER: &str = ".engram";
 
-const DEFAULT_DB_PATH: &str = "~/.engram/memories.db";
-const DEFAULT_SOCKET_PATH: &str = "~/.engram/engram.sock";
 const DEFAULT_EMBEDDING_PROVIDER: &str = "voyage";
 const DEFAULT_EMBEDDING_MODEL: &str = "voyage-code-3";
 const DEFAULT_EMBEDDING_DIMENSION: usize = 1024;
@@ -48,7 +46,12 @@ pub struct Config {
 
 #[derive(Deserialize, Clone)]
 pub struct DatabaseConfig {
-    pub path: String,
+    /// Legacy fallback used only when no project `.engram/` marker is found and
+    /// `ENGRAM_DB_PATH` is not set. Runtime resolution always prefers the
+    /// per-project layout (`<project>/.engram/engram.db`), so for normal use
+    /// this can be `None`. Kept for backward-compat TOML parsing.
+    #[serde(default)]
+    pub path: Option<String>,
 }
 
 #[derive(Deserialize, Clone)]
@@ -70,7 +73,11 @@ pub struct LlmConfig {
 
 #[derive(Deserialize, Clone)]
 pub struct ServerConfig {
-    pub socket_path: String,
+    /// Legacy fallback socket path. Used only when no project `.engram/`
+    /// marker is found and `ENGRAM_SOCKET_PATH` is not set. Runtime prefers
+    /// the per-project socket at `<project>/.engram/engram.sock`.
+    #[serde(default)]
+    pub socket_path: Option<String>,
     pub reindex_interval_secs: u64,
 }
 
@@ -237,9 +244,7 @@ impl Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            database: DatabaseConfig {
-                path: DEFAULT_DB_PATH.into(),
-            },
+            database: DatabaseConfig { path: None },
             embedding: EmbeddingConfig {
                 provider: DEFAULT_EMBEDDING_PROVIDER.into(),
                 api_key: None,
@@ -253,7 +258,7 @@ impl Default for Config {
                 model: Some(DEFAULT_LLM_MODEL.into()),
             },
             server: ServerConfig {
-                socket_path: DEFAULT_SOCKET_PATH.into(),
+                socket_path: None,
                 reindex_interval_secs: DEFAULT_REINDEX_INTERVAL_SECS,
             },
             hnsw: HnswConfig {

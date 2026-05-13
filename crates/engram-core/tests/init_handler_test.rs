@@ -22,7 +22,9 @@ fn init_creates_config_file() {
         "home config file should exist at {config_path:?}"
     );
     let content = std::fs::read_to_string(&config_path).expect("should read config file");
-    assert!(content.contains("[database]"));
+    // [database] block intentionally absent — database.path is resolved from
+    // per-project layout and the field is optional; see ADR
+    // 2026-05-13-config-optional-database-and-socket-fallbacks.
     assert!(content.contains("[embedding]"));
     assert!(content.contains("[llm]"));
     assert!(content.contains("[server]"));
