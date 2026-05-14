@@ -38,7 +38,18 @@ pub async fn run(config: Config) -> Result<(), CoreError> {
         .map_err(|error| CoreError::SocketError(format!("cwd unavailable: {error}")))?;
     let home = home_dir_or_error()?;
     let project_dir = config::resolve_project_dir(&cwd, None)?;
-    let state = initialize_state(&config, &project_dir, &home)?;
+    // See execute_command in main.rs for why this construction has to run on
+    // the blocking pool. reqwest::blocking::ClientBuilder::build internally
+    // spins up and drops a current-thread tokio runtime; doing that on the
+    // outer multi-threaded runtime's worker panics.
+    let state = {
+        let config = config.clone();
+        let project_dir = project_dir.clone();
+        let home = home.clone();
+        tokio::task::spawn_blocking(move || initialize_state(&config, &project_dir, &home))
+            .await
+            .map_err(|error| CoreError::SocketError(error.to_string()))??
+    };
     {
         let database = state.database.lock().unwrap();
         let configured_model = config

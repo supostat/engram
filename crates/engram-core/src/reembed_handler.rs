@@ -41,11 +41,21 @@ fn run_reembed(state: Arc<ServerState>) -> Result<Value, CoreError> {
 
     let mut succeeded = 0usize;
     let mut failed = 0usize;
+    let mut first_failure_reported = false;
 
     for memory in &memories {
         match reembed_one(&state, memory) {
             Ok(()) => succeeded += 1,
-            Err(ReembedError::Recoverable) => {
+            Err(ReembedError::Recoverable(error)) => {
+                if !first_failure_reported {
+                    eprintln!(
+                        "reembed: first recoverable failure on memory {}: {error}. \
+                         Subsequent failures suppressed; rerun reembed after fixing \
+                         the cause to retry only memories left with indexed=0.",
+                        memory.id
+                    );
+                    first_failure_reported = true;
+                }
                 mark_for_retry(&state, &memory.id)?;
                 failed += 1;
             }
@@ -69,8 +79,10 @@ fn run_reembed(state: Arc<ServerState>) -> Result<Value, CoreError> {
 enum ReembedError {
     /// Provider or HNSW transient failure — memory stays in the DB with
     /// stale embeddings; `indexed=0` flags it for retry by background
-    /// reindex (server mode) or a subsequent reembed invocation.
-    Recoverable,
+    /// reindex (server mode) or a subsequent reembed invocation. Carries
+    /// the underlying error so the orchestrator can log the first failure
+    /// (Voyage rate limit, auth, etc.) for the user.
+    Recoverable(CoreError),
     /// Database write failure or invariant violation — propagate.
     Fatal(CoreError),
 }
@@ -91,9 +103,13 @@ fn reembed_one(state: &Arc<ServerState>, memory: &Memory) -> Result<(), ReembedE
             provider,
             text_gen,
         )
-        .map_err(|_| ReembedError::Recoverable)?;
+        .map_err(
+            |engram_embeddings::EmbeddingError::ProviderError(api_error)| {
+                ReembedError::Recoverable(CoreError::Api(api_error))
+            },
+        )?;
 
-    replace_in_hnsw(state, &memory.id, &embedding).map_err(|_| ReembedError::Recoverable)?;
+    replace_in_hnsw(state, &memory.id, &embedding).map_err(ReembedError::Recoverable)?;
     persist_embeddings(state, &memory.id, &embedding).map_err(ReembedError::Fatal)?;
 
     Ok(())
