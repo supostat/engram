@@ -6,6 +6,7 @@ use serde_json::{Value, json};
 use engram_storage::Memory;
 
 use crate::error::CoreError;
+use crate::persistence::f32_vec_to_bytes;
 use crate::server::ServerState;
 use crate::tags_normalize::{TagsInput, normalize_tags};
 use crate::timestamp::current_utc_timestamp;
@@ -129,10 +130,6 @@ async fn persist_memory(
     .map_err(|error| CoreError::SocketError(error.to_string()))??;
 
     Ok(())
-}
-
-fn f32_vec_to_bytes(values: &[f32]) -> Vec<u8> {
-    values.iter().flat_map(|v| v.to_le_bytes()).collect()
 }
 
 const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;

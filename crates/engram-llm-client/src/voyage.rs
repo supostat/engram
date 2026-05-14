@@ -4,7 +4,7 @@ use crate::error::{ApiError, map_http_status_to_error};
 use crate::provider::EmbeddingProvider;
 use crate::retry::{RetryConfig, execute_with_retry};
 
-pub const DEFAULT_VOYAGE_MODEL: &str = "voyage-code-3";
+pub const DEFAULT_VOYAGE_MODEL: &str = "voyage-4";
 pub const DEFAULT_VOYAGE_DIMENSION: usize = 1024;
 const HTTP_REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
 
@@ -14,6 +14,7 @@ pub struct VoyageEmbeddingProvider {
     retry_config: RetryConfig,
     model: String,
     dimension: usize,
+    output_dimension: Option<usize>,
     base_url: String,
 }
 
@@ -23,6 +24,7 @@ impl VoyageEmbeddingProvider {
             api_key,
             DEFAULT_VOYAGE_MODEL.into(),
             DEFAULT_VOYAGE_DIMENSION,
+            None,
             RetryConfig::default(),
             "https://api.voyageai.com".into(),
         )
@@ -32,6 +34,7 @@ impl VoyageEmbeddingProvider {
         api_key: String,
         model: String,
         dimension: usize,
+        output_dimension: Option<usize>,
         retry_config: RetryConfig,
         base_url: String,
     ) -> Result<Self, ApiError> {
@@ -49,6 +52,7 @@ impl VoyageEmbeddingProvider {
             retry_config,
             model,
             dimension,
+            output_dimension,
             base_url,
         })
     }
@@ -76,13 +80,26 @@ pub fn parse_embedding_response(body: &str) -> Result<Vec<f32>, ApiError> {
         .collect()
 }
 
-impl EmbeddingProvider for VoyageEmbeddingProvider {
-    fn embed(&self, text: &str) -> Result<Vec<f32>, ApiError> {
-        let url = format!("{}/v1/embeddings", self.base_url);
-        let body = serde_json::json!({
+impl VoyageEmbeddingProvider {
+    fn build_request_body(&self, text: &str, input_type: Option<&str>) -> serde_json::Value {
+        let mut body = serde_json::json!({
             "input": [text],
             "model": self.model,
         });
+        if let Some(out_dim) = self.output_dimension {
+            body["output_dimension"] = serde_json::json!(out_dim);
+        }
+        if let Some(kind) = input_type {
+            body["input_type"] = serde_json::json!(kind);
+        }
+        body
+    }
+}
+
+impl EmbeddingProvider for VoyageEmbeddingProvider {
+    fn embed(&self, text: &str, input_type: Option<&str>) -> Result<Vec<f32>, ApiError> {
+        let url = format!("{}/v1/embeddings", self.base_url);
+        let body = self.build_request_body(text, input_type);
 
         execute_with_retry(&self.retry_config, || {
             let response = self
@@ -141,5 +158,60 @@ pub mod instrumentation {
         if CLIENT_CONSTRUCTION_TRACKING_ENABLED.load(Ordering::Relaxed) {
             CLIENT_CONSTRUCTION_COUNT.fetch_add(1, Ordering::Relaxed);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn provider_with_output_dimension(output_dimension: Option<usize>) -> VoyageEmbeddingProvider {
+        VoyageEmbeddingProvider::with_config(
+            "test-key".into(),
+            "voyage-4".into(),
+            1024,
+            output_dimension,
+            RetryConfig::default(),
+            "http://127.0.0.1:1".into(),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn body_omits_output_dimension_and_input_type_when_unset() {
+        let provider = provider_with_output_dimension(None);
+        let body = provider.build_request_body("hello", None);
+
+        assert_eq!(body["input"], serde_json::json!(["hello"]));
+        assert_eq!(body["model"], serde_json::json!("voyage-4"));
+        assert!(body.get("output_dimension").is_none());
+        assert!(body.get("input_type").is_none());
+    }
+
+    #[test]
+    fn body_includes_output_dimension_when_provider_configured() {
+        let provider = provider_with_output_dimension(Some(1024));
+        let body = provider.build_request_body("hello", None);
+
+        assert_eq!(body["output_dimension"], serde_json::json!(1024));
+    }
+
+    #[test]
+    fn body_includes_input_type_when_caller_provides() {
+        let provider = provider_with_output_dimension(None);
+        let body = provider.build_request_body("hello", Some("query"));
+
+        assert_eq!(body["input_type"], serde_json::json!("query"));
+    }
+
+    #[test]
+    fn body_combines_output_dimension_and_input_type() {
+        let provider = provider_with_output_dimension(Some(512));
+        let body = provider.build_request_body("hello", Some("document"));
+
+        assert_eq!(body["output_dimension"], serde_json::json!(512));
+        assert_eq!(body["input_type"], serde_json::json!("document"));
+        assert_eq!(body["model"], serde_json::json!("voyage-4"));
+        assert_eq!(body["input"], serde_json::json!(["hello"]));
     }
 }

@@ -84,7 +84,7 @@ pub struct InitWizard {
 
 pub const EMBEDDING_OPTIONS: [&str; 2] = ["voyage", "deterministic"];
 pub const EMBEDDING_LABELS: [&str; 2] = [
-    "Voyage AI  (voyage-code-3, recommended)",
+    "Voyage AI  (voyage-4, recommended)",
     "Deterministic  (no API key, lower quality)",
 ];
 
@@ -223,19 +223,15 @@ impl InitWizard {
     fn handle_text_key(&mut self, code: KeyCode) {
         match code {
             KeyCode::Enter => self.advance(),
-            KeyCode::Backspace => {
-                if self.cursor_position > 0 {
-                    self.text_input.remove(self.cursor_position - 1);
-                    self.cursor_position -= 1;
-                }
+            KeyCode::Backspace if self.cursor_position > 0 => {
+                self.text_input.remove(self.cursor_position - 1);
+                self.cursor_position -= 1;
             }
             KeyCode::Left => {
                 self.cursor_position = self.cursor_position.saturating_sub(1);
             }
-            KeyCode::Right => {
-                if self.cursor_position < self.text_input.len() {
-                    self.cursor_position += 1;
-                }
+            KeyCode::Right if self.cursor_position < self.text_input.len() => {
+                self.cursor_position += 1;
             }
             KeyCode::Char(character) => {
                 self.text_input.insert(self.cursor_position, character);

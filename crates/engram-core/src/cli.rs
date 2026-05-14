@@ -70,6 +70,7 @@ fn save_indexes_if_mutating(method: &str, state: &Arc<ServerState>) -> Result<()
             | "memory_migrate_apply"
             | "memory_train_generate"
             | "memory_train_delete"
+            | "memory_reembed"
     );
     if !mutating {
         return Ok(());

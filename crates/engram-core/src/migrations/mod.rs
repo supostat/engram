@@ -1,11 +1,13 @@
 //! Idempotent startup migrations gated by `schema_meta(key, value)`.
 
+pub mod embedding_model_v1;
 pub mod tags_format_v1;
 
 use engram_storage::Database;
 
 use crate::error::CoreError;
 
+pub use embedding_model_v1::EMBEDDING_MODEL_KEY;
 pub use tags_format_v1::{TAGS_FORMAT_KEY, TAGS_FORMAT_TARGET_VALUE, TagsFormatV1Stats};
 
 const ENV_DRY_RUN: &str = "ENGRAM_MIGRATIONS_DRY_RUN";

@@ -5,6 +5,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { existsSync, statSync } from "node:fs";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { homedir } from "node:os";
+import { fileURLToPath } from "node:url";
 import { Lifecycle } from "./lifecycle.js";
 import { TOOL_DEFINITIONS, executeTool } from "./tools.js";
 
@@ -124,7 +125,17 @@ async function main(): Promise<void> {
   process.on("SIGTERM", handleShutdown);
 }
 
-main().catch((error) => {
-  console.error("[engram-mcp] fatal:", error);
-  process.exit(1);
-});
+// Only run main when this file is the entry point (node index.js). Importing
+// `resolveProjectDir` (or any other export) from tests must NOT trigger
+// Lifecycle.start, which spawns the `engram` binary and crashes with ENOENT
+// in CI environments that don't have it on PATH.
+const invokedAsEntryPoint =
+  process.argv[1] !== undefined &&
+  resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+
+if (invokedAsEntryPoint) {
+  main().catch((error) => {
+    console.error("[engram-mcp] fatal:", error);
+    process.exit(1);
+  });
+}

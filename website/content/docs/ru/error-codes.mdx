@@ -77,6 +77,11 @@ description: Справочник кодов ошибок engram
 | 6013 | TrainerFailed | Trainer не найден или завершился с ошибкой |
 | 6014 | TrainerTimeout | Trainer превысил таймаут (по умолчанию 300 сек) |
 | 6015 | TrainerMalformedOutput | Невалидный JSON в выводе trainer |
+| 6016 | ProjectDirNotFound | Не найден `.engram/` в cwd или родительских директориях (запусти `engram init`) |
+| 6017 | LegacyDatabaseDetected | Найдена legacy `~/.engram/engram.db`, но в проекте её нет — запусти `engram migrate` или `engram init` |
+| 6018 | MigrationSourceNotFound | `engram migrate` запущен, но `~/.engram/engram.db` отсутствует |
+| 6019 | MigrationFailed | Idempotent startup-миграция (например, `tags_format_v1`, `embedding_model_v1`) завершилась с ошибкой |
+| 6020 | EmbeddingModelMismatch | База была эмбеддингирована другой моделью, чем указана в конфиге. Запусти `engram reembed`, затем перезапусти демон. |
 
 ## Degraded mode
 

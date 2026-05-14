@@ -133,6 +133,27 @@ impl Database {
         Ok(())
     }
 
+    pub fn set_memory_embeddings(
+        &self,
+        id: &str,
+        embedding_context: &[u8],
+        embedding_action: &[u8],
+        embedding_result: &[u8],
+    ) -> Result<(), StorageError> {
+        let affected = self.connection().execute(
+            "UPDATE memories
+             SET embedding_context = ?1,
+                 embedding_action = ?2,
+                 embedding_result = ?3
+             WHERE id = ?4",
+            params![embedding_context, embedding_action, embedding_result, id],
+        )?;
+        if affected == 0 {
+            return Err(StorageError::NotFound(format!("memory id={id}")));
+        }
+        Ok(())
+    }
+
     pub fn set_memory_score(&self, id: &str, score: f32) -> Result<(), StorageError> {
         let affected = self.connection().execute(
             "UPDATE memories SET score = ?1 WHERE id = ?2",

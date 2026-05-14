@@ -90,6 +90,16 @@ enum Command {
         action: TrainAction,
     },
 
+    /// Re-embed all memories with the currently configured provider.
+    /// Use after switching `embedding.model` in engram.toml. See ADR
+    /// 2026-05-14-voyage-4-migration-via-reembed-cli for the migration flow.
+    Reembed {
+        /// Reserved for future safety thresholds (e.g., refuse if memory
+        /// count exceeds a configured limit). Currently a no-op placeholder.
+        #[arg(long)]
+        force: bool,
+    },
+
     /// Show version
     Version,
 }
@@ -185,7 +195,18 @@ async fn execute_command(
     command: Command,
     format: &OutputFormat,
 ) -> Result<(), engram_core::CoreError> {
-    let state = cli::build_state(&config)?;
+    // `cli::build_state` ends up calling `reqwest::blocking::ClientBuilder::build`,
+    // which spins up and immediately drops an internal current-thread tokio
+    // runtime. Running that drop on a worker of the outer multi-threaded runtime
+    // panics (`Cannot drop a runtime in a context where blocking is not allowed`).
+    // `spawn_blocking` moves the construction to the blocking pool where the
+    // inner runtime can shut down cleanly.
+    let state = {
+        let config = config.clone();
+        tokio::task::spawn_blocking(move || cli::build_state(&config))
+            .await
+            .map_err(|error| engram_core::CoreError::SocketError(error.to_string()))??
+    };
     let (method, params) = build_dispatch_args(command);
     cli::execute(state, &method, params, format).await
 }
@@ -213,6 +234,7 @@ fn build_dispatch_args(command: Command) -> (String, serde_json::Value) {
         Command::Status => ("memory_status".into(), json!({})),
         Command::Consolidate { action } => build_consolidate_args(action),
         Command::Train { action } => build_train_args(action),
+        Command::Reembed { force } => ("memory_reembed".into(), json!({ "force": force })),
         Command::Server | Command::Version | Command::Init | Command::Migrate { .. } => {
             unreachable!()
         }

@@ -32,6 +32,7 @@ fn voyage_construction_counter_increments_once_per_with_config() {
         "test-key".into(),
         "voyage-code-3".into(),
         1024,
+        None,
         RetryConfig::default(),
         "http://localhost:1".into(),
     )
@@ -93,6 +94,7 @@ async fn dispatch_search_does_not_construct_voyage_per_call() {
             "test-key".into(),
             "voyage-code-3".into(),
             1024,
+            None,
             RetryConfig::default(),
             "http://localhost:1".into(),
         )

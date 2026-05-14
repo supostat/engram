@@ -27,7 +27,7 @@ const DEFAULT_CONFIG_TEMPLATE: &str = r#"# Global engram config. Runtime always 
 
 [embedding]
 provider = "voyage"
-model = "voyage-code-3"
+model = "voyage-4"
 dimension = 1024
 # hyde_threshold: opt-in HyDE. 0 = disabled (default). N>0 = enable HyDE
 # when the query has fewer than N words. HyDE adds ~1.5s latency on cache

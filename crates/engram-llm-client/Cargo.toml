@@ -11,6 +11,11 @@ readme = "README.md"
 keywords = ["llm", "openai", "voyage", "onnx", "embeddings"]
 categories = ["api-bindings"]
 
+[lib]
+# No criterion benches; skip lib unittests during `cargo bench` so the
+# libtest harness does not choke on criterion flags like --save-baseline.
+bench = false
+
 [dependencies]
 reqwest = { version = "0.12", features = ["blocking", "json"] }
 serde = { version = "1", features = ["derive"] }

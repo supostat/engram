@@ -160,7 +160,10 @@ path = "~/.engram/memories.db"
 
 [embedding]
 provider = "voyage"        # voyage | deterministic
-model = "voyage-code-3"
+model = "voyage-4"
+# output_dimension is optional. Omit to use the Voyage API default (1024,
+# which matches [hnsw].dimension below). Set to one of 256/512/1024/2048
+# for Voyage-4 Matryoshka truncation — must match [hnsw].dimension.
 hyde_threshold = 0          # 0 = HyDE disabled (default); N>0 = enable for queries shorter than N words
 
 [llm]
@@ -203,6 +206,22 @@ engram migrate --all       # also import NULL-project / mismatched rows
 ```
 
 `engram server` aborts on startup if it finds a legacy `~/.engram/engram.db` but no `<project>/.engram/engram.db` — the error message points at this command.
+
+### Upgrading 0.2.x → 0.3.x (embedding model)
+
+Engram 0.3.0 switches the default embedding model from `voyage-code-3` to `voyage-4`. Existing databases were embedded with the old model and refuse to boot until they are recomputed:
+
+```bash
+engram server     # fails: [6020] EmbeddingModelMismatch
+engram reembed    # recomputes every memory under the active provider
+engram server     # now starts cleanly
+```
+
+`engram reembed` walks every row, calls the active embedding provider, replaces the vector in HNSW, writes the new bytes back to SQLite, and records the model in `schema_meta.embedding_model`. A failed run (some memories the provider rejected) leaves the marker stale so the daemon keeps refusing to start until reembed finishes cleanly — rerun it to retry only the leftovers (`indexed=0`).
+
+If you want to keep the old behaviour, set `embedding.model = "voyage-code-3"` in `engram.toml` before the first 0.3 boot — the guard checks the configured model against `schema_meta`, not the bundled default.
+
+Dimension stays at `1024` because `voyage-4` API default matches; HNSW geometry survives the migration. Within the voyage-4 family (`voyage-4-large`, `voyage-4`, `voyage-4-lite`, `voyage-4-nano`) embeddings share one space, so future switches inside the family do not require another reembed.
 
 ## Testing
 

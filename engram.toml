@@ -3,7 +3,7 @@ path = "~/.engram/memories.db"
 
 [embedding]
 provider = "voyage"
-model = "voyage-code-3"
+model = "voyage-4"
 dimension = 1024
 
 [llm]

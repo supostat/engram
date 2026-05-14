@@ -39,8 +39,9 @@ path = "~/.engram/memories.db"
 
 [embedding]
 provider = "voyage"         # voyage | deterministic
-model = "voyage-code-3"
+model = "voyage-4"
 # api_key = "..."           # or via ENGRAM_VOYAGE_API_KEY
+# output_dimension = 1024   # optional; Voyage-4 Matryoshka (256/512/1024/2048). Must match [hnsw].dimension.
 hyde_threshold = 0          # 0 = HyDE disabled (default); N>0 enables HyDE for queries shorter than N words
 
 [llm]
@@ -82,10 +83,13 @@ models_path = "~/.engram/models"
 | Parameter | Default | Description |
 |-----------|---------|-------------|
 | `provider` | `voyage` | Embedding provider: `voyage` or `deterministic` |
-| `model` | `voyage-code-3` | Embedding model |
+| `model` | `voyage-4` | Embedding model |
 | `api_key` | — | API key (prefer environment variable) |
 | `dimension` | `1024` | Embedding vector dimension |
+| `output_dimension` | — | Optional Voyage-4 Matryoshka truncation (256/512/1024/2048). When set, must equal `[hnsw].dimension`. Omit to use the API default (1024). |
 | `hyde_threshold` | `0` | HyDE opt-in: `0` disables HyDE; `N > 0` enables it for queries with fewer than `N` words |
+
+> Changing `model` after a database has been populated triggers `[6020] EmbeddingModelMismatch` at the next `engram server` start. Run [`engram reembed`](/docs/cli#engram-reembed) once to recompute every vector with the active provider, then restart the daemon.
 
 The `deterministic` provider requires no API key and generates deterministic embeddings from text. Suitable for testing.
 

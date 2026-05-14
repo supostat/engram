@@ -133,3 +133,7 @@ pub fn deterministic_rng(id: u64) -> f64 {
     let mixed = id.wrapping_mul(DETERMINISTIC_RNG_MULTIPLIER);
     (mixed >> 11) as f64 / (1u64 << 53) as f64
 }
+
+pub fn f32_vec_to_bytes(values: &[f32]) -> Vec<u8> {
+    values.iter().flat_map(|v| v.to_le_bytes()).collect()
+}

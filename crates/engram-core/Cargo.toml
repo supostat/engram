@@ -14,10 +14,12 @@ categories = ["command-line-utilities"]
 [lib]
 name = "engram_core"
 path = "src/lib.rs"
+bench = false
 
 [[bin]]
 name = "engram"
 path = "src/main.rs"
+bench = false
 
 [dependencies]
 engram-consolidate = { path = "../engram-consolidate", version = "0.2.0" }

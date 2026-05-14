@@ -23,7 +23,7 @@ impl InitWizard {
         let llm_name = LLM_OPTIONS[self.llm_provider];
 
         let embedding_model = if embedding_name == "voyage" {
-            "voyage-code-3"
+            "voyage-4"
         } else {
             "deterministic"
         };

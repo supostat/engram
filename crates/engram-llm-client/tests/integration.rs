@@ -16,7 +16,7 @@ struct MockEmbeddingProvider {
 }
 
 impl EmbeddingProvider for MockEmbeddingProvider {
-    fn embed(&self, _text: &str) -> Result<Vec<f32>, ApiError> {
+    fn embed(&self, _text: &str, _input_type: Option<&str>) -> Result<Vec<f32>, ApiError> {
         Ok(self.embedding.clone())
     }
 
@@ -208,7 +208,7 @@ fn mock_embedding_provider_returns_correct_vec() {
         model: "test-model".into(),
     };
 
-    let result = provider.embed("test input").unwrap();
+    let result = provider.embed("test input", None).unwrap();
     assert_eq!(result, vec![0.1, 0.2, 0.3]);
     assert_eq!(provider.dimension(), 3);
     assert_eq!(provider.model_name(), "test-model");
@@ -234,6 +234,7 @@ fn voyage_connection_refused_returns_embedding_api_unavailable() {
         "test-key".into(),
         "voyage-code-3".into(),
         1024,
+        None,
         RetryConfig {
             max_retries: 0,
             initial_backoff_ms: 1,
@@ -244,7 +245,7 @@ fn voyage_connection_refused_returns_embedding_api_unavailable() {
     )
     .unwrap();
 
-    let result = provider.embed("test");
+    let result = provider.embed("test", None);
     assert!(matches!(
         result.unwrap_err(),
         ApiError::EmbeddingApiUnavailable(_)
@@ -411,6 +412,7 @@ fn voyage_embed_empty_text_sends_request() {
         "test-key".into(),
         "voyage-code-3".into(),
         1024,
+        None,
         RetryConfig {
             max_retries: 0,
             initial_backoff_ms: 1,
@@ -421,7 +423,7 @@ fn voyage_embed_empty_text_sends_request() {
     )
     .unwrap();
 
-    let result = provider.embed("");
+    let result = provider.embed("", None);
     assert!(result.is_err());
 }
 

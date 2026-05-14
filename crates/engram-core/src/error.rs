@@ -32,6 +32,10 @@ pub enum CoreError {
     },
     MigrationSourceNotFound,
     MigrationFailed(String),
+    EmbeddingModelMismatch {
+        stored: String,
+        configured: String,
+    },
     Consolidation(ConsolidateError),
 }
 
@@ -109,6 +113,12 @@ impl fmt::Display for CoreError {
             }
             Self::MigrationFailed(message) => {
                 write!(formatter, "[6019] migration failed: {message}")
+            }
+            Self::EmbeddingModelMismatch { stored, configured } => {
+                write!(
+                    formatter,
+                    "[6020] embedding model mismatch: database was last embedded with `{stored}`, but config specifies `{configured}`. Run `engram reembed` to re-compute embeddings, then restart the daemon."
+                )
             }
             Self::Storage(error) => error.fmt(formatter),
             Self::Hnsw(error) => error.fmt(formatter),

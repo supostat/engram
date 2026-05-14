@@ -61,6 +61,12 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo install cargo-tarpaulin
       - run: cargo tarpaulin --all --timeout 120 --out html --output-dir target/coverage
+        env:
+          # Coverage instrumentation slows code enough that the
+          # parallel-overlap assertions in rwlock_indexset_parallel.rs
+          # never see >1 concurrent reader. Tests detect this flag and
+          # skip themselves cleanly.
+          ENGRAM_SKIP_TIMING_TESTS: "1"
       - uses: actions/upload-artifact@v4
         with:
           name: coverage-report
