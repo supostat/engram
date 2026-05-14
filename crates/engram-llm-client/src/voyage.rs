@@ -4,7 +4,7 @@ use crate::error::{ApiError, map_http_status_to_error};
 use crate::provider::EmbeddingProvider;
 use crate::retry::{RetryConfig, execute_with_retry};
 
-pub const DEFAULT_VOYAGE_MODEL: &str = "voyage-code-3";
+pub const DEFAULT_VOYAGE_MODEL: &str = "voyage-4";
 pub const DEFAULT_VOYAGE_DIMENSION: usize = 1024;
 const HTTP_REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
 

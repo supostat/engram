@@ -185,7 +185,7 @@ impl InitWizard {
         let mcp_name = MCP_OPTIONS[self.mcp_client];
 
         let embedding_model = if embedding_name == "voyage" {
-            "voyage-code-3"
+            "voyage-4"
         } else {
             "deterministic"
         };

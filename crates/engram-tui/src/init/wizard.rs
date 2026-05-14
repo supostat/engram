@@ -84,7 +84,7 @@ pub struct InitWizard {
 
 pub const EMBEDDING_OPTIONS: [&str; 2] = ["voyage", "deterministic"];
 pub const EMBEDDING_LABELS: [&str; 2] = [
-    "Voyage AI  (voyage-code-3, recommended)",
+    "Voyage AI  (voyage-4, recommended)",
     "Deterministic  (no API key, lower quality)",
 ];
 
