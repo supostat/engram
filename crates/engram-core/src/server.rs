@@ -39,6 +39,15 @@ pub async fn run(config: Config) -> Result<(), CoreError> {
     let home = home_dir_or_error()?;
     let project_dir = config::resolve_project_dir(&cwd, None)?;
     let state = initialize_state(&config, &project_dir, &home)?;
+    {
+        let database = state.database.lock().unwrap();
+        let configured_model = config
+            .embedding
+            .model
+            .as_deref()
+            .unwrap_or(config::DEFAULT_EMBEDDING_MODEL);
+        crate::migrations::embedding_model_v1::check(&database, configured_model)?;
+    }
     warn_missing_api_keys(&config);
     let shared_state = Arc::new(state);
     let socket_path = resolve_socket_path(&project_dir, &config)?;
@@ -312,6 +321,7 @@ fn error_code(error: &CoreError) -> u32 {
         CoreError::LegacyDatabaseDetected { .. } => 6017,
         CoreError::MigrationSourceNotFound => 6018,
         CoreError::MigrationFailed(_) => 6019,
+        CoreError::EmbeddingModelMismatch { .. } => 6020,
         CoreError::Storage(_) => 1000,
         CoreError::Hnsw(_) => 3000,
         CoreError::Api(_) => 2000,

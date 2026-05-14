@@ -53,6 +53,11 @@ fn run_reembed(state: Arc<ServerState>) -> Result<Value, CoreError> {
         }
     }
 
+    if failed == 0 {
+        let database = state.database.lock().unwrap();
+        crate::migrations::embedding_model_v1::record(&database, &model)?;
+    }
+
     Ok(json!({
         "total": total,
         "succeeded": succeeded,

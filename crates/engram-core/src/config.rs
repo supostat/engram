@@ -16,7 +16,7 @@ const CONFIG_HOME_SUBDIR: &str = ".engram/engram.toml";
 const PROJECT_DIR_MARKER: &str = ".engram";
 
 const DEFAULT_EMBEDDING_PROVIDER: &str = "voyage";
-const DEFAULT_EMBEDDING_MODEL: &str = "voyage-code-3";
+pub const DEFAULT_EMBEDDING_MODEL: &str = "voyage-code-3";
 const DEFAULT_EMBEDDING_DIMENSION: usize = 1024;
 const DEFAULT_HYDE_THRESHOLD: usize = 0;
 const DEFAULT_LLM_PROVIDER: &str = "openai";

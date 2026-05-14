@@ -271,6 +271,11 @@ async fn reembed_recoverable_failure_marks_memory_for_retry() {
         let database = state.database.lock().unwrap();
         database.insert_memory(&raw_memory("mem-a")).unwrap();
         database.insert_memory(&raw_memory("mem-b")).unwrap();
+        // Pre-mark schema_meta with a model name that differs from the
+        // failing provider's "failing-embedding" — proves record() was
+        // skipped after failed run rather than going through the bootstrap
+        // branch on an empty schema_meta.
+        engram_core::migrations::embedding_model_v1::record(&database, "voyage-code-3").unwrap();
     }
 
     let response = dispatch::route("memory_reembed", &state, json!({}))
@@ -287,6 +292,42 @@ async fn reembed_recoverable_failure_marks_memory_for_retry() {
         "recoverable failure must reset indexed=0 so background reindex retries"
     );
     assert!(!database.get_memory("mem-b").unwrap().indexed);
+    // schema_meta.embedding_model must NOT be rewritten when failed > 0 —
+    // partial-or-zero success means the DB is not yet consistent with the
+    // active model, so check() must still flag mismatch on next server boot.
+    assert!(
+        engram_core::migrations::embedding_model_v1::check(&database, "voyage-code-3").is_ok(),
+        "pre-existing schema_meta must remain intact after failed reembed",
+    );
+    assert!(
+        engram_core::migrations::embedding_model_v1::check(&database, "failing-embedding").is_err(),
+        "schema_meta must not be updated to the active model when failed > 0",
+    );
+}
+
+#[tokio::test]
+async fn reembed_records_active_model_in_schema_meta() {
+    let state = build_deterministic_state();
+    store_memory(
+        &state,
+        "engineer documented the schema_meta interaction for the embedding model guard today",
+        "ran reembed end-to-end and inspected schema_meta after the run completed successfully",
+        "the model marker stored matches what the active provider reports through its trait API",
+    )
+    .await;
+
+    dispatch::route("memory_reembed", &state, json!({}))
+        .await
+        .expect("reembed should succeed");
+
+    let database = state.database.lock().unwrap();
+    // After reembed, check against the active provider's model must pass
+    // (proves record() wrote the correct value into schema_meta).
+    let result = engram_core::migrations::embedding_model_v1::check(&database, "deterministic");
+    assert!(
+        result.is_ok(),
+        "reembed must record active model so subsequent check passes: {result:?}"
+    );
 }
 
 #[tokio::test]
