@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.3.0 — Unreleased
+## 0.3.0 (2026-05-14)
 
 ### Breaking changes
 - **Embedding default switched to `voyage-4`** (ADR 2026-05-14). Existing
