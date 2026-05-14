@@ -1,5 +1,61 @@
 # Changelog
 
+## 0.3.0 — Unreleased
+
+### Breaking changes
+- **Embedding default switched to `voyage-4`** (ADR 2026-05-14). Existing
+  databases populated with `voyage-code-3` vectors now refuse to boot with
+  `[6020] EmbeddingModelMismatch` until embeddings are recomputed. Run
+  `engram reembed` once after upgrading, then restart the daemon.
+  Dimension stays at `1024` — `voyage-4` API default matches, so the
+  on-disk HNSW geometry is unchanged. The voyage-4 family (large/regular/
+  lite/nano) shares one embedding space, so subsequent switches within
+  the family will not require another reembed.
+- **`EmbeddingProvider::embed` trait signature** gained an `input_type:
+  Option<&str>` parameter. Voyage providers now send `"document"` on the
+  store path and `"query"` on the search path; other implementors
+  (`DeterministicEmbeddingProvider`, custom mocks) ignore the value but
+  must update their method signature. Pre-1.0 deliberate break — the
+  trait is internal-only and has one real implementor.
+
+### New features
+- **`engram reembed [--force]` CLI** recomputes embeddings for every
+  stored memory with the currently configured provider. Replaces vectors
+  in HNSW (delete + insert per memory), writes fresh BLOBs to SQLite with
+  `indexed=true`, and records the active model in `schema_meta` only when
+  every memory succeeded. Per-memory provider/HNSW failure flips
+  `indexed=0` so background reindex retries; database failure propagates.
+- **Server startup guard** against silent model drift. `server::run`
+  reads `schema_meta.embedding_model` after `initialize_state` and
+  refuses to start with `[6020]` if it differs from the configured
+  `embedding.model`. Bootstrap on an empty marker writes the configured
+  model; if the database already contains memories at bootstrap time
+  (legacy upgrade path), a stderr warning recommends running `engram
+  reembed` first.
+- **`embedding.output_dimension` config knob** for Voyage-4 Matryoshka
+  truncation (256/512/1024/2048). Omit to let the API use its default
+  (1024). Must match `[hnsw].dimension` when set.
+- **`EmbeddingCache` keyed by `(text, input_type)`** instead of text
+  alone, so a memory stored as a document and a query of the same text
+  no longer collide on a single cache slot.
+
+### Migration
+
+Upgrading from 0.2.x with existing memories:
+
+```bash
+engram server     # fails with [6020] EmbeddingModelMismatch — expected
+engram reembed    # recomputes all embeddings with voyage-4
+engram server     # now starts cleanly
+```
+
+The reembed run takes roughly 50ms × 3 fields × N memories under
+Voyage API latency; budget a few minutes for a thousand records.
+
+### Notes
+- Error codes 6001-6019 were already in use; this release adds **6020
+  EmbeddingModelMismatch**.
+
 ## 0.2.0 (2026-05-10)
 
 ### Breaking changes

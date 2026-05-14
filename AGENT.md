@@ -173,3 +173,12 @@ memory_consolidate_apply({})             → apply merges/deletes
 - **HyDE**: opt-in via `embedding.hyde_threshold > 0` (disabled by default). When enabled, an LLM generates a hypothetical memory for queries shorter than the threshold and embeds the hypothesis instead of the raw query. Cache is keyed by the original query, so repeated identical queries hit the cache without an extra LLM call.
 - **Cross-project**: searches current project first, applies score multiplier for other projects
 - **Graceful degradation**: if embedding API is unavailable, falls back to FTS5-only search
+
+## Embedding model migration ([6020])
+
+If the daemon fails with `[6020] EmbeddingModelMismatch`, the database was last embedded with a different model than the one currently configured in `engram.toml`. The error message names both models and instructs the user to run `engram reembed`. As an agent, do not retry the same request — it will keep failing. Either:
+
+- Ask the user to run `engram reembed` (one-shot CLI; recomputes every memory with the active provider, then records the new model in `schema_meta`).
+- Or revert the config to the model named as `stored:` in the error message.
+
+After `engram reembed` finishes cleanly, the next daemon start passes the guard and memory tools resume working.

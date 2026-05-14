@@ -48,6 +48,23 @@ engram migrate --all       # also import NULL-project / mismatched rows
 | `--all` | off | Include rows whose `project` is NULL or differs from the cwd basename |
 | `--dry-run` | off | Report what would be migrated without writing to the destination |
 
+## engram reembed
+
+Recomputes embeddings for every memory in the project database using the currently configured `embedding.provider` and `embedding.model`. Replaces vectors in HNSW (delete + insert per memory), writes fresh BLOBs to SQLite with `indexed=true`, clears the in-memory cache at the start, and records the active model in `schema_meta.embedding_model` once every memory succeeds.
+
+```bash
+engram reembed             # one-shot reembed under the active provider
+engram reembed --force     # reserved for future safety thresholds (no-op today)
+```
+
+Use after changing `embedding.model` in `engram.toml`. The startup guard added in 0.3 refuses to boot the daemon with `[6020] EmbeddingModelMismatch` until `engram reembed` finishes cleanly.
+
+Per-memory failure (provider unavailable, HNSW error) flips that memory's `indexed=0` so it can be retried later — the run reports `failed > 0` in its JSON summary and does **not** update `schema_meta`. Database write failures abort the run and propagate. The reembed command runs in the CLI path and intentionally bypasses the startup guard, so it can fix a mismatched database without the daemon refusing to start first.
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--force` | off | Reserved for future safety thresholds (no-op in 0.3.0) |
+
 ## engram store
 
 Saves a new memory record.

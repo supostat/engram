@@ -77,6 +77,11 @@ Errors 2001, 2002, 2003 are retryable.
 | 6013 | TrainerFailed | Trainer not found or exited with error |
 | 6014 | TrainerTimeout | Trainer exceeded timeout (default 300 sec) |
 | 6015 | TrainerMalformedOutput | Invalid JSON in trainer output |
+| 6016 | ProjectDirNotFound | No `.engram/` directory found in cwd or its ancestors (run `engram init`) |
+| 6017 | LegacyDatabaseDetected | Legacy `~/.engram/engram.db` exists but the current project has none — run `engram migrate` or `engram init` |
+| 6018 | MigrationSourceNotFound | `engram migrate` invoked but no legacy database at `~/.engram/engram.db` |
+| 6019 | MigrationFailed | Idempotent startup migration (e.g. `tags_format_v1`, `embedding_model_v1`) failed |
+| 6020 | EmbeddingModelMismatch | Database was last embedded with a different model than the one configured. Run `engram reembed`, then restart the daemon. |
 
 ## Degraded mode
 

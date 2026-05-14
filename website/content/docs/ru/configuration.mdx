@@ -39,8 +39,9 @@ path = "~/.engram/memories.db"
 
 [embedding]
 provider = "voyage"         # voyage | deterministic
-model = "voyage-code-3"
+model = "voyage-4"
 # api_key = "..."           # или через ENGRAM_VOYAGE_API_KEY
+# output_dimension = 1024   # опционально; Voyage-4 Matryoshka (256/512/1024/2048). Должно совпадать с [hnsw].dimension.
 hyde_threshold = 0          # 0 = HyDE выключен (по умолчанию); N>0 включает HyDE для запросов короче N слов
 
 [llm]
@@ -82,10 +83,13 @@ models_path = "~/.engram/models"
 | Параметр | По умолчанию | Описание |
 |----------|-------------|----------|
 | `provider` | `voyage` | Провайдер эмбеддингов: `voyage` или `deterministic` |
-| `model` | `voyage-code-3` | Модель эмбеддингов |
+| `model` | `voyage-4` | Модель эмбеддингов |
 | `api_key` | — | API-ключ (предпочтительно через переменную окружения) |
 | `dimension` | `1024` | Размерность вектора эмбеддинга |
+| `output_dimension` | — | Опциональная Voyage-4 Matryoshka-усечение (256/512/1024/2048). Если задана, должна совпадать с `[hnsw].dimension`. Опусти — API использует значение по умолчанию (1024). |
 | `hyde_threshold` | `0` | HyDE opt-in: `0` отключает HyDE; `N > 0` включает его для запросов короче `N` слов |
+
+> Смена `model` на уже заполненной базе приводит к ошибке `[6020] EmbeddingModelMismatch` при следующем старте `engram server`. Запусти один раз [`engram reembed`](/docs/cli#engram-reembed), чтобы пересчитать все векторы с активным провайдером, и перезапусти демон.
 
 Провайдер `deterministic` не требует API-ключа и генерирует детерминированные эмбеддинги из текста. Подходит для тестирования.
 
