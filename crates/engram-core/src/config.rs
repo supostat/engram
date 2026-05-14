@@ -60,6 +60,12 @@ pub struct EmbeddingConfig {
     pub api_key: Option<String>,
     pub model: Option<String>,
     pub dimension: Option<usize>,
+    /// Voyage-4 output dimension (256/512/1024/2048 via Matryoshka). Omit to
+    /// let the API choose its default (1024 for voyage-4). Ignored by
+    /// non-Voyage providers. Must match `[hnsw].dimension` when set —
+    /// mismatch fails fast at HNSW insert with `[3002] DimensionMismatch`.
+    #[serde(default)]
+    pub output_dimension: Option<usize>,
     #[serde(default)]
     pub hyde_threshold: usize,
 }
@@ -158,7 +164,19 @@ impl Config {
                     .as_deref()
                     .filter(|key| !key.is_empty())
                     .ok_or_else(|| CoreError::InvalidProvider("voyage requires api_key".into()))?;
-                let provider = VoyageEmbeddingProvider::new(api_key.to_owned())?;
+                let model = self
+                    .embedding
+                    .model
+                    .clone()
+                    .unwrap_or_else(|| DEFAULT_EMBEDDING_MODEL.into());
+                let provider = VoyageEmbeddingProvider::with_config(
+                    api_key.to_owned(),
+                    model,
+                    dimension,
+                    self.embedding.output_dimension,
+                    engram_llm_client::RetryConfig::default(),
+                    "https://api.voyageai.com".into(),
+                )?;
                 Ok(Box::new(provider))
             }
             "deterministic" => Ok(Box::new(DeterministicEmbeddingProvider { dimension })),
@@ -250,6 +268,7 @@ impl Default for Config {
                 api_key: None,
                 model: Some(DEFAULT_EMBEDDING_MODEL.into()),
                 dimension: Some(DEFAULT_EMBEDDING_DIMENSION),
+                output_dimension: None,
                 hyde_threshold: DEFAULT_HYDE_THRESHOLD,
             },
             llm: LlmConfig {
@@ -349,7 +368,11 @@ pub fn reset_deterministic_provider_counters() {
 }
 
 impl EmbeddingProvider for DeterministicEmbeddingProvider {
-    fn embed(&self, text: &str) -> Result<Vec<f32>, engram_llm_client::ApiError> {
+    fn embed(
+        &self,
+        text: &str,
+        _input_type: Option<&str>,
+    ) -> Result<Vec<f32>, engram_llm_client::ApiError> {
         // Test-only instrumentation: when enabled via
         // `enable_deterministic_provider_instrumentation`, each embed call
         // records concurrent entries and sleeps 20ms to widen the overlap
@@ -389,5 +412,49 @@ impl EmbeddingProvider for DeterministicEmbeddingProvider {
 
     fn model_name(&self) -> &str {
         "deterministic"
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn deterministic_provider_ignores_input_type() {
+        let provider = DeterministicEmbeddingProvider { dimension: 8 };
+        let text = "rust ownership rules govern compile-time memory access";
+
+        let document = provider.embed(text, Some("document")).unwrap();
+        let query = provider.embed(text, Some("query")).unwrap();
+        let none = provider.embed(text, None).unwrap();
+
+        // Deterministic provider must yield byte-identical vectors regardless
+        // of input_type — test fixtures rely on this for assertion stability.
+        assert_eq!(document, query);
+        assert_eq!(document, none);
+    }
+
+    #[test]
+    fn embedding_config_deserializes_without_output_dimension() {
+        let toml_input = r#"
+            provider = "voyage"
+            model = "voyage-code-3"
+            dimension = 1024
+        "#;
+        let config: EmbeddingConfig = toml::from_str(toml_input).unwrap();
+        assert_eq!(config.provider, "voyage");
+        assert_eq!(config.output_dimension, None);
+    }
+
+    #[test]
+    fn embedding_config_deserializes_with_output_dimension() {
+        let toml_input = r#"
+            provider = "voyage"
+            model = "voyage-4"
+            dimension = 1024
+            output_dimension = 1024
+        "#;
+        let config: EmbeddingConfig = toml::from_str(toml_input).unwrap();
+        assert_eq!(config.output_dimension, Some(1024));
     }
 }

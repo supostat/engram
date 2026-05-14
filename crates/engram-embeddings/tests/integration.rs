@@ -12,10 +12,23 @@ struct MockEmbeddingProvider {
 }
 
 impl EmbeddingProvider for MockEmbeddingProvider {
-    fn embed(&self, text: &str) -> Result<Vec<f32>, ApiError> {
+    fn embed(&self, text: &str, input_type: Option<&str>) -> Result<Vec<f32>, ApiError> {
         let mut embedding = vec![0.0_f32; self.dimension];
         for (index, byte) in text.bytes().enumerate() {
             embedding[index % self.dimension] += byte as f32 / 255.0;
+        }
+        // Differentiate document vs query so cache-collision tests can
+        // distinguish what the embedder actually requested. Offsets are
+        // small constants — vector remains deterministic per (text, kind).
+        if let Some(kind) = input_type {
+            let offset = match kind {
+                "document" => 0.01,
+                "query" => 0.02,
+                _ => 0.0,
+            };
+            for value in &mut embedding {
+                *value += offset;
+            }
         }
         Ok(embedding)
     }
@@ -32,7 +45,7 @@ impl EmbeddingProvider for MockEmbeddingProvider {
 struct FailingEmbeddingProvider;
 
 impl EmbeddingProvider for FailingEmbeddingProvider {
-    fn embed(&self, _text: &str) -> Result<Vec<f32>, ApiError> {
+    fn embed(&self, _text: &str, _input_type: Option<&str>) -> Result<Vec<f32>, ApiError> {
         Err(ApiError::EmbeddingApiUnavailable("mock failure".into()))
     }
 
@@ -176,8 +189,13 @@ fn hyde_triggered_for_short_text() {
         .unwrap();
 
     // ADR 2026-05-05: cache key is now ORIGINAL query, not hypothesis
-    assert!(embedder.cache().get(short_query).is_some());
-    assert!(embedder.cache().get(&generator.response).is_none());
+    assert!(embedder.cache().get(short_query, Some("query")).is_some());
+    assert!(
+        embedder
+            .cache()
+            .get(&generator.response, Some("query"))
+            .is_none()
+    );
 }
 
 #[test]
@@ -199,8 +217,13 @@ fn hyde_not_triggered_for_long_text() {
         .unwrap();
 
     // Cache should contain the raw text, not the hypothesis
-    assert!(embedder.cache().get(long_text).is_some());
-    assert!(embedder.cache().get(&generator.response).is_none());
+    assert!(embedder.cache().get(long_text, Some("query")).is_some());
+    assert!(
+        embedder
+            .cache()
+            .get(&generator.response, Some("query"))
+            .is_none()
+    );
 }
 
 #[test]
@@ -214,7 +237,7 @@ fn hyde_failure_falls_back_to_raw_text() {
     let result = embedder.embed_query(short_query, &provider, Some(&generator));
 
     assert!(result.is_ok());
-    assert!(embedder.cache().get(short_query).is_some());
+    assert!(embedder.cache().get(short_query, Some("query")).is_some());
 }
 
 #[test]
@@ -227,7 +250,7 @@ fn hyde_without_text_generator_embeds_raw() {
     let result = embedder.embed_query(short_query, &provider, None);
 
     assert!(result.is_ok());
-    assert!(embedder.cache().get(short_query).is_some());
+    assert!(embedder.cache().get(short_query, Some("query")).is_some());
 }
 
 // ── Error propagation ──────────────────────────────────────────────────
@@ -397,11 +420,32 @@ fn embed_fields_with_hyde_uses_hypothesis_for_short_text() {
     );
 
     assert!(result.is_ok());
-    // All short fields should trigger HyDE and resolve to the same hypothesis
-    assert!(embedder.cache().get(&generator.response).is_some());
-    assert!(embedder.cache().get(short_context).is_none());
-    assert!(embedder.cache().get(short_action).is_none());
-    assert!(embedder.cache().get(short_result).is_none());
+    // All short fields should trigger HyDE and resolve to the same hypothesis.
+    // embed_fields stores under input_type="document" (key includes input_type).
+    assert!(
+        embedder
+            .cache()
+            .get(&generator.response, Some("document"))
+            .is_some()
+    );
+    assert!(
+        embedder
+            .cache()
+            .get(short_context, Some("document"))
+            .is_none()
+    );
+    assert!(
+        embedder
+            .cache()
+            .get(short_action, Some("document"))
+            .is_none()
+    );
+    assert!(
+        embedder
+            .cache()
+            .get(short_result, Some("document"))
+            .is_none()
+    );
 }
 
 // ── ADR 2026-05-05 cache-by-original + HyDE opt-in ──────────────────
@@ -454,7 +498,7 @@ impl CountingEmbeddingProvider {
 }
 
 impl EmbeddingProvider for CountingEmbeddingProvider {
-    fn embed(&self, text: &str) -> Result<Vec<f32>, ApiError> {
+    fn embed(&self, text: &str, _input_type: Option<&str>) -> Result<Vec<f32>, ApiError> {
         self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         let mut embedding = vec![0.0_f32; self.dimension];
         for (index, byte) in text.bytes().enumerate() {
@@ -486,8 +530,13 @@ fn embed_query_caches_by_original_query() {
         .embed_query(query, &provider, Some(&generator))
         .unwrap();
 
-    assert!(embedder.cache().get(query).is_some());
-    assert!(embedder.cache().get(&generator.response).is_none());
+    assert!(embedder.cache().get(query, Some("query")).is_some());
+    assert!(
+        embedder
+            .cache()
+            .get(&generator.response, Some("query"))
+            .is_none()
+    );
     assert_eq!(provider.calls(), 1);
 }
 
@@ -548,7 +597,60 @@ fn embedder_threshold_zero_skips_hyde_even_with_generator() {
         .unwrap();
 
     assert_eq!(generator.calls(), 0);
-    assert!(embedder.cache().get("rust").is_some());
+    assert!(embedder.cache().get("rust", Some("query")).is_some());
+}
+
+#[test]
+fn embed_fields_caches_under_document_input_type() {
+    let provider = MockEmbeddingProvider { dimension: 4 };
+    let embedder = Embedder::new(0);
+    let context = "user opened the editor and started typing a new document file";
+    let action = "typed several paragraphs about rust programming language and its features";
+    let result = "the document was saved successfully to the local filesystem without errors";
+
+    embedder
+        .embed_fields(context, action, result, &provider, None)
+        .unwrap();
+
+    assert!(embedder.cache().get(context, Some("document")).is_some());
+    assert!(embedder.cache().get(action, Some("document")).is_some());
+    assert!(embedder.cache().get(result, Some("document")).is_some());
+    // Query-keyed lookup of the same text MUST miss — different cache slot.
+    assert!(embedder.cache().get(context, Some("query")).is_none());
+}
+
+#[test]
+fn embed_query_caches_under_query_input_type() {
+    let provider = MockEmbeddingProvider { dimension: 4 };
+    let embedder = Embedder::new(0);
+    let query = "search for documents about rust programming language and its memory model";
+
+    embedder.embed_query(query, &provider, None).unwrap();
+
+    assert!(embedder.cache().get(query, Some("query")).is_some());
+    // Document-keyed lookup MUST miss for the same text.
+    assert!(embedder.cache().get(query, Some("document")).is_none());
+}
+
+#[test]
+fn cache_distinguishes_document_and_query_for_same_text() {
+    let provider = MockEmbeddingProvider { dimension: 4 };
+    let embedder = Embedder::new(0);
+    let text = "rust ownership and borrowing rules govern memory access at compile time";
+
+    // First write the document embedding via embed_fields.
+    embedder
+        .embed_fields(text, text, text, &provider, None)
+        .unwrap();
+    // Then write the query embedding for the same text.
+    embedder.embed_query(text, &provider, None).unwrap();
+
+    let document_embedding = embedder.cache().get(text, Some("document")).unwrap();
+    let query_embedding = embedder.cache().get(text, Some("query")).unwrap();
+
+    // MockEmbeddingProvider yields different offsets for document vs query —
+    // proves the two entries are independently stored, not collapsed.
+    assert_ne!(document_embedding, query_embedding);
 }
 
 #[test]

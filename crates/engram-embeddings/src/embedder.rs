@@ -4,6 +4,13 @@ use crate::cache::EmbeddingCache;
 use crate::error::EmbeddingError;
 use crate::hyde;
 
+/// `input_type` value sent to providers for store-path (ingestion) embeddings.
+/// Voyage uses this to optimize the vector for the retrieval-target role.
+const INPUT_TYPE_DOCUMENT: &str = "document";
+
+/// `input_type` value sent to providers for search-path (query) embeddings.
+const INPUT_TYPE_QUERY: &str = "query";
+
 pub struct ThreeFieldEmbedding {
     pub context: Vec<f32>,
     pub action: Vec<f32>,
@@ -41,9 +48,12 @@ impl Embedder {
         let action_text = self.prepare_text(action, text_generator);
         let result_text = self.prepare_text(result, text_generator);
 
-        let context_embedding = self.get_or_embed(&context_text, provider)?;
-        let action_embedding = self.get_or_embed(&action_text, provider)?;
-        let result_embedding = self.get_or_embed(&result_text, provider)?;
+        let context_embedding =
+            self.get_or_embed(&context_text, provider, Some(INPUT_TYPE_DOCUMENT))?;
+        let action_embedding =
+            self.get_or_embed(&action_text, provider, Some(INPUT_TYPE_DOCUMENT))?;
+        let result_embedding =
+            self.get_or_embed(&result_text, provider, Some(INPUT_TYPE_DOCUMENT))?;
 
         Ok(ThreeFieldEmbedding {
             context: context_embedding,
@@ -58,14 +68,16 @@ impl Embedder {
         provider: &dyn EmbeddingProvider,
         text_generator: Option<&dyn TextGenerator>,
     ) -> Result<Vec<f32>, EmbeddingError> {
-        if let Some(cached) = self.cache.get(query) {
+        // Cache by ORIGINAL query (ADR 2026-05-05 hyde-opt-in-and-cache-by-original-query).
+        if let Some(cached) = self.cache.get(query, Some(INPUT_TYPE_QUERY)) {
             return Ok(cached);
         }
         let prepared = self.prepare_text(query, text_generator);
         let embedding = provider
-            .embed(&prepared)
+            .embed(&prepared, Some(INPUT_TYPE_QUERY))
             .map_err(EmbeddingError::ProviderError)?;
-        self.cache.insert(query.to_string(), embedding.clone());
+        self.cache
+            .insert(query, Some(INPUT_TYPE_QUERY), embedding.clone());
         Ok(embedding)
     }
 
@@ -91,12 +103,13 @@ impl Embedder {
         &self,
         text: &str,
         provider: &dyn EmbeddingProvider,
+        input_type: Option<&str>,
     ) -> Result<Vec<f32>, EmbeddingError> {
-        if let Some(cached) = self.cache.get(text) {
+        if let Some(cached) = self.cache.get(text, input_type) {
             return Ok(cached);
         }
-        let embedding = provider.embed(text)?;
-        self.cache.insert(text.to_string(), embedding.clone());
+        let embedding = provider.embed(text, input_type)?;
+        self.cache.insert(text, input_type, embedding.clone());
         Ok(embedding)
     }
 }
