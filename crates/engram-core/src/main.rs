@@ -90,6 +90,16 @@ enum Command {
         action: TrainAction,
     },
 
+    /// Re-embed all memories with the currently configured provider.
+    /// Use after switching `embedding.model` in engram.toml. See ADR
+    /// 2026-05-14-voyage-4-migration-via-reembed-cli for the migration flow.
+    Reembed {
+        /// Reserved for future safety thresholds (e.g., refuse if memory
+        /// count exceeds a configured limit). Currently a no-op placeholder.
+        #[arg(long)]
+        force: bool,
+    },
+
     /// Show version
     Version,
 }
@@ -213,6 +223,7 @@ fn build_dispatch_args(command: Command) -> (String, serde_json::Value) {
         Command::Status => ("memory_status".into(), json!({})),
         Command::Consolidate { action } => build_consolidate_args(action),
         Command::Train { action } => build_train_args(action),
+        Command::Reembed { force } => ("memory_reembed".into(), json!({ "force": force })),
         Command::Server | Command::Version | Command::Init | Command::Migrate { .. } => {
             unreachable!()
         }

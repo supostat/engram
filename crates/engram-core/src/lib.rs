@@ -15,6 +15,7 @@ pub mod migrations;
 pub mod output;
 pub mod persistence;
 pub mod protocol;
+pub mod reembed_handler;
 pub mod search_handler;
 pub mod server;
 pub mod status_handler;
