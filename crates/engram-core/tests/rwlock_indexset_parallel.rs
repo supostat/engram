@@ -22,6 +22,15 @@ use engram_storage::Database;
 // exists solely to prevent interleaving.
 static COUNTER_LOCK: Mutex<()> = Mutex::new(());
 
+// Tests that assert on `concurrent_readers_max >= 2` are timing-sensitive:
+// coverage instrumentation (cargo-tarpaulin) slows each call enough that
+// parallel readers complete sequentially and the peak overlap counter
+// stays at 1. CI sets `ENGRAM_SKIP_TIMING_TESTS=1` for the coverage job;
+// local `cargo test` keeps the assertion live.
+fn skip_under_coverage() -> bool {
+    std::env::var("ENGRAM_SKIP_TIMING_TESTS").is_ok()
+}
+
 // RAII guard: enables deterministic-provider + reader-tracking instrumentation
 // on construction, disables both on drop (including panic). Counters are
 // reset before enabling to clear any stale state from prior test runs.
@@ -88,6 +97,9 @@ fn seed_one_memory(state: &Arc<ServerState>) {
 #[allow(clippy::await_holding_lock)]
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn parallel_searches_overlap_with_rwlock() {
+    if skip_under_coverage() {
+        return;
+    }
     let _counter_lock = COUNTER_LOCK
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());

@@ -19,6 +19,15 @@ use engram_storage::Database;
 // exists solely to prevent interleaving.
 static COUNTER_LOCK: Mutex<()> = Mutex::new(());
 
+// Tests that assert on `deterministic_provider_max_concurrent >= 2` are
+// timing-sensitive: coverage instrumentation (cargo-tarpaulin) slows each
+// call enough that parallel calls complete sequentially and the peak
+// overlap counter stays at 1. CI sets `ENGRAM_SKIP_TIMING_TESTS=1` for
+// the coverage job; local `cargo test` keeps the assertion live.
+fn skip_under_coverage() -> bool {
+    std::env::var("ENGRAM_SKIP_TIMING_TESTS").is_ok()
+}
+
 // RAII guard: enables instrumentation on construction, disables on drop
 // (including panic). This ensures the deterministic provider's 20ms sleep
 // never leaks outside the test scope into any subsequent test or binary.
@@ -70,6 +79,9 @@ fn build_deterministic_state() -> Arc<ServerState> {
 #[allow(clippy::await_holding_lock)]
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn parallel_store_requests_do_not_serialize_on_embedder() {
+    if skip_under_coverage() {
+        return;
+    }
     let _counter_lock = COUNTER_LOCK
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
@@ -110,6 +122,9 @@ async fn parallel_store_requests_do_not_serialize_on_embedder() {
 #[allow(clippy::await_holding_lock)]
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn parallel_search_requests_do_not_serialize_on_embedder() {
+    if skip_under_coverage() {
+        return;
+    }
     let _counter_lock = COUNTER_LOCK
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
