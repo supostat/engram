@@ -14,6 +14,7 @@ categories = ["command-line-utilities"]
 [[bin]]
 name = "engram-tui"
 path = "src/main.rs"
+bench = false
 
 [dependencies]
 ratatui = "0.30"

@@ -11,6 +11,9 @@ readme = "README.md"
 keywords = ["sqlite", "fts5", "memory-storage", "full-text-search"]
 categories = ["database"]
 
+[lib]
+bench = false
+
 [dependencies]
 rusqlite = { version = "0.39", features = ["bundled", "vtab"] }
 serde = { version = "1", features = ["derive"] }
