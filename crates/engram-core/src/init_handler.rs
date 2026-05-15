@@ -57,6 +57,37 @@ stale_days = 90
 min_score = 0.3
 "#;
 
+const PROJECT_LOCAL_CONFIG_TEMPLATE: &str = r#"# Project-local engram config. Every value here is deep-merged over the
+# global ~/.engram/engram.toml — uncomment only the fields this project
+# needs to override; anything left commented is inherited from global.
+# Effective priority: ENGRAM_* env vars > this file > global config.
+#
+# Provider API keys are intentionally absent here — they are always taken
+# from the global config and can never be set or overridden per project.
+
+# [embedding]
+# model = "voyage-4"
+# dimension = 1024
+# output_dimension = 1024
+# hyde_threshold = 0
+
+# [llm]
+# model = "gpt-4o-mini"
+
+# [server]
+# reindex_interval_secs = 3600
+
+# [hnsw]
+# max_connections = 16
+# ef_construction = 200
+# ef_search = 40
+# dimension = 1024
+
+# [consolidation]
+# stale_days = 90
+# min_score = 0.3
+"#;
+
 #[derive(Debug)]
 pub enum McpCommand {
     Node { script_path: PathBuf },
@@ -80,6 +111,7 @@ pub fn execute_with_dirs(project_dir: &Path, home_dir: &Path) -> Result<(), Core
 
     if home_config_path.exists() {
         create_engram_directory(project_dir)?;
+        write_project_local_config(project_dir)?;
         initialize_database(project_dir)?;
         write_agent_instructions(project_dir)?;
         write_mcp_json(project_dir, &mcp_command)?;
@@ -88,6 +120,7 @@ pub fn execute_with_dirs(project_dir: &Path, home_dir: &Path) -> Result<(), Core
     }
 
     create_engram_directory(project_dir)?;
+    write_project_local_config(project_dir)?;
     write_default_config_to_home(home_dir)?;
     write_mcp_json(project_dir, &mcp_command)?;
     initialize_database(project_dir)?;
@@ -123,6 +156,19 @@ fn create_engram_directory(project_dir: &Path) -> Result<(), CoreError> {
     let target = project_dir.join(ENGRAM_DIRECTORY);
     fs::create_dir_all(&target).map_err(|error| {
         CoreError::InitFailed(format!("failed to create {}: {error}", target.display()))
+    })
+}
+
+fn write_project_local_config(project_dir: &Path) -> Result<(), CoreError> {
+    let config_path = project_dir.join(ENGRAM_DIRECTORY).join(CONFIG_FILENAME);
+    if config_path.exists() {
+        return Ok(());
+    }
+    fs::write(&config_path, PROJECT_LOCAL_CONFIG_TEMPLATE).map_err(|error| {
+        CoreError::InitFailed(format!(
+            "failed to write {}: {error}",
+            config_path.display()
+        ))
     })
 }
 

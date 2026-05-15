@@ -1,6 +1,7 @@
 pub mod cli;
 pub mod config;
 pub mod config_handler;
+pub mod config_loader;
 pub mod consolidate_handler;
 pub mod dispatch;
 pub mod error;

@@ -2,7 +2,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use engram_hnsw::HnswParams;
 use engram_llm_client::{
@@ -10,10 +10,19 @@ use engram_llm_client::{
     VoyageEmbeddingProvider,
 };
 
+use crate::config_loader::{
+    deep_merge, load_global_config_tree, load_project_config_tree, restore_secret, secret_at,
+};
 use crate::error::CoreError;
 
-const CONFIG_HOME_SUBDIR: &str = ".engram/engram.toml";
+/// Path of an `engram.toml` relative to its `.engram/` parent. Used for both
+/// the global config under `$HOME` and project-local configs under a
+/// discovered project root.
+pub(crate) const ENGRAM_CONFIG_SUBPATH: &str = ".engram/engram.toml";
 const PROJECT_DIR_MARKER: &str = ".engram";
+
+const EMBEDDING_SECTION: &str = "embedding";
+const LLM_SECTION: &str = "llm";
 
 const DEFAULT_EMBEDDING_PROVIDER: &str = "voyage";
 pub const DEFAULT_EMBEDDING_MODEL: &str = "voyage-4";
@@ -31,8 +40,9 @@ const DEFAULT_TRAINER_BINARY: &str = "engram-trainer";
 const DEFAULT_TRAINER_TIMEOUT_SECS: u64 = 300;
 const DEFAULT_MODELS_PATH: &str = "~/.engram/models";
 
-#[derive(Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Config {
+    #[serde(default)]
     pub database: DatabaseConfig,
     pub embedding: EmbeddingConfig,
     pub llm: LlmConfig,
@@ -44,7 +54,7 @@ pub struct Config {
     pub trainer: TrainerConfig,
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Default)]
 pub struct DatabaseConfig {
     /// Legacy fallback used only when no project `.engram/` marker is found and
     /// `ENGRAM_DB_PATH` is not set. Runtime resolution always prefers the
@@ -54,7 +64,7 @@ pub struct DatabaseConfig {
     pub path: Option<String>,
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct EmbeddingConfig {
     pub provider: String,
     pub api_key: Option<String>,
@@ -70,14 +80,14 @@ pub struct EmbeddingConfig {
     pub hyde_threshold: usize,
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct LlmConfig {
     pub provider: String,
     pub api_key: Option<String>,
     pub model: Option<String>,
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct ServerConfig {
     /// Legacy fallback socket path. Used only when no project `.engram/`
     /// marker is found and `ENGRAM_SOCKET_PATH` is not set. Runtime prefers
@@ -87,7 +97,7 @@ pub struct ServerConfig {
     pub reindex_interval_secs: u64,
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct HnswConfig {
     pub max_connections: usize,
     pub ef_construction: usize,
@@ -95,13 +105,13 @@ pub struct HnswConfig {
     pub dimension: usize,
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct ConsolidationConfig {
     pub stale_days: u32,
     pub min_score: f64,
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct TrainerConfig {
     pub trainer_binary: String,
     pub trainer_timeout_secs: u64,
@@ -128,15 +138,42 @@ impl Default for ConsolidationConfig {
 }
 
 impl Config {
+    /// Loads the effective config by layering project-local `engram.toml`
+    /// over the global `~/.engram/engram.toml`, then applying `ENGRAM_*` env
+    /// overrides. Final priority is `env > project-local > global`.
+    ///
+    /// When neither config file exists the built-in defaults are used. The
+    /// `api_key` of each provider is always taken from the global layer — a
+    /// project-local config can never set or change a secret.
     pub fn load() -> Result<Self, CoreError> {
-        if let Some(home) = home_directory() {
-            let home_config = Path::new(&home).join(CONFIG_HOME_SUBDIR);
-            if home_config.exists() {
-                return Self::load_from_path(home_config.to_str().unwrap_or_default());
-            }
+        let global_tree = load_global_config_tree()?;
+        let project_tree = load_project_config_tree()?;
+
+        if global_tree.is_none() && project_tree.is_none() {
+            let mut config = Self::default();
+            config.apply_env_overrides();
+            return Ok(config);
         }
 
-        let mut config = Self::default();
+        let mut merged_tree = match global_tree {
+            Some(tree) => tree,
+            None => toml::Value::try_from(Self::default())
+                .map_err(|error| CoreError::ConfigParseError(error.to_string()))?,
+        };
+
+        let global_embedding_secret = secret_at(&merged_tree, EMBEDDING_SECTION);
+        let global_llm_secret = secret_at(&merged_tree, LLM_SECTION);
+
+        if let Some(project_tree) = project_tree {
+            deep_merge(&mut merged_tree, project_tree);
+        }
+
+        restore_secret(&mut merged_tree, EMBEDDING_SECTION, global_embedding_secret);
+        restore_secret(&mut merged_tree, LLM_SECTION, global_llm_secret);
+
+        let mut config: Config = merged_tree
+            .try_into()
+            .map_err(|error: toml::de::Error| CoreError::ConfigParseError(error.to_string()))?;
         config.apply_env_overrides();
         Ok(config)
     }

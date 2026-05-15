@@ -347,3 +347,59 @@ fn init_socket_path_boundary_104_bytes() {
         "expected socket length error, got: {message}"
     );
 }
+
+#[test]
+fn init_writes_project_local_config() {
+    let project = tempdir().expect("project");
+    let home = tempdir().expect("home");
+    init_handler::execute_with_dirs(project.path(), home.path()).expect("init");
+
+    let project_config = project.path().join(".engram").join("engram.toml");
+    assert!(
+        project_config.exists(),
+        "project-local config should exist at {project_config:?}"
+    );
+    let content = std::fs::read_to_string(&project_config).expect("read project config");
+    assert!(
+        content.contains("[embedding]"),
+        "template should mention the embedding section: {content:?}"
+    );
+}
+
+#[test]
+fn init_project_local_config_has_no_api_key() {
+    let project = tempdir().expect("project");
+    let home = tempdir().expect("home");
+    init_handler::execute_with_dirs(project.path(), home.path()).expect("init");
+
+    let project_config = project.path().join(".engram").join("engram.toml");
+    let content = std::fs::read_to_string(&project_config).expect("read project config");
+    assert!(
+        !content.contains("api_key"),
+        "project-local template must never reference api_key: {content:?}"
+    );
+    // Dead runtime-ignored fields must not appear either.
+    assert!(
+        !content.contains("database.path") && !content.contains("socket_path"),
+        "project-local template must not reference dead fallback fields: {content:?}"
+    );
+}
+
+#[test]
+fn init_does_not_overwrite_existing_project_local_config() {
+    let project = tempdir().expect("project");
+    let home = tempdir().expect("home");
+    let engram_dir = project.path().join(".engram");
+    std::fs::create_dir_all(&engram_dir).expect("create .engram");
+    let project_config = engram_dir.join("engram.toml");
+    let preexisting = "[embedding]\nhyde_threshold = 99\n";
+    std::fs::write(&project_config, preexisting).expect("seed project config");
+
+    init_handler::execute_with_dirs(project.path(), home.path()).expect("init");
+
+    let content = std::fs::read_to_string(&project_config).expect("read project config");
+    assert_eq!(
+        content, preexisting,
+        "existing project-local config must not be overwritten"
+    );
+}

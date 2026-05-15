@@ -7,17 +7,20 @@ description: engram.toml config file and environment variables
 
 Engram splits state across two locations:
 
-- **Global** (`~/.engram/`) — `engram.toml` (the only config file engram reads), `models/` (ONNX artifacts shared across projects).
-- **Per-project** (`<project>/.engram/`) — `engram.db` (SQLite) and `engram.sock` (Unix socket). Discovery walks up from cwd looking for `.engram/`, like `.git`.
+- **Global** (`~/.engram/`) — `engram.toml` (base config layer, holds API keys and defaults), `models/` (ONNX artifacts shared across projects).
+- **Per-project** (`<project>/.engram/`) — `engram.toml` (project-local config overrides), `engram.db` (SQLite) and `engram.sock` (Unix socket). Discovery walks up from cwd looking for `.engram/`, like `.git`.
 
-Engram looks for the config file in the following order:
+## Layered config
 
-1. `--config <path>` CLI flag — explicit override
-2. `./engram.toml` — current directory
-3. `~/.engram/engram.toml` — global config
-4. Built-in defaults — if no config file is found
+`engram.toml` is resolved as **layers**, with priority `env > project-local > global`:
 
-Environment variables always override file values. There is no per-project config file by design — global config holds API keys and defaults, while per-project state (DB, socket) is resolved at runtime.
+1. **Global** `~/.engram/engram.toml` — the base layer. Holds API keys and defaults. `embedding.api_key` and `llm.api_key` always come from here.
+2. **Project-local** `<project>/.engram/engram.toml` — discovered by walking up from the current directory looking for a `.engram/` marker, like `.git`. When present, it is deep-merged field-by-field over the global layer: fields it sets override the global value, fields it omits inherit from global. Nested tables (`[embedding]`, `[hnsw]`, …) merge recursively. **An `api_key` set in a project-local file is ignored** — secrets always come from global.
+3. **`ENGRAM_*` environment variables** — applied last, highest priority. They override values from either file layer.
+
+The `--config <path>` CLI flag, when passed, replaces the global layer with the explicit file. If no config file exists at all, built-in defaults apply.
+
+`engram init` writes a minimal, fully-commented project-local `engram.toml` template into `<project>/.engram/`. The template contains only non-secret override fields, all commented out — an untouched file inherits the global config verbatim.
 
 ## Path resolution
 
@@ -158,6 +161,7 @@ The `local` provider uses an ONNX model from `trainer.models_path` for local gen
   models/                        # ONNX models from trainer
 
 <project>/.engram/               # per-project — created by `engram init`
+  engram.toml                    # project-local config overrides (deep-merged over global)
   engram.db                      # SQLite database
   engram.sock                    # Unix socket server
   *.hnsw                         # serialized HNSW indexes
@@ -166,6 +170,6 @@ The `local` provider uses an ONNX model from `trainer.models_path` for local gen
 
 ## Initialization
 
-The `engram init` command creates the project's `.engram/` directory in the current working directory (with `engram.db`, the bundled `AGENT.md`, an `.mcp.json`, and a `.engram/` entry in `.gitignore`). On first run it also writes a default `~/.engram/engram.toml` if none exists. Existing files are never overwritten.
+The `engram init` command creates the project's `.engram/` directory in the current working directory (with `engram.db`, a minimal commented-out project-local `engram.toml`, the bundled `AGENT.md`, an `.mcp.json`, and a `.engram/` entry in `.gitignore`). On first run it also writes a default `~/.engram/engram.toml` if none exists. Existing files are never overwritten.
 
 To import data from a previous global install (`~/.engram/engram.db`), see [`engram migrate`](/en/docs/cli#engram-migrate).
