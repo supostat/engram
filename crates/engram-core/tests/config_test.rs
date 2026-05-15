@@ -6,11 +6,23 @@ use tempfile::tempdir;
 use engram_core::config;
 use engram_core::error::CoreError;
 
-// Serializes tests that mutate process-global env vars (ENGRAM_PROJECT_DIR).
+// Serializes every test in this file. `resolve_project_dir` reads the
+// process-global `ENGRAM_PROJECT_DIR` env var, so any test that does
+// NOT explicitly override that env can be poisoned by the one test
+// that sets it (`resolve_project_dir_respects_env_override`) running
+// concurrently. Holding the lock for the whole test body keeps the
+// env state consistent for each assertion.
 static ENV_LOCK: Mutex<()> = Mutex::new(());
+
+fn lock_env() -> std::sync::MutexGuard<'static, ()> {
+    ENV_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
 
 #[test]
 fn resolve_project_dir_finds_engram_in_cwd() {
+    let _lock = lock_env();
     let temp = tempdir().expect("temp dir");
     let engram_dir = temp.path().join(".engram");
     std::fs::create_dir_all(&engram_dir).expect("create .engram");
@@ -20,6 +32,7 @@ fn resolve_project_dir_finds_engram_in_cwd() {
 
 #[test]
 fn resolve_project_dir_walks_up() {
+    let _lock = lock_env();
     let temp = tempdir().expect("temp dir");
     let engram_dir = temp.path().join(".engram");
     std::fs::create_dir_all(&engram_dir).expect("create .engram");
@@ -31,6 +44,7 @@ fn resolve_project_dir_walks_up() {
 
 #[test]
 fn resolve_project_dir_respects_explicit_override() {
+    let _lock = lock_env();
     let temp = tempdir().expect("temp dir");
     let other = tempdir().expect("other");
     let engram_dir = other.path().join(".engram");
@@ -42,6 +56,7 @@ fn resolve_project_dir_respects_explicit_override() {
 
 #[test]
 fn resolve_project_dir_not_found() {
+    let _lock = lock_env();
     let temp = tempdir().expect("temp dir");
     let nested = temp.path().join("sub");
     std::fs::create_dir_all(&nested).expect("create nested");
@@ -53,9 +68,7 @@ fn resolve_project_dir_not_found() {
 
 #[test]
 fn resolve_project_dir_respects_env_override() {
-    let _lock = ENV_LOCK
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let _lock = lock_env();
 
     // Project that the env var points to: create a real .engram/ so it is a valid project.
     let env_project = tempdir().expect("env project");
@@ -83,6 +96,7 @@ fn resolve_project_dir_respects_env_override() {
 
 #[test]
 fn resolve_project_dir_at_filesystem_root() {
+    let _lock = lock_env();
     // PathBuf::pop() returns false at filesystem root, loop terminates with ProjectDirNotFound.
     // No panic even though "/" exists and likely lacks a .engram/ marker.
     let result = config::resolve_project_dir(Path::new("/"), None);
@@ -92,6 +106,7 @@ fn resolve_project_dir_at_filesystem_root() {
 
 #[test]
 fn resolve_project_dir_with_nonexistent_start() {
+    let _lock = lock_env();
     // Walk-up from a path that does not exist on disk: PathBuf::pop works regardless
     // of existence, and is_dir() returns false without panicking. Should cleanly
     // terminate with ProjectDirNotFound at filesystem root.
