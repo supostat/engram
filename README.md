@@ -85,8 +85,8 @@ python -m engram_trainer --database .engram/engram.db --models-path ~/.engram/mo
 python -m engram_trainer --database .engram/engram.db --models-path ~/.engram/models/ --deep
 
 # Via CLI (requires engram-core server running)
-engram train
-engram train --deep  # LoRA fine-tuning (requires torch)
+engram train generate  # regular models + insights
+# Deep/LoRA fine-tuning has no CLI wrapper — use the direct invocation above
 ```
 
 ## Features
@@ -111,7 +111,7 @@ Trainer produces three ONNX models stored in `~/.engram/models/`:
 | `ranking_model.onnx` | 23 KB | GradientBoosting | Re-ranks search results by score, usage, recency, length, and tags |
 | `text_generator.onnx` | ~312 MB | DistilGPT2 + LoRA | Local text generation replacing API calls for HyDE and routine operations |
 
-The first two models are trained during regular `engram train` runs. The text generator requires `engram train --deep` with PyTorch installed.
+The first two models are trained during regular `engram train generate` runs. The text generator requires the trainer's `--deep` flag (`python -m engram_trainer --deep`) with PyTorch installed.
 
 ## Memory Types
 

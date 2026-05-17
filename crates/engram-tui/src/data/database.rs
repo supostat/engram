@@ -315,7 +315,7 @@ fn build_hints(memory_count: usize, pending_judgments: usize, has_onnx: bool) ->
     if memory_count >= 20 && !has_onnx {
         hints.push(format!(
             "You have {memory_count} memories. Install trainer: \
-             pip install engram-trainer && engram train"
+             pip install engram-trainer && engram train generate"
         ));
     }
 

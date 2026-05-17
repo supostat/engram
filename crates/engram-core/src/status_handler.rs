@@ -46,7 +46,7 @@ fn build_hints(
     if memory_count >= 20 && !has_onnx {
         hints.push(format!(
             "You have {memory_count} memories. Install trainer for self-learning: \
-             pip install engram-trainer && engram train"
+             pip install engram-trainer && engram train generate"
         ));
     }
 
@@ -54,7 +54,7 @@ fn build_hints(
         && has_onnx
         && onnx_models_older_than_database(database_path, &models_path)
     {
-        hints.push("Models may be outdated. Re-run: engram train".to_string());
+        hints.push("Models may be outdated. Re-run: engram train generate".to_string());
     }
 
     if pending_judgments > 10 {

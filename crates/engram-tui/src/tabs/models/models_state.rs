@@ -101,12 +101,14 @@ impl ModelsTabState {
             }
             KeyCode::Char('t') => {
                 self.popup = Some(ModelsPopup::TrainCommand {
-                    command: "engram train".to_string(),
+                    command: "engram train generate".to_string(),
                 });
             }
             KeyCode::Char('T') => {
                 self.popup = Some(ModelsPopup::TrainCommand {
-                    command: "engram train --deep".to_string(),
+                    command: "python -m engram_trainer --database .engram/engram.db \
+                              --models-path ~/.engram/models/ --deep"
+                        .to_string(),
                 });
             }
             KeyCode::Char('d') => {
