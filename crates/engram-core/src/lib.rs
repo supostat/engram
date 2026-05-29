@@ -11,6 +11,7 @@ pub mod indexes;
 pub mod init_handler;
 pub mod insights_handler;
 pub mod judge_handler;
+pub mod lock_helpers;
 pub mod migrate_handler;
 pub mod migrations;
 pub mod output;

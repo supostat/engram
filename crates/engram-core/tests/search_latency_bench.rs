@@ -128,7 +128,7 @@ fn seed_memories(state: &Arc<ServerState>, n: usize) {
             let hashed = hash_string_to_u64(&id);
             let rng = deterministic_rng(hashed);
             indexes
-                .insert(hashed, &id, &embedding, rng)
+                .insert_atomic(hashed, &id, &embedding, rng)
                 .expect("seed hnsw insert");
         }
     }

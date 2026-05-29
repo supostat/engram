@@ -8,6 +8,7 @@ use engram_router::Mode;
 
 use crate::error::CoreError;
 use crate::indexes::instrumentation::ReaderTracker;
+use crate::lock_helpers;
 use crate::server::ServerState;
 use crate::timestamp::current_utc_timestamp;
 
@@ -58,7 +59,7 @@ fn resolve_top_k(params: &SearchParams, state: &Arc<ServerState>, mode: Mode) ->
     if let Some(limit) = params.limit {
         return limit;
     }
-    let router = state.router.lock().unwrap();
+    let router = lock_helpers::lock_router(state);
     let decision = router.decide(mode, 0.5);
     decision.top_k
 }
@@ -94,7 +95,7 @@ async fn search_vector_index(
     let state_clone = Arc::clone(state);
     tokio::task::spawn_blocking(move || {
         let _tracker = ReaderTracker::new();
-        let indexes = state_clone.indexes.read().unwrap();
+        let indexes = lock_helpers::read_indexes(&state_clone);
         let raw_results = indexes
             .search(&embedding_owned, top_k)
             .map_err(CoreError::Hnsw)?;
@@ -120,7 +121,7 @@ async fn search_fts(
     let query_owned = query.to_string();
     let state_clone = Arc::clone(state);
     tokio::task::spawn_blocking(move || {
-        let database = state_clone.database.lock().unwrap();
+        let database = lock_helpers::lock_db(&state_clone);
         let fts_results = database.search_fts(&query_owned, top_k)?;
         let scored: Vec<(String, f64)> = fts_results
             .into_iter()
@@ -205,7 +206,7 @@ async fn load_memories(
     let scores: HashMap<String, f64> = scored_results.iter().cloned().collect();
     let state_clone = Arc::clone(state);
     tokio::task::spawn_blocking(move || {
-        let database = state_clone.database.lock().unwrap();
+        let database = lock_helpers::lock_db(&state_clone);
         let timestamp = current_utc_timestamp();
         let mut results = Vec::new();
         for memory_id in &memory_ids {

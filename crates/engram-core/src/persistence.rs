@@ -47,7 +47,7 @@ fn rebuild_from_database(
             Some(emb) => emb,
             None => continue,
         };
-        indexes.insert(id, &memory.id, &embedding, deterministic_rng(id))?;
+        indexes.insert_atomic(id, &memory.id, &embedding, deterministic_rng(id))?;
     }
     Ok(indexes)
 }

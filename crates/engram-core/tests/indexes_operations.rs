@@ -30,7 +30,7 @@ fn new_index_set_is_empty() {
 fn insert_and_contains() {
     let mut indexes = IndexSet::new(test_params).unwrap();
     let embedding = make_embedding([1.0, 0.0, 0.0, 0.0]);
-    indexes.insert(1, "mem-1", &embedding, 0.5).unwrap();
+    indexes.insert_atomic(1, "mem-1", &embedding, 0.5).unwrap();
     assert!(indexes.contains(1));
     assert!(!indexes.contains(2));
     assert_eq!(indexes.len(), 1);
@@ -41,8 +41,8 @@ fn search_returns_inserted_items() {
     let mut indexes = IndexSet::new(test_params).unwrap();
     let emb1 = make_embedding([1.0, 0.0, 0.0, 0.0]);
     let emb2 = make_embedding([0.0, 1.0, 0.0, 0.0]);
-    indexes.insert(1, "mem-1", &emb1, 0.3).unwrap();
-    indexes.insert(2, "mem-2", &emb2, 0.7).unwrap();
+    indexes.insert_atomic(1, "mem-1", &emb1, 0.3).unwrap();
+    indexes.insert_atomic(2, "mem-2", &emb2, 0.7).unwrap();
 
     let results = indexes.search(&[1.0, 0.0, 0.0, 0.0], 2).unwrap();
     assert!(!results.is_empty());
@@ -53,7 +53,7 @@ fn search_returns_inserted_items() {
 fn delete_removes_from_all_indexes() {
     let mut indexes = IndexSet::new(test_params).unwrap();
     let embedding = make_embedding([1.0, 0.0, 0.0, 0.0]);
-    indexes.insert(1, "mem-1", &embedding, 0.5).unwrap();
+    indexes.insert_atomic(1, "mem-1", &embedding, 0.5).unwrap();
     indexes.delete(1).unwrap();
     assert!(!indexes.contains(1));
     assert!(indexes.is_empty());
@@ -71,8 +71,8 @@ fn serialize_deserialize_roundtrip() {
     let mut indexes = IndexSet::new(test_params).unwrap();
     let emb1 = make_embedding([1.0, 0.0, 0.0, 0.0]);
     let emb2 = make_embedding([0.0, 1.0, 0.0, 0.0]);
-    indexes.insert(10, "mem-10", &emb1, 0.3).unwrap();
-    indexes.insert(20, "mem-20", &emb2, 0.7).unwrap();
+    indexes.insert_atomic(10, "mem-10", &emb1, 0.3).unwrap();
+    indexes.insert_atomic(20, "mem-20", &emb2, 0.7).unwrap();
 
     let mut buffer = Vec::new();
     indexes.serialize(&mut buffer).unwrap();
@@ -92,7 +92,7 @@ fn search_merges_across_three_indexes() {
         action: vec![0.0, 1.0, 0.0, 0.0],
         result: vec![0.0, 0.0, 1.0, 0.0],
     };
-    indexes.insert(1, "mem-1", &embedding, 0.5).unwrap();
+    indexes.insert_atomic(1, "mem-1", &embedding, 0.5).unwrap();
 
     let results_by_context = indexes.search(&[1.0, 0.0, 0.0, 0.0], 5).unwrap();
     let results_by_action = indexes.search(&[0.0, 1.0, 0.0, 0.0], 5).unwrap();
@@ -107,10 +107,64 @@ fn search_merges_across_three_indexes() {
 }
 
 #[test]
-fn duplicate_insert_returns_error() {
+fn insert_atomic_rejects_hash_collision() {
     let mut indexes = IndexSet::new(test_params).unwrap();
     let embedding = make_embedding([1.0, 0.0, 0.0, 0.0]);
-    indexes.insert(1, "mem-1", &embedding, 0.5).unwrap();
-    let result = indexes.insert(1, "mem-1", &embedding, 0.5);
-    assert!(result.is_err());
+    indexes.insert_atomic(7, "mem-1", &embedding, 0.5).unwrap();
+
+    let result = indexes.insert_atomic(7, "mem-2", &embedding, 0.5);
+    match result {
+        Err(CoreError::IndexHashCollision {
+            hash,
+            existing_id,
+            conflicting_id,
+        }) => {
+            assert_eq!(hash, 7);
+            assert_eq!(existing_id, "mem-1");
+            assert_eq!(conflicting_id, "mem-2");
+        }
+        other => panic!("expected IndexHashCollision, got {other:?}"),
+    }
+    assert_eq!(indexes.resolve_node_id(7), Some("mem-1"));
+}
+
+#[test]
+fn insert_atomic_is_idempotent_for_same_memory_id() {
+    let mut indexes = IndexSet::new(test_params).unwrap();
+    let embedding = make_embedding([1.0, 0.0, 0.0, 0.0]);
+    indexes.insert_atomic(3, "mem-1", &embedding, 0.5).unwrap();
+    indexes.insert_atomic(3, "mem-1", &embedding, 0.5).unwrap();
+
+    assert!(indexes.contains(3));
+    assert_eq!(indexes.len(), 1);
+    assert_eq!(indexes.resolve_node_id(3), Some("mem-1"));
+}
+
+#[test]
+fn insert_atomic_rolls_back_when_a_graph_fails() {
+    let mut indexes = IndexSet::new(test_params).unwrap();
+    // context/action match the index dimension (4); result has the wrong
+    // dimension, so the third graph insert fails after the first two succeed.
+    let embedding = ThreeFieldEmbedding {
+        context: vec![1.0, 0.0, 0.0, 0.0],
+        action: vec![0.0, 1.0, 0.0, 0.0],
+        result: vec![0.0, 0.0, 1.0],
+    };
+
+    let result = indexes.insert_atomic(5, "mem-1", &embedding, 0.5);
+    match result {
+        Err(CoreError::Hnsw(_)) => {}
+        other => panic!("expected wrapped Hnsw error, got {other:?}"),
+    }
+
+    // Without rollback, context_index would still hold id 5 (contains() and
+    // is_empty() inspect the context graph).
+    assert!(!indexes.contains(5));
+    assert!(indexes.is_empty());
+    assert_eq!(indexes.resolve_node_id(5), None);
+
+    // The merged search also covers the action graph: a query matching the
+    // action vector must return nothing, proving action_index was rolled back.
+    let action_hits = indexes.search(&[0.0, 1.0, 0.0, 0.0], 5).unwrap();
+    assert!(action_hits.is_empty());
 }

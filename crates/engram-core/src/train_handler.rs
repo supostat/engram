@@ -8,6 +8,7 @@ use engram_storage::Memory;
 use crate::config::expand_tilde;
 use crate::error::CoreError;
 use crate::export_handler::memory_to_portable_json;
+use crate::lock_helpers;
 use crate::server::ServerState;
 use crate::tags_normalize::{TagsInput, normalize_tags};
 use crate::timestamp::current_utc_timestamp;
@@ -77,7 +78,7 @@ pub async fn handle_generate(state: &Arc<ServerState>, _params: Value) -> Result
 pub async fn handle_list(state: &Arc<ServerState>, _params: Value) -> Result<Value, CoreError> {
     let state_clone = Arc::clone(state);
     tokio::task::spawn_blocking(move || {
-        let database = state_clone.database.lock().unwrap();
+        let database = lock_helpers::lock_db(&state_clone);
         let insights = query_active_insights(&database)?;
         let count = insights.len();
         let serialized: Vec<Value> = insights.iter().map(memory_to_portable_json).collect();
@@ -93,7 +94,7 @@ pub async fn handle_delete(state: &Arc<ServerState>, params: Value) -> Result<Va
     let insight_id = parsed.id;
     let state_clone = Arc::clone(state);
     tokio::task::spawn_blocking(move || {
-        let database = state_clone.database.lock().unwrap();
+        let database = lock_helpers::lock_db(&state_clone);
         let memory = database.get_memory(&insight_id)?;
         if memory.memory_type != INSIGHT_MEMORY_TYPE {
             return Err(CoreError::DispatchError(format!(
@@ -202,7 +203,7 @@ async fn insert_generated_insights(
     }
     let state_clone = Arc::clone(state);
     tokio::task::spawn_blocking(move || {
-        let database = state_clone.database.lock().unwrap();
+        let database = lock_helpers::lock_db(&state_clone);
         database.bulk_insert_memories(&insights)?;
         Ok::<u64, CoreError>(count)
     })

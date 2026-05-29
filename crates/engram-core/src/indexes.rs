@@ -28,19 +28,41 @@ impl IndexSet {
         })
     }
 
-    pub fn insert(
+    pub fn insert_atomic(
         &mut self,
         id: u64,
         memory_id: &str,
         embedding: &ThreeFieldEmbedding,
         rng_value: f64,
-    ) -> Result<(), HnswError> {
+    ) -> Result<(), CoreError> {
+        if let Some(existing_id) = self.id_map.get(&id) {
+            if existing_id == memory_id {
+                return Ok(());
+            }
+            return Err(CoreError::IndexHashCollision {
+                hash: id,
+                existing_id: existing_id.clone(),
+                conflicting_id: memory_id.to_string(),
+            });
+        }
+
         self.context_index
             .insert(id, embedding.context.clone(), rng_value)?;
-        self.action_index
-            .insert(id, embedding.action.clone(), rng_value)?;
-        self.result_index
-            .insert(id, embedding.result.clone(), rng_value)?;
+        if let Err(error) = self
+            .action_index
+            .insert(id, embedding.action.clone(), rng_value)
+        {
+            let _ = self.context_index.delete(id);
+            return Err(CoreError::from(error));
+        }
+        if let Err(error) = self
+            .result_index
+            .insert(id, embedding.result.clone(), rng_value)
+        {
+            let _ = self.context_index.delete(id);
+            let _ = self.action_index.delete(id);
+            return Err(CoreError::from(error));
+        }
         self.id_map.insert(id, memory_id.to_string());
         Ok(())
     }

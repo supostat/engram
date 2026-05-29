@@ -14,6 +14,7 @@ use crate::config::{self, Config};
 use crate::dispatch;
 use crate::error::CoreError;
 use crate::indexes::IndexSet;
+use crate::lock_helpers;
 use crate::protocol::{JsonRequest, JsonResponse};
 
 const PROJECT_DB_RELATIVE: &str = ".engram/engram.db";
@@ -51,7 +52,7 @@ pub async fn run(config: Config) -> Result<(), CoreError> {
             .map_err(|error| CoreError::SocketError(error.to_string()))??
     };
     {
-        let database = state.database.lock().unwrap();
+        let database = lock_helpers::lock_db(&state);
         let configured_model = config
             .embedding
             .model
@@ -226,7 +227,7 @@ fn spawn_background_reindex(state: Arc<ServerState>) {
 /// API contract; may change or be removed without notice.
 #[doc(hidden)]
 pub fn reindex_unindexed_memories(state: &ServerState) {
-    let database = state.database.lock().unwrap();
+    let database = lock_helpers::lock_db(state);
     let unindexed = match query_unindexed_ids(&database) {
         Ok(ids) => ids,
         Err(_) => return,
@@ -234,7 +235,7 @@ pub fn reindex_unindexed_memories(state: &ServerState) {
     if unindexed.is_empty() {
         return;
     }
-    let mut indexes = state.indexes.write().unwrap();
+    let mut indexes = lock_helpers::write_indexes(state);
     for memory_id in &unindexed {
         let _ = reindex_single_memory(&database, &mut indexes, memory_id);
     }
@@ -265,7 +266,7 @@ fn reindex_single_memory(
     let id_hash = crate::persistence::hash_string_to_u64(memory_id);
     let rng_value = crate::persistence::deterministic_rng(id_hash);
     if !indexes.contains(id_hash) {
-        indexes.insert(id_hash, memory_id, &embedding, rng_value)?;
+        indexes.insert_atomic(id_hash, memory_id, &embedding, rng_value)?;
     }
     database.set_memory_indexed(memory_id, true)?;
     Ok(())
@@ -333,6 +334,7 @@ fn error_code(error: &CoreError) -> u32 {
         CoreError::MigrationSourceNotFound => 6018,
         CoreError::MigrationFailed(_) => 6019,
         CoreError::EmbeddingModelMismatch { .. } => 6020,
+        CoreError::IndexHashCollision { .. } => 6021,
         CoreError::Storage(_) => 1000,
         CoreError::Hnsw(_) => 3000,
         CoreError::Api(_) => 2000,
@@ -342,7 +344,7 @@ fn error_code(error: &CoreError) -> u32 {
 
 fn save_indexes_on_shutdown(state: &Arc<ServerState>) -> Result<(), CoreError> {
     let index_directory = resolve_index_directory(&state.database_path);
-    let indexes = state.indexes.read().unwrap();
+    let indexes = lock_helpers::read_indexes(state);
     crate::persistence::save_to_disk(&index_directory, &indexes)
 }
 

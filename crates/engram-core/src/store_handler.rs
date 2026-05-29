@@ -6,6 +6,7 @@ use serde_json::{Value, json};
 use engram_storage::Memory;
 
 use crate::error::CoreError;
+use crate::lock_helpers;
 use crate::persistence::f32_vec_to_bytes;
 use crate::server::ServerState;
 use crate::tags_normalize::{TagsInput, normalize_tags};
@@ -34,8 +35,8 @@ pub async fn handle(state: &Arc<ServerState>, params: Value) -> Result<Value, Co
     let timestamp = current_utc_timestamp();
     let embedding = compute_embedding(state, &parsed).await?;
     let memory = build_memory(&memory_id, &timestamp, &parsed, normalized_tags, &embedding);
-    persist_memory(state, &memory, &memory_id, &embedding).await?;
-    Ok(json!({ "id": memory_id, "indexed": true }))
+    let indexed = persist_memory(state, &memory, &memory_id, &embedding).await?;
+    Ok(json!({ "id": memory_id, "indexed": indexed }))
 }
 
 async fn compute_embedding(
@@ -82,7 +83,7 @@ fn build_memory(
         embedding_context: Some(f32_vec_to_bytes(&embedding.context)),
         embedding_action: Some(f32_vec_to_bytes(&embedding.action)),
         embedding_result: Some(f32_vec_to_bytes(&embedding.result)),
-        indexed: true,
+        indexed: false,
         tags: normalized_tags,
         project: params.project.clone(),
         parent_id: None,
@@ -96,22 +97,52 @@ fn build_memory(
     }
 }
 
+/// Persists the memory to SQLite (the source of truth, written with
+/// `indexed=false`) and then attempts the HNSW index write. Returns the
+/// truthful final `indexed` state: `true` only after the HNSW write is
+/// confirmed and the row is marked indexed. A transient HNSW failure leaves
+/// the row at `indexed=false` for background reindex to recover; a hash
+/// collision is non-recoverable and propagates.
 async fn persist_memory(
     state: &Arc<ServerState>,
     memory: &Memory,
     memory_id: &str,
     embedding: &engram_embeddings::ThreeFieldEmbedding,
-) -> Result<(), CoreError> {
+) -> Result<bool, CoreError> {
+    insert_row(state, memory).await?;
+    match attempt_index(state, memory_id, embedding).await? {
+        Ok(()) => {
+            mark_indexed(state, memory_id).await?;
+            Ok(true)
+        }
+        Err(collision @ CoreError::IndexHashCollision { .. }) => Err(collision),
+        Err(transient) => {
+            eprintln!(
+                "warning: HNSW index write failed for {memory_id}, \
+                 left unindexed for background reindex: {transient}"
+            );
+            Ok(false)
+        }
+    }
+}
+
+async fn insert_row(state: &Arc<ServerState>, memory: &Memory) -> Result<(), CoreError> {
     let memory_owned = memory.clone();
     let state_db = Arc::clone(state);
     tokio::task::spawn_blocking(move || {
-        let database = state_db.database.lock().unwrap();
+        let database = lock_helpers::lock_db(&state_db);
         database.insert_memory(&memory_owned)?;
         Ok::<(), CoreError>(())
     })
     .await
-    .map_err(|error| CoreError::SocketError(error.to_string()))??;
+    .map_err(|error| CoreError::SocketError(error.to_string()))?
+}
 
+async fn attempt_index(
+    state: &Arc<ServerState>,
+    memory_id: &str,
+    embedding: &engram_embeddings::ThreeFieldEmbedding,
+) -> Result<Result<(), CoreError>, CoreError> {
     let hashed_id = hash_string_to_u64(memory_id);
     let rng_value = deterministic_rng(hashed_id);
     let memory_id_owned = memory_id.to_string();
@@ -122,14 +153,23 @@ async fn persist_memory(
     };
     let state_idx = Arc::clone(state);
     tokio::task::spawn_blocking(move || {
-        let mut indexes = state_idx.indexes.write().unwrap();
-        indexes.insert(hashed_id, &memory_id_owned, &embedding_owned, rng_value)?;
+        let mut indexes = lock_helpers::write_indexes(&state_idx);
+        indexes.insert_atomic(hashed_id, &memory_id_owned, &embedding_owned, rng_value)
+    })
+    .await
+    .map_err(|error| CoreError::SocketError(error.to_string()))
+}
+
+async fn mark_indexed(state: &Arc<ServerState>, memory_id: &str) -> Result<(), CoreError> {
+    let memory_id_owned = memory_id.to_string();
+    let state_db = Arc::clone(state);
+    tokio::task::spawn_blocking(move || {
+        let database = lock_helpers::lock_db(&state_db);
+        database.set_memory_indexed(&memory_id_owned, true)?;
         Ok::<(), CoreError>(())
     })
     .await
-    .map_err(|error| CoreError::SocketError(error.to_string()))??;
-
-    Ok(())
+    .map_err(|error| CoreError::SocketError(error.to_string()))?
 }
 
 const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;

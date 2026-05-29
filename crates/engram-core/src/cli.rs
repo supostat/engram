@@ -6,6 +6,7 @@ use serde_json::Value;
 use crate::config;
 use crate::dispatch;
 use crate::error::CoreError;
+use crate::lock_helpers;
 use crate::output::{OutputFormat, format_output};
 use crate::persistence;
 use crate::server::{
@@ -76,6 +77,6 @@ fn save_indexes_if_mutating(method: &str, state: &Arc<ServerState>) -> Result<()
         return Ok(());
     }
     let index_directory = resolve_index_directory(&state.database_path);
-    let indexes = state.indexes.read().unwrap();
+    let indexes = lock_helpers::read_indexes(state);
     persistence::save_to_disk(&index_directory, &indexes)
 }

@@ -14,6 +14,7 @@ use engram_storage::Database;
 
 use crate::config::home_directory;
 use crate::error::CoreError;
+use crate::lock_helpers;
 use crate::output::{OutputFormat, format_output};
 use crate::server::ServerState;
 
@@ -71,7 +72,7 @@ async fn run_dispatch(
     let state_clone = Arc::clone(state);
     tokio::task::spawn_blocking(move || {
         let source = Database::open_read_only(&source_path)?;
-        let dest = state_clone.database.lock().unwrap();
+        let dest = lock_helpers::lock_db(&state_clone);
         let stats = perform_migration_impl(&source, &dest, project_hint.as_deref(), all, dry_run)?;
         Ok::<Value, CoreError>(stats.to_json(dry_run, all, project_hint.as_deref()))
     })

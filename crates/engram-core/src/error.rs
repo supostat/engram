@@ -36,6 +36,11 @@ pub enum CoreError {
         stored: String,
         configured: String,
     },
+    IndexHashCollision {
+        hash: u64,
+        existing_id: String,
+        conflicting_id: String,
+    },
     Consolidation(ConsolidateError),
 }
 
@@ -118,6 +123,16 @@ impl fmt::Display for CoreError {
                 write!(
                     formatter,
                     "[6020] embedding model mismatch: database was last embedded with `{stored}`, but config specifies `{configured}`. Run `engram reembed` to re-compute embeddings, then restart the daemon."
+                )
+            }
+            Self::IndexHashCollision {
+                hash,
+                existing_id,
+                conflicting_id,
+            } => {
+                write!(
+                    formatter,
+                    "[6021] index hash collision: hash {hash:#x} already mapped to '{existing_id}', refusing '{conflicting_id}'"
                 )
             }
             Self::Storage(error) => error.fmt(formatter),

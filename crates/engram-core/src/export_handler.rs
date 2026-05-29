@@ -5,13 +5,14 @@ use serde_json::{Value, json};
 use engram_storage::Memory;
 
 use crate::error::CoreError;
+use crate::lock_helpers;
 use crate::server::ServerState;
 use crate::timestamp::current_utc_timestamp;
 
 pub async fn handle(state: &Arc<ServerState>, _params: Value) -> Result<Value, CoreError> {
     let state_clone = Arc::clone(state);
     tokio::task::spawn_blocking(move || {
-        let database = state_clone.database.lock().unwrap();
+        let database = lock_helpers::lock_db(&state_clone);
         let memories = query_active_memories(&database)?;
         let exported_at = current_utc_timestamp();
         let count = memories.len();

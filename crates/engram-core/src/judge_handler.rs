@@ -6,6 +6,7 @@ use serde_json::{Value, json};
 use engram_judge::{CombinedJudge, JudgeInput};
 
 use crate::error::CoreError;
+use crate::lock_helpers;
 use crate::server::ServerState;
 use crate::timestamp::{current_utc_timestamp, parse_timestamp_to_epoch};
 
@@ -46,7 +47,7 @@ async fn apply_explicit_score(
     let id_owned = memory_id.to_string();
     let state_clone = Arc::clone(state);
     tokio::task::spawn_blocking(move || {
-        let database = state_clone.database.lock().unwrap();
+        let database = lock_helpers::lock_db(&state_clone);
         database.set_memory_score(&id_owned, score)?;
         let timestamp = current_utc_timestamp();
         database.mark_judged(&id_owned, &timestamp)?;
@@ -70,7 +71,7 @@ async fn compute_and_apply_score(
     let query_owned = query.to_string();
     let state_clone = Arc::clone(state);
     let result = tokio::task::spawn_blocking(move || {
-        let database = state_clone.database.lock().unwrap();
+        let database = lock_helpers::lock_db(&state_clone);
         let memory = database.get_memory(&id_owned)?;
         let judge_input = build_judge_input(&memory);
         let judge = match state_clone.text_generator.as_deref() {

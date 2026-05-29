@@ -87,7 +87,7 @@ fn seed_one_memory(state: &Arc<ServerState>) {
     };
     let mut indexes = state.indexes.write().unwrap();
     indexes
-        .insert(1, "seed-memory-id", &embedding, 0.5)
+        .insert_atomic(1, "seed-memory-id", &embedding, 0.5)
         .expect("seed insert");
 }
 

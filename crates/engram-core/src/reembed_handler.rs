@@ -7,6 +7,7 @@ use engram_embeddings::ThreeFieldEmbedding;
 use engram_storage::Memory;
 
 use crate::error::CoreError;
+use crate::lock_helpers;
 use crate::persistence::{deterministic_rng, f32_vec_to_bytes, hash_string_to_u64};
 use crate::server::ServerState;
 
@@ -33,7 +34,7 @@ pub async fn handle(state: &Arc<ServerState>, params: Value) -> Result<Value, Co
 
 fn run_reembed(state: Arc<ServerState>) -> Result<Value, CoreError> {
     let memories = {
-        let database = state.database.lock().unwrap();
+        let database = lock_helpers::lock_db(&state);
         database.list_all_memories().map_err(CoreError::Storage)?
     };
     let total = memories.len();
@@ -64,7 +65,7 @@ fn run_reembed(state: Arc<ServerState>) -> Result<Value, CoreError> {
     }
 
     if failed == 0 {
-        let database = state.database.lock().unwrap();
+        let database = lock_helpers::lock_db(&state);
         crate::migrations::embedding_model_v1::record(&database, &model)?;
     }
 
@@ -120,15 +121,13 @@ fn replace_in_hnsw(
     memory_id: &str,
     embedding: &ThreeFieldEmbedding,
 ) -> Result<(), CoreError> {
-    let mut indexes = state.indexes.write().unwrap();
+    let mut indexes = lock_helpers::write_indexes(state);
     let hashed = hash_string_to_u64(memory_id);
     if indexes.contains(hashed) {
         indexes.delete(hashed).map_err(CoreError::Hnsw)?;
     }
     let rng_value = deterministic_rng(hashed);
-    indexes
-        .insert(hashed, memory_id, embedding, rng_value)
-        .map_err(CoreError::Hnsw)
+    indexes.insert_atomic(hashed, memory_id, embedding, rng_value)
 }
 
 fn persist_embeddings(
@@ -136,7 +135,7 @@ fn persist_embeddings(
     memory_id: &str,
     embedding: &ThreeFieldEmbedding,
 ) -> Result<(), CoreError> {
-    let database = state.database.lock().unwrap();
+    let database = lock_helpers::lock_db(state);
     database
         .set_memory_embeddings(
             memory_id,
@@ -151,7 +150,7 @@ fn persist_embeddings(
 }
 
 fn mark_for_retry(state: &Arc<ServerState>, memory_id: &str) -> Result<(), CoreError> {
-    let database = state.database.lock().unwrap();
+    let database = lock_helpers::lock_db(state);
     database
         .set_memory_indexed(memory_id, false)
         .map_err(CoreError::Storage)

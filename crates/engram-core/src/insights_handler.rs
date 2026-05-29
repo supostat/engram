@@ -7,6 +7,7 @@ use engram_storage::Memory;
 
 use crate::error::CoreError;
 use crate::export_handler::memory_to_portable_json;
+use crate::lock_helpers;
 use crate::server::ServerState;
 
 #[derive(Deserialize)]
@@ -33,7 +34,7 @@ pub async fn handle(state: &Arc<ServerState>, params: Value) -> Result<Value, Co
 async fn handle_list(state: &Arc<ServerState>) -> Result<Value, CoreError> {
     let state_clone = Arc::clone(state);
     tokio::task::spawn_blocking(move || {
-        let database = state_clone.database.lock().unwrap();
+        let database = lock_helpers::lock_db(&state_clone);
         let insights = query_active_insights(&database)?;
         let count = insights.len();
         let serialized: Vec<Value> = insights.iter().map(memory_to_portable_json).collect();
@@ -48,7 +49,7 @@ async fn handle_delete(state: &Arc<ServerState>, id: Option<String>) -> Result<V
         id.ok_or_else(|| CoreError::DispatchError("delete requires 'id' parameter".into()))?;
     let state_clone = Arc::clone(state);
     tokio::task::spawn_blocking(move || {
-        let database = state_clone.database.lock().unwrap();
+        let database = lock_helpers::lock_db(&state_clone);
         let memory = database.get_memory(&insight_id)?;
         if memory.memory_type != "insight" {
             return Err(CoreError::DispatchError(format!(

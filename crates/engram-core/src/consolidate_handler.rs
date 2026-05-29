@@ -4,6 +4,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 
 use crate::error::CoreError;
+use crate::lock_helpers;
 use crate::server::ServerState;
 
 const MAX_STALE_DAYS: u32 = 3650;
@@ -26,7 +27,7 @@ pub async fn handle_preview(state: &Arc<ServerState>, params: Value) -> Result<V
     validate_consolidation_params(stale_days, min_score)?;
     let state_clone = Arc::clone(state);
     let result = tokio::task::spawn_blocking(move || {
-        let database = state_clone.database.lock().unwrap();
+        let database = lock_helpers::lock_db(&state_clone);
         let preview = engram_consolidate::preview(&database, stale_days, min_score)?;
         Ok::<_, CoreError>(json!({
             "duplicates": preview.duplicates.len(),
@@ -54,7 +55,7 @@ pub async fn handle_analyze(state: &Arc<ServerState>, params: Value) -> Result<V
     validate_consolidation_params(stale_days, min_score)?;
     let state_clone = Arc::clone(state);
     let result = tokio::task::spawn_blocking(move || {
-        let database = state_clone.database.lock().unwrap();
+        let database = lock_helpers::lock_db(&state_clone);
         let preview = engram_consolidate::preview(&database, stale_days, min_score)?;
         let text_gen_ref = state_clone
             .text_generator
@@ -89,7 +90,7 @@ pub async fn handle_apply(state: &Arc<ServerState>, params: Value) -> Result<Val
     validate_consolidation_params(stale_days, min_score)?;
     let state_clone = Arc::clone(state);
     let result = tokio::task::spawn_blocking(move || {
-        let database = state_clone.database.lock().unwrap();
+        let database = lock_helpers::lock_db(&state_clone);
         let preview = engram_consolidate::preview(&database, stale_days, min_score)?;
         let text_gen_ref = state_clone
             .text_generator

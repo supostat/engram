@@ -6,6 +6,7 @@ use serde_json::{Value, json};
 use engram_storage::Memory;
 
 use crate::error::CoreError;
+use crate::lock_helpers;
 use crate::server::ServerState;
 use crate::tags_normalize::{TagsInput, normalize_tags};
 
@@ -42,7 +43,7 @@ pub async fn handle(state: &Arc<ServerState>, params: Value) -> Result<Value, Co
     }
     let state_clone = Arc::clone(state);
     tokio::task::spawn_blocking(move || {
-        let database = state_clone.database.lock().unwrap();
+        let database = lock_helpers::lock_db(&state_clone);
         let (imported, skipped) = insert_non_duplicate_memories(&database, &parsed.memories)?;
         Ok::<Value, CoreError>(json!({ "imported": imported, "skipped": skipped }))
     })

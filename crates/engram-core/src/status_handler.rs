@@ -5,16 +5,17 @@ use serde_json::{Value, json};
 
 use crate::config::{Config, expand_tilde};
 use crate::error::CoreError;
+use crate::lock_helpers;
 use crate::server::ServerState;
 
 pub async fn handle(state: &Arc<ServerState>, _params: Value) -> Result<Value, CoreError> {
     let state_clone = Arc::clone(state);
     tokio::task::spawn_blocking(move || {
-        let database = state_clone.database.lock().unwrap();
+        let database = lock_helpers::lock_db(&state_clone);
         let memory_count = count_memories(&database)?;
         let indexed_count = count_indexed_memories(&database)?;
         let pending_judgments = database.get_pending_judgments(usize::MAX)?.len();
-        let index_size = state_clone.indexes.read().unwrap().len();
+        let index_size = lock_helpers::read_indexes(&state_clone).len();
         let hints = build_hints(
             &state_clone.config,
             &state_clone.database_path,
