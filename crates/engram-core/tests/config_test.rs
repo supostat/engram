@@ -557,3 +557,37 @@ fn load_invalid_global_returns_parse_error() {
 
     assert!(matches!(result, Err(CoreError::ConfigParseError(_))));
 }
+
+#[test]
+fn load_deduplication_threshold_round_trips() {
+    let _lock = lock_env();
+    let _environment = ConfigLoadEnvironment::capture();
+    let home = tempdir().expect("home");
+    let project = tempdir().expect("project");
+    write_global_config(
+        home.path(),
+        &format!("{FULL_GLOBAL_CONFIG}\n[deduplication]\nthreshold = 0.88\n"),
+    );
+    ConfigLoadEnvironment::redirect(home.path(), project.path());
+
+    let config = Config::load().expect("config with [deduplication] loads");
+
+    assert_eq!(config.deduplication.threshold, 0.88);
+}
+
+#[test]
+fn load_without_deduplication_section_uses_default() {
+    let _lock = lock_env();
+    let _environment = ConfigLoadEnvironment::capture();
+    let home = tempdir().expect("home");
+    let project = tempdir().expect("project");
+    // `FULL_GLOBAL_CONFIG` has no `[deduplication]` section — regression guard
+    // for the `#[serde(default)]` requirement. Existing on-disk configs written
+    // before this section existed must still deserialize.
+    write_global_config(home.path(), FULL_GLOBAL_CONFIG);
+    ConfigLoadEnvironment::redirect(home.path(), project.path());
+
+    let config = Config::load().expect("config without [deduplication] still loads");
+
+    assert_eq!(config.deduplication.threshold, 0.95);
+}

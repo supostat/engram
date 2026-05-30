@@ -41,6 +41,7 @@ pub enum CoreError {
         existing_id: String,
         conflicting_id: String,
     },
+    ConfigValidation(String),
     Consolidation(ConsolidateError),
 }
 
@@ -134,6 +135,9 @@ impl fmt::Display for CoreError {
                     formatter,
                     "[6021] index hash collision: hash {hash:#x} already mapped to '{existing_id}', refusing '{conflicting_id}'"
                 )
+            }
+            Self::ConfigValidation(message) => {
+                write!(formatter, "[6022] invalid configuration: {message}")
             }
             Self::Storage(error) => error.fmt(formatter),
             Self::Hnsw(error) => error.fmt(formatter),

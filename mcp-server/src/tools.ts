@@ -4,6 +4,12 @@ import { SocketError } from "./types.js";
 
 export const TOOL_DEFINITIONS = [
   {
+    // The daemon's memory_store response always carries `id` and `indexed`, and
+    // since write-time deduplication it also carries `deduplicated` (boolean).
+    // When `deduplicated` is true the response additionally carries `merged_into`
+    // (the id of the pre-existing duplicate the write was folded into). These
+    // fields are passed through verbatim by executeTool's JSON.stringify — there
+    // is no output schema that would strip them, so no schema is declared here.
     name: "memory_store",
     description: "Store a new memory (decision, pattern, bugfix, context, antipattern)",
     schema: z.object({

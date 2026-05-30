@@ -85,6 +85,7 @@ pub(crate) fn initialize_state(
     project_dir: &Path,
     home_dir: &Path,
 ) -> Result<ServerState, CoreError> {
+    crate::config::validate_dedup_threshold(config.deduplication.threshold)?;
     check_legacy_database(project_dir, home_dir)?;
     let database_path = resolve_database_path(project_dir);
     let database = Database::open(&database_path)?;
@@ -335,6 +336,7 @@ fn error_code(error: &CoreError) -> u32 {
         CoreError::MigrationFailed(_) => 6019,
         CoreError::EmbeddingModelMismatch { .. } => 6020,
         CoreError::IndexHashCollision { .. } => 6021,
+        CoreError::ConfigValidation(_) => 6022,
         CoreError::Storage(_) => 1000,
         CoreError::Hnsw(_) => 3000,
         CoreError::Api(_) => 2000,

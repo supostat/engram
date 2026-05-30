@@ -101,18 +101,35 @@ async fn store_search_judge_status_cycle() {
     assert_eq!(status["indexed_count"], 1);
 }
 
+// Write-time deduplication folds away near-identical memories. The deterministic
+// provider would treat field text differing only by a trailing digit as a ~0.999
+// duplicate, so a roundtrip of N memories must store N genuinely distinct ones.
+const ROUNDTRIP_MEMORIES: [(&str, &str, &str); 3] = [
+    (
+        "migrated the build pipeline to a hermetic sandbox",
+        "pinned every toolchain version inside the container image",
+        "reproducible builds eliminated works-on-my-machine reports",
+    ),
+    (
+        "adopted structured logging across the request handlers",
+        "emitted correlation identifiers on every span boundary",
+        "incident triage time dropped sharply for distributed traces",
+    ),
+    (
+        "replaced polling with a websocket push notification channel",
+        "subscribed clients to topic-scoped server-sent updates",
+        "perceived freshness improved while backend load decreased",
+    ),
+];
+
 #[tokio::test]
 async fn store_export_import_roundtrip() {
     let state = build_deterministic_state();
-    for i in 0..3 {
+    for (context, action, result) in ROUNDTRIP_MEMORIES {
         dispatch::route(
             "memory_store",
             &state,
-            make_store_params(
-                &format!("roundtrip context {i}"),
-                &format!("roundtrip action {i}"),
-                &format!("roundtrip result {i}"),
-            ),
+            make_store_params(context, action, result),
         )
         .await
         .expect("store should succeed");
@@ -135,7 +152,7 @@ async fn store_export_import_roundtrip() {
         "memory_search",
         &fresh_state,
         json!({
-            "query": "roundtrip context",
+            "query": "hermetic reproducible build pipeline toolchain",
             "limit": 10,
         }),
     )

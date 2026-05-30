@@ -36,6 +36,7 @@ const DEFAULT_HNSW_EF_CONSTRUCTION: usize = 200;
 const DEFAULT_HNSW_EF_SEARCH: usize = 40;
 const DEFAULT_CONSOLIDATION_STALE_DAYS: u32 = 90;
 const DEFAULT_CONSOLIDATION_MIN_SCORE: f64 = 0.3;
+const DEFAULT_DEDUP_THRESHOLD: f32 = 0.95;
 const DEFAULT_TRAINER_BINARY: &str = "engram-trainer";
 const DEFAULT_TRAINER_TIMEOUT_SECS: u64 = 300;
 const DEFAULT_MODELS_PATH: &str = "~/.engram/models";
@@ -50,6 +51,8 @@ pub struct Config {
     pub hnsw: HnswConfig,
     #[serde(default)]
     pub consolidation: ConsolidationConfig,
+    #[serde(default)]
+    pub deduplication: DeduplicationConfig,
     #[serde(default)]
     pub trainer: TrainerConfig,
 }
@@ -112,6 +115,11 @@ pub struct ConsolidationConfig {
 }
 
 #[derive(Serialize, Deserialize, Clone)]
+pub struct DeduplicationConfig {
+    pub threshold: f32,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
 pub struct TrainerConfig {
     pub trainer_binary: String,
     pub trainer_timeout_secs: u64,
@@ -135,6 +143,27 @@ impl Default for ConsolidationConfig {
             min_score: DEFAULT_CONSOLIDATION_MIN_SCORE,
         }
     }
+}
+
+impl Default for DeduplicationConfig {
+    fn default() -> Self {
+        Self {
+            threshold: DEFAULT_DEDUP_THRESHOLD,
+        }
+    }
+}
+
+/// Validates a configured deduplication threshold lies in the half-open
+/// cosine-similarity range `(0.0, 1.0]`. A threshold of `0.0` or below would
+/// treat unrelated memories as duplicates; above `1.0` is unreachable for
+/// normalized embeddings and signals a misconfiguration.
+pub fn validate_dedup_threshold(threshold: f32) -> Result<(), CoreError> {
+    if threshold > 0.0 && threshold <= 1.0 {
+        return Ok(());
+    }
+    Err(CoreError::ConfigValidation(format!(
+        "deduplication.threshold must be in (0.0, 1.0], got {threshold}"
+    )))
 }
 
 impl Config {
@@ -324,6 +353,7 @@ impl Default for Config {
                 dimension: DEFAULT_EMBEDDING_DIMENSION,
             },
             consolidation: ConsolidationConfig::default(),
+            deduplication: DeduplicationConfig::default(),
             trainer: TrainerConfig::default(),
         }
     }
@@ -493,5 +523,41 @@ mod tests {
         "#;
         let config: EmbeddingConfig = toml::from_str(toml_input).unwrap();
         assert_eq!(config.output_dimension, Some(1024));
+    }
+
+    #[test]
+    fn default_dedup_threshold_is_documented_default() {
+        assert_eq!(Config::default().deduplication.threshold, 0.95);
+    }
+
+    #[test]
+    fn validate_dedup_threshold_rejects_zero() {
+        let error = validate_dedup_threshold(0.0).expect_err("zero is out of range");
+        assert!(matches!(error, CoreError::ConfigValidation(_)));
+        assert!(error.to_string().contains("[6022]"));
+        assert!(error.to_string().contains("0"));
+    }
+
+    #[test]
+    fn validate_dedup_threshold_rejects_negative() {
+        let error = validate_dedup_threshold(-0.5).expect_err("negative is out of range");
+        assert!(matches!(error, CoreError::ConfigValidation(_)));
+        assert!(error.to_string().contains("-0.5"));
+    }
+
+    #[test]
+    fn validate_dedup_threshold_rejects_above_one() {
+        let error = validate_dedup_threshold(1.0001).expect_err("above 1.0 is out of range");
+        assert!(matches!(error, CoreError::ConfigValidation(_)));
+    }
+
+    #[test]
+    fn validate_dedup_threshold_accepts_one() {
+        validate_dedup_threshold(1.0).expect("1.0 is the inclusive upper bound");
+    }
+
+    #[test]
+    fn validate_dedup_threshold_accepts_tiny_positive() {
+        validate_dedup_threshold(0.0001).expect("any positive within range is accepted");
     }
 }

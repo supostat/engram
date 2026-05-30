@@ -37,6 +37,34 @@ fn build_deterministic_state() -> Arc<ServerState> {
     })
 }
 
+// Write-time deduplication folds away near-identical memories, so a learning
+// series must store memories that are genuinely distinct in all three fields.
+// The deterministic provider concentrates byte signal in low index positions
+// and would treat field text differing only by a trailing digit as a ~0.999
+// duplicate; using a different keyword per memory keeps every pairwise field
+// similarity well below the 0.95 dedup threshold.
+const LEARNING_CONTEXTS: [&str; 5] = [
+    "configured connection pooling for the primary datastore",
+    "tuned the background compaction scheduler thresholds",
+    "introduced read-through caching at the gateway edge",
+    "partitioned the event log across regional shards",
+    "enabled cross-zone replication for durability",
+];
+const LEARNING_ACTIONS: [&str; 5] = [
+    "raised the maximum pool size to fifty handles",
+    "lowered the compaction trigger to nightly windows",
+    "added a least-recently-used eviction policy",
+    "hashed routing keys onto eight independent shards",
+    "streamed the write-ahead log to two standby zones",
+];
+const LEARNING_RESULTS: [&str; 5] = [
+    "connection saturation disappeared under peak load",
+    "disk amplification dropped by half within a week",
+    "gateway tail latency improved noticeably for reads",
+    "hotspotting on the busiest partition was eliminated",
+    "failover recovery time shrank to a few seconds",
+];
+
 #[tokio::test]
 async fn router_state_changes_after_judge_series() {
     let state = build_deterministic_state();
@@ -48,9 +76,9 @@ async fn router_state_changes_after_judge_series() {
             &state,
             json!({
                 "memory_type": "decision",
-                "context": format!("learning context number {index}"),
-                "action": format!("learning action number {index}"),
-                "result": format!("learning result number {index}"),
+                "context": LEARNING_CONTEXTS[index],
+                "action": LEARNING_ACTIONS[index],
+                "result": LEARNING_RESULTS[index],
             }),
         )
         .await
@@ -61,7 +89,7 @@ async fn router_state_changes_after_judge_series() {
             "memory_search",
             &state,
             json!({
-                "query": format!("learning context number {index}"),
+                "query": LEARNING_CONTEXTS[index],
                 "limit": 5,
             }),
         )
@@ -92,7 +120,7 @@ async fn router_state_changes_after_judge_series() {
         "memory_search",
         &state,
         json!({
-            "query": "learning context",
+            "query": "datastore connection pooling and replication tuning",
             "limit": 10,
         }),
     )

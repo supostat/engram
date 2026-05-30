@@ -34,9 +34,67 @@ pub async fn handle(state: &Arc<ServerState>, params: Value) -> Result<Value, Co
     let memory_id = uuid::Uuid::new_v4().to_string();
     let timestamp = current_utc_timestamp();
     let embedding = compute_embedding(state, &parsed).await?;
+    if let Some(existing_id) = find_duplicate_memory(state, &embedding).await? {
+        return deduplicate_into(state, &existing_id, &timestamp).await;
+    }
     let memory = build_memory(&memory_id, &timestamp, &parsed, normalized_tags, &embedding);
     let indexed = persist_memory(state, &memory, &memory_id, &embedding).await?;
-    Ok(json!({ "id": memory_id, "indexed": indexed }))
+    Ok(json!({ "id": memory_id, "indexed": indexed, "deduplicated": false }))
+}
+
+/// Searches the HNSW index for an existing near-duplicate of `embedding` under
+/// the all-three-fields policy. The new memory is not yet in the index, so this
+/// never self-matches. A search error degrades gracefully: it logs one warning
+/// and returns `Ok(None)`, letting the insert proceed rather than failing the
+/// store over a non-fatal dedup hiccup.
+async fn find_duplicate_memory(
+    state: &Arc<ServerState>,
+    embedding: &engram_embeddings::ThreeFieldEmbedding,
+) -> Result<Option<String>, CoreError> {
+    let threshold = state.config.deduplication.threshold;
+    let embedding_owned = engram_embeddings::ThreeFieldEmbedding {
+        context: embedding.context.clone(),
+        action: embedding.action.clone(),
+        result: embedding.result.clone(),
+    };
+    let state_clone = Arc::clone(state);
+    tokio::task::spawn_blocking(move || {
+        let indexes = lock_helpers::read_indexes(&state_clone);
+        match indexes.find_duplicate(&embedding_owned, threshold) {
+            Ok(Some((node, _similarity))) => Ok(indexes.resolve_node_id(node).map(str::to_string)),
+            Ok(None) => Ok(None),
+            Err(hnsw) => {
+                eprintln!("warning: dedup search failed, inserting without dedup: {hnsw}");
+                Ok(None)
+            }
+        }
+    })
+    .await
+    .map_err(|error| CoreError::SocketError(error.to_string()))?
+}
+
+/// Records a hit against the existing duplicate (bumping its `used_count` and
+/// `last_used_at`) instead of inserting a new row, then reports the merge.
+async fn deduplicate_into(
+    state: &Arc<ServerState>,
+    existing_id: &str,
+    timestamp: &str,
+) -> Result<Value, CoreError> {
+    let existing_id_owned = existing_id.to_string();
+    let timestamp_owned = timestamp.to_string();
+    let state_clone = Arc::clone(state);
+    tokio::task::spawn_blocking(move || {
+        lock_helpers::lock_db(&state_clone).touch_memory(&existing_id_owned, &timestamp_owned)?;
+        Ok::<(), CoreError>(())
+    })
+    .await
+    .map_err(|error| CoreError::SocketError(error.to_string()))??;
+    Ok(json!({
+        "id": existing_id,
+        "indexed": true,
+        "deduplicated": true,
+        "merged_into": existing_id,
+    }))
 }
 
 async fn compute_embedding(
