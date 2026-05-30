@@ -25,7 +25,7 @@ Memory system for AI agents. Stores decisions, patterns, and bugfixes with seman
 │  engram-embeddings Voyage/OpenAI + HyDE             │
 │  engram-judge      Heuristic + LLM scoring          │
 │  engram-consolidate Dedup preview/analyze/apply     │
-│  engram-router     Q-Learning (4 levels)            │
+│  engram-router     Adaptive routing (4 levels)      │
 │  engram-llm-client API + local ONNX inference       │
 └─────────────────────────────────────────────────────┘
                │ stdout JSON Lines
@@ -58,7 +58,7 @@ cargo install engram-tui --locked
 engram-tui
 ```
 
-Terminal dashboard with 5 tabs: Status, Memories, Search, Q-Learning, Models. Includes an interactive init wizard for first-time setup.
+Terminal dashboard with 5 tabs: Status, Memories, Search, Routing, Models. Includes an interactive init wizard for first-time setup.
 
 ### MCP Server
 
@@ -91,12 +91,12 @@ engram train generate  # regular models + insights
 
 ## Features
 
-- **Hybrid search** — HNSW vector (cosine) + BM25 sparse (FTS5), alpha-weighted
+- **Hybrid search** — HNSW vector (cosine) + BM25 sparse (FTS5), blended with FIXED weights (0.7 vector / 0.3 sparse); configurable weighting is planned for a later phase
 - **HyDE** — opt-in via `embedding.hyde_threshold > 0` (disabled by default). When enabled, LLM generates a hypothetical memory and embeds the hypothesis instead of the raw query. Cache is keyed by the original query, so repeated calls hit the cache instantly.
-- **Automatic deduplication** — cosine similarity > 0.95 at write time
+- **Automatic deduplication** — at write time a candidate is a duplicate only when all three fields (context, action, result) each have cosine similarity ≥ the dedup threshold (default 0.95)
 - **Consolidation** — preview → LLM analysis → apply (merge/delete/archive)
-- **Q-Learning router** — 4 levels: search strategy, LLM selection, contextualization, proactivity
-- **Three learning loops** — fast (Q-Learning per call), medium (trainer daily/weekly), deep (LoRA fine-tune)
+- **Adaptive routing (contextual bandit)** — 4 levels: search strategy, LLM selection, contextualization, proactivity. The update is `Q ← Q + α(reward − Q)`, an EMA of immediate reward with no state transition and no discounted-future term (γ·max Q(s′,·)) — a contextual bandit over immediate reward, not full reinforcement learning
+- **Three learning loops** — fast (per-call bandit update), medium (trainer daily/weekly), deep (LoRA fine-tune)
 - **Cross-project transfer** — project-scoped search with score multiplier, insights are project-agnostic
 - **Graceful degradation** — every API dependency has a local fallback (FTS for search, heuristics for judge)
 - **Local inference** — optional ONNX runtime for text generation (feature-gated)
@@ -107,7 +107,7 @@ Trainer produces three ONNX models stored in `~/.engram/models/`:
 
 | Model | Size | Algorithm | Purpose |
 |-------|------|-----------|---------|
-| `mode_classifier.onnx` | 13 KB | TF-IDF + LogisticRegression | Classifies query type (query/research/brainstorm/debugging) for Q-Learning router |
+| `mode_classifier.onnx` | 13 KB | TF-IDF + LogisticRegression | Classifies query type (query/research/brainstorm/debugging) for adaptive routing decisions |
 | `ranking_model.onnx` | 23 KB | GradientBoosting | Re-ranks search results by score, usage, recency, length, and tags |
 | `text_generator.onnx` | ~312 MB | DistilGPT2 + LoRA | Local text generation replacing API calls for HyDE and routine operations |
 
@@ -129,7 +129,7 @@ The first two models are trained during regular `engram train generate` runs. Th
 ```
 crates/
   engram-hnsw/          HNSW approximate nearest neighbor search
-  engram-router/        Hierarchical Q-Learning router
+  engram-router/        Hierarchical adaptive routing (contextual bandit)
   engram-storage/       SQLite storage with FTS5
   engram-llm-client/    LLM provider traits (Voyage, OpenAI, local ONNX)
   engram-embeddings/    Three-field embedding with HyDE

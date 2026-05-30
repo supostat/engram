@@ -120,7 +120,7 @@ impl App {
             KeyCode::Char('1') => self.tab = Tab::Status,
             KeyCode::Char('2') => self.tab = Tab::Memories,
             KeyCode::Char('3') => self.tab = Tab::Search,
-            KeyCode::Char('4') => self.tab = Tab::QLearning,
+            KeyCode::Char('4') => self.tab = Tab::Routing,
             KeyCode::Char('5') => self.tab = Tab::Models,
             KeyCode::Char('r') => self.force_refresh(),
             _ => {}

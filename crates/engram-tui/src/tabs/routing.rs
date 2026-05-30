@@ -33,7 +33,7 @@ const ROUTER_LEVELS: &[RouterLevel] = &[
     },
 ];
 
-pub fn render_qlearning_tab(frame: &mut Frame, area: Rect, entries: &[QTableEntry]) {
+pub fn render_routing_tab(frame: &mut Frame, area: Rect, entries: &[QTableEntry]) {
     if entries.is_empty() {
         render_empty_state(frame, area);
         return;
@@ -63,7 +63,7 @@ fn render_empty_state(frame: &mut Frame, area: Rect) {
             Block::default()
                 .borders(Borders::ALL)
                 .border_style(Style::default().fg(theme::MUTED))
-                .title(Span::styled("Q-Learning", Style::default().fg(theme::BLUE))),
+                .title(Span::styled("Routing", Style::default().fg(theme::BLUE))),
         );
     frame.render_widget(message, area);
 }

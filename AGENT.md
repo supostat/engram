@@ -38,7 +38,7 @@ Engram is a memory system for AI agents. Use it to store decisions, patterns, an
 ```
 Optional `tags` (array of strings) filters results to memories that carry **all** specified tags.
 
-**memory_judge** — Rate a memory's quality. Feeds the Q-Learning router to improve future search.
+**memory_judge** — Rate a memory's quality. Feeds the adaptive router (contextual bandit) to improve future search.
 ```json
 {
   "memory_id": "uuid",
@@ -155,7 +155,7 @@ memory_judge({ memory_id: "abc-123", query: "auth middleware", score: 0.9 })
 
 **When to judge:** after completing a task where search results contributed. Judge 1-3 most helpful memories, not all results.
 
-This trains the Q-Learning router — future searches rank proven memories higher.
+This trains the adaptive router (a contextual bandit over immediate reward — `Q ← Q + α(reward − Q)`, an EMA with no state transition and no discounted-future term, so not full reinforcement learning) — future searches rank proven memories higher.
 
 ### Consolidation workflow
 

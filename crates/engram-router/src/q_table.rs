@@ -27,6 +27,10 @@ impl QTable {
     }
 
     /// Q(s,a) = Q(s,a) + alpha * (reward - Q(s,a))
+    ///
+    /// This is an EMA of immediate reward: there is no state transition and no
+    /// discounted-future term (gamma * max Q(s', .)). So this is a contextual
+    /// bandit over immediate reward, not full reinforcement learning.
     pub fn update(&mut self, state: &str, action: &str, reward: f32, alpha: f32) {
         let key = (state.to_string(), action.to_string());
         let is_new = !self.values.contains_key(&key);

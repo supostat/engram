@@ -12,6 +12,8 @@ use crate::lock_helpers;
 use crate::server::ServerState;
 use crate::timestamp::current_utc_timestamp;
 
+// Hybrid-search blend weights are FIXED at 0.7 vector / 0.3 sparse.
+// Configurable per-query weighting is planned for a later phase.
 const VECTOR_WEIGHT: f64 = 0.7;
 const SPARSE_WEIGHT: f64 = 0.3;
 const MAX_QUERY_LENGTH: usize = 5_000;

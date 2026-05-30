@@ -18,7 +18,7 @@ use crate::overlays::{
 };
 use crate::tabs::{
     MemoriesTabState, ModelsTabState, SearchStatus, SearchTabState, render_memories_tab,
-    render_models_tab, render_qlearning_tab, render_search_tab, render_status_tab,
+    render_models_tab, render_routing_tab, render_search_tab, render_status_tab,
 };
 use crate::theme;
 
@@ -30,7 +30,7 @@ pub enum Tab {
     Status,
     Memories,
     Search,
-    QLearning,
+    Routing,
     Models,
 }
 
@@ -39,7 +39,7 @@ impl Tab {
         Tab::Status,
         Tab::Memories,
         Tab::Search,
-        Tab::QLearning,
+        Tab::Routing,
         Tab::Models,
     ];
 
@@ -48,7 +48,7 @@ impl Tab {
             Tab::Status => "Status",
             Tab::Memories => "Memories",
             Tab::Search => "Search",
-            Tab::QLearning => "Q-Learning",
+            Tab::Routing => "Routing",
             Tab::Models => "Models",
         }
     }
@@ -228,7 +228,7 @@ impl App {
             Tab::Status => render_status_tab(frame, area, &self.stats),
             Tab::Memories => render_memories_tab(frame, area, &mut self.memories_state),
             Tab::Search => render_search_tab(frame, area, &mut self.search_state),
-            Tab::QLearning => render_qlearning_tab(frame, area, &self.q_table_entries),
+            Tab::Routing => render_routing_tab(frame, area, &self.q_table_entries),
             Tab::Models => render_models_tab(frame, area, &mut self.models_state),
         }
     }
