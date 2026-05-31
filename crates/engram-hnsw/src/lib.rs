@@ -9,6 +9,6 @@ pub mod serialize;
 pub mod similarity;
 
 pub use error::HnswError;
-pub use graph::{HnswGraph, HnswParams};
+pub use graph::{HnswGraph, HnswParams, NeighborSelection};
 pub use node::Node;
 pub use similarity::cosine_similarity;

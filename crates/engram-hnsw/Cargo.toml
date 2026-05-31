@@ -21,3 +21,7 @@ rand = "0.9"
 [[bench]]
 name = "hnsw_bench"
 harness = false
+
+[[bench]]
+name = "recall_bench"
+harness = false

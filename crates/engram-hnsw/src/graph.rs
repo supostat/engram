@@ -3,6 +3,16 @@ use std::collections::HashMap;
 use crate::error::HnswError;
 use crate::node::Node;
 
+/// Strategy for choosing a node's neighbors out of the construction candidates.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum NeighborSelection {
+    /// Old top-M: keep the `max_neighbors` most similar candidates.
+    Naive,
+    /// Malkov-Yashunin Algorithm 4: diversity-aware selection (default).
+    #[default]
+    Heuristic,
+}
+
 /// HNSW graph parameters.
 pub struct HnswParams {
     /// Max number of connections per node per layer (default: 16)
@@ -15,6 +25,8 @@ pub struct HnswParams {
     pub ef_search: usize,
     /// Vector dimension
     pub dimension: usize,
+    /// How neighbors are picked during insertion (default: Heuristic / Alg.4)
+    pub neighbor_selection: NeighborSelection,
 }
 
 impl HnswParams {
@@ -30,7 +42,13 @@ impl HnswParams {
             ef_construction: 200,
             ef_search: 50,
             dimension,
+            neighbor_selection: NeighborSelection::Heuristic,
         })
+    }
+
+    pub fn with_neighbor_selection(mut self, neighbor_selection: NeighborSelection) -> Self {
+        self.neighbor_selection = neighbor_selection;
+        self
     }
 
     pub fn with_max_connections(mut self, max_connections: usize) -> Result<Self, HnswError> {

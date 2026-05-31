@@ -91,7 +91,7 @@ engram train generate  # regular models + insights
 
 ## Features
 
-- **Hybrid search** — HNSW vector (cosine) + BM25 sparse (FTS5), blended with FIXED weights (0.7 vector / 0.3 sparse); configurable weighting is planned for a later phase
+- **Hybrid search** — HNSW vector (cosine) + BM25 sparse (FTS5), blended via Reciprocal Rank Fusion (RRF, `1/(k+rank)`) with configurable weights — `search.vector_weight` / `search.sparse_weight` (default 0.7 / 0.3) and `search.rrf_k` (default 60) in `engram.toml`
 - **HyDE** — opt-in via `embedding.hyde_threshold > 0` (disabled by default). When enabled, LLM generates a hypothetical memory and embeds the hypothesis instead of the raw query. Cache is keyed by the original query, so repeated calls hit the cache instantly.
 - **Automatic deduplication** — at write time a candidate is a duplicate only when all three fields (context, action, result) each have cosine similarity ≥ the dedup threshold (default 0.95)
 - **Consolidation** — preview → LLM analysis → apply (merge/delete/archive)

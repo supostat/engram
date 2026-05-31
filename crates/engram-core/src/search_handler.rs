@@ -6,16 +6,13 @@ use serde_json::{Value, json};
 
 use engram_router::Mode;
 
+use crate::config::SearchConfig;
 use crate::error::CoreError;
 use crate::indexes::instrumentation::ReaderTracker;
 use crate::lock_helpers;
 use crate::server::ServerState;
 use crate::timestamp::current_utc_timestamp;
 
-// Hybrid-search blend weights are FIXED at 0.7 vector / 0.3 sparse.
-// Configurable per-query weighting is planned for a later phase.
-const VECTOR_WEIGHT: f64 = 0.7;
-const SPARSE_WEIGHT: f64 = 0.3;
 const MAX_QUERY_LENGTH: usize = 5_000;
 
 #[derive(Deserialize)]
@@ -41,7 +38,7 @@ pub async fn handle(state: &Arc<ServerState>, params: Value) -> Result<Value, Co
     let query_embedding = embed_query(state, &parsed.query).await?;
     let vector_results = search_vector_index(state, &query_embedding, top_k).await?;
     let sparse_results = search_fts(state, &parsed.query, top_k).await?;
-    let merged = merge_results(&vector_results, &sparse_results);
+    let merged = merge_results(&vector_results, &sparse_results, &state.config.search);
     let limited = limit_results(merged, top_k);
     let memories = load_memories(state, &limited).await?;
     let filtered = filter_by_tags(memories, &parsed.tags);
@@ -135,34 +132,25 @@ async fn search_fts(
     .map_err(|error| CoreError::SocketError(error.to_string()))?
 }
 
+/// Fuses dense-vector and full-text hits via weighted Reciprocal Rank Fusion.
+/// Both input slices arrive sorted best-first (HNSW by descending similarity,
+/// FTS5 by ascending rank), so only each hit's rank position contributes —
+/// the raw similarity/rank scores are intentionally ignored. A memory present
+/// in both lists accumulates both weighted reciprocal-rank terms.
 fn merge_results(
     vector_results: &[(String, f32)],
     sparse_results: &[(String, f64)],
+    search: &SearchConfig,
 ) -> Vec<(String, f64)> {
+    let k = search.rrf_k as f64;
     let mut combined: HashMap<String, f64> = HashMap::new();
-    let vector_max = vector_results
-        .iter()
-        .map(|(_, score)| *score as f64)
-        .fold(0.0f64, f64::max)
-        .max(1.0);
-    for (memory_id, score) in vector_results {
-        let normalized = *score as f64 / vector_max;
-        combined
-            .entry(memory_id.clone())
-            .and_modify(|existing| *existing = existing.max(normalized * VECTOR_WEIGHT))
-            .or_insert(normalized * VECTOR_WEIGHT);
+    for (rank, (memory_id, _)) in vector_results.iter().enumerate() {
+        *combined.entry(memory_id.clone()).or_insert(0.0) +=
+            search.vector_weight / (k + (rank + 1) as f64);
     }
-    let sparse_max = sparse_results
-        .iter()
-        .map(|(_, rank)| *rank)
-        .fold(0.0f64, f64::max)
-        .max(1.0);
-    for (memory_id, rank) in sparse_results {
-        let normalized = *rank / sparse_max;
-        combined
-            .entry(memory_id.clone())
-            .and_modify(|existing| *existing += normalized * SPARSE_WEIGHT)
-            .or_insert(normalized * SPARSE_WEIGHT);
+    for (rank, (memory_id, _)) in sparse_results.iter().enumerate() {
+        *combined.entry(memory_id.clone()).or_insert(0.0) +=
+            search.sparse_weight / (k + (rank + 1) as f64);
     }
     let mut results: Vec<(String, f64)> = combined.into_iter().collect();
     results.sort_by(|a, b| b.1.total_cmp(&a.1));
@@ -232,4 +220,61 @@ async fn load_memories(
     })
     .await
     .map_err(|error| CoreError::SocketError(error.to_string()))?
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn vector_hit(id: &str) -> (String, f32) {
+        (id.to_string(), 0.0)
+    }
+
+    fn sparse_hit(id: &str) -> (String, f64) {
+        (id.to_string(), 0.0)
+    }
+
+    #[test]
+    fn merge_ranks_by_position_not_score() {
+        let vector = vec![vector_hit("a"), vector_hit("b")];
+        let merged = merge_results(&vector, &[], &SearchConfig::default());
+        assert_eq!(merged[0].0, "a");
+        assert_eq!(merged[1].0, "b");
+        assert!(merged[0].1 > merged[1].1);
+    }
+
+    #[test]
+    fn merge_sums_contributions_for_shared_id() {
+        let search = SearchConfig::default();
+        let vector = vec![vector_hit("a"), vector_hit("b")];
+        let sparse = vec![sparse_hit("a"), sparse_hit("c")];
+        let merged = merge_results(&vector, &sparse, &search);
+
+        let k = search.rrf_k as f64;
+        let score_a = merged.iter().find(|(id, _)| id == "a").unwrap().1;
+        let expected_a = search.vector_weight / (k + 1.0) + search.sparse_weight / (k + 1.0);
+        assert!((score_a - expected_a).abs() < 1e-12);
+
+        let score_b = merged.iter().find(|(id, _)| id == "b").unwrap().1;
+        assert!(score_a > score_b);
+    }
+
+    #[test]
+    fn merge_empty_inputs_yield_empty() {
+        let merged = merge_results(&[], &[], &SearchConfig::default());
+        assert!(merged.is_empty());
+    }
+
+    #[test]
+    fn merge_scores_sparse_only_doc_absent_from_vector() {
+        let search = SearchConfig::default();
+        let sparse = vec![sparse_hit("only_sparse")];
+        let merged = merge_results(&[], &sparse, &search);
+
+        let k = search.rrf_k as f64;
+        assert_eq!(merged.len(), 1);
+        assert_eq!(merged[0].0, "only_sparse");
+        let expected = search.sparse_weight / (k + 1.0);
+        assert!((merged[0].1 - expected).abs() < 1e-12);
+    }
 }

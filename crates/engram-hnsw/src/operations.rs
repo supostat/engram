@@ -1,7 +1,7 @@
 use crate::error::HnswError;
-use crate::graph::HnswGraph;
+use crate::graph::{HnswGraph, NeighborSelection};
 use crate::node::Node;
-use crate::search::{ScoredNode, search_layer, select_neighbors};
+use crate::search::{ScoredNode, search_layer, select_neighbors, select_neighbors_naive};
 use crate::similarity::cosine_similarity;
 
 impl HnswGraph {
@@ -98,7 +98,7 @@ impl HnswGraph {
                 ef_construction,
                 layer,
             );
-            let selected = select_neighbors(&results, max_conn);
+            let selected = self.choose_neighbors(&results, max_conn);
 
             self.set_neighbors_at_layer(node_id, layer, &selected);
             self.add_bidirectional_connections(node_id, layer, &selected, max_conn);
@@ -171,7 +171,7 @@ impl HnswGraph {
                 })
             })
             .collect();
-        let selected = select_neighbors(&scored, max_connections);
+        let selected = self.choose_neighbors(&scored, max_connections);
         let trimmed: Vec<u64> = selected.iter().map(|s| s.id).collect();
         if let Some(node) = self.nodes_mut().get_mut(&node_id) {
             node.neighbors[layer] = trimmed;
@@ -183,6 +183,32 @@ impl HnswGraph {
             self.set_entry_point(Some(node_id));
             self.set_max_level(node_level);
         }
+    }
+
+    /// Pick neighbors per the configured strategy. Naive skips the candidate
+    /// vector clone entirely; Heuristic pre-clones vectors for Alg.4 diversity.
+    fn choose_neighbors(&self, candidates: &[ScoredNode], max_neighbors: usize) -> Vec<ScoredNode> {
+        match self.params().neighbor_selection {
+            NeighborSelection::Naive => select_neighbors_naive(candidates, max_neighbors),
+            NeighborSelection::Heuristic => {
+                let candidate_vectors = self.clone_candidate_vectors(candidates);
+                select_neighbors(candidates, max_neighbors, &candidate_vectors)
+            }
+        }
+    }
+
+    fn clone_candidate_vectors(
+        &self,
+        candidates: &[ScoredNode],
+    ) -> std::collections::HashMap<u64, Vec<f32>> {
+        candidates
+            .iter()
+            .filter_map(|candidate| {
+                self.nodes()
+                    .get(&candidate.id)
+                    .map(|node| (candidate.id, node.vector.clone()))
+            })
+            .collect()
     }
 }
 

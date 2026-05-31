@@ -40,6 +40,9 @@ const DEFAULT_DEDUP_THRESHOLD: f32 = 0.95;
 const DEFAULT_TRAINER_BINARY: &str = "engram-trainer";
 const DEFAULT_TRAINER_TIMEOUT_SECS: u64 = 300;
 const DEFAULT_MODELS_PATH: &str = "~/.engram/models";
+const DEFAULT_RRF_K: usize = 60;
+const DEFAULT_VECTOR_WEIGHT: f64 = 0.7;
+const DEFAULT_SPARSE_WEIGHT: f64 = 0.3;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Config {
@@ -55,6 +58,8 @@ pub struct Config {
     pub deduplication: DeduplicationConfig,
     #[serde(default)]
     pub trainer: TrainerConfig,
+    #[serde(default)]
+    pub search: SearchConfig,
 }
 
 #[derive(Serialize, Deserialize, Clone, Default)]
@@ -119,6 +124,17 @@ pub struct DeduplicationConfig {
     pub threshold: f32,
 }
 
+/// Hybrid-search blend parameters. `rrf_k` is the Reciprocal Rank Fusion
+/// smoothing constant (larger values flatten the rank-position weighting);
+/// `vector_weight` and `sparse_weight` scale the dense-vector and full-text
+/// contributions before fusion.
+#[derive(Serialize, Deserialize, Clone)]
+pub struct SearchConfig {
+    pub rrf_k: usize,
+    pub vector_weight: f64,
+    pub sparse_weight: f64,
+}
+
 #[derive(Serialize, Deserialize, Clone)]
 pub struct TrainerConfig {
     pub trainer_binary: String,
@@ -153,6 +169,16 @@ impl Default for DeduplicationConfig {
     }
 }
 
+impl Default for SearchConfig {
+    fn default() -> Self {
+        Self {
+            rrf_k: DEFAULT_RRF_K,
+            vector_weight: DEFAULT_VECTOR_WEIGHT,
+            sparse_weight: DEFAULT_SPARSE_WEIGHT,
+        }
+    }
+}
+
 /// Validates a configured deduplication threshold lies in the half-open
 /// cosine-similarity range `(0.0, 1.0]`. A threshold of `0.0` or below would
 /// treat unrelated memories as duplicates; above `1.0` is unreachable for
@@ -164,6 +190,37 @@ pub fn validate_dedup_threshold(threshold: f32) -> Result<(), CoreError> {
     Err(CoreError::ConfigValidation(format!(
         "deduplication.threshold must be in (0.0, 1.0], got {threshold}"
     )))
+}
+
+/// Validates the hybrid-search blend parameters. `rrf_k` must be non-zero
+/// (it appears in the Reciprocal Rank Fusion denominator `k + rank`), both
+/// weights must be finite and non-negative, and at least one weight must be
+/// positive — two zero weights would cancel every contribution and yield an
+/// empty ranking regardless of how many results each index returns. NaN/Inf
+/// weights are rejected outright (NaN passes a naive `< 0.0` range check).
+pub fn validate_search_config(config: &SearchConfig) -> Result<(), CoreError> {
+    if config.rrf_k == 0 {
+        return Err(CoreError::ConfigValidation(
+            "search.rrf_k must be greater than 0".to_string(),
+        ));
+    }
+    if !config.vector_weight.is_finite() || !config.sparse_weight.is_finite() {
+        return Err(CoreError::ConfigValidation(
+            "search weights must be finite".to_string(),
+        ));
+    }
+    if config.vector_weight < 0.0 || config.sparse_weight < 0.0 {
+        return Err(CoreError::ConfigValidation(format!(
+            "search weights must be non-negative, got vector_weight={}, sparse_weight={}",
+            config.vector_weight, config.sparse_weight
+        )));
+    }
+    if config.vector_weight == 0.0 && config.sparse_weight == 0.0 {
+        return Err(CoreError::ConfigValidation(
+            "search.vector_weight and search.sparse_weight cannot both be 0.0".to_string(),
+        ));
+    }
+    Ok(())
 }
 
 impl Config {
@@ -355,6 +412,7 @@ impl Default for Config {
             consolidation: ConsolidationConfig::default(),
             deduplication: DeduplicationConfig::default(),
             trainer: TrainerConfig::default(),
+            search: SearchConfig::default(),
         }
     }
 }
@@ -559,5 +617,113 @@ mod tests {
     #[test]
     fn validate_dedup_threshold_accepts_tiny_positive() {
         validate_dedup_threshold(0.0001).expect("any positive within range is accepted");
+    }
+
+    #[test]
+    fn default_search_config_matches_documented_values() {
+        let search = SearchConfig::default();
+        assert_eq!(search.rrf_k, 60);
+        assert_eq!(search.vector_weight, 0.7);
+        assert_eq!(search.sparse_weight, 0.3);
+    }
+
+    #[test]
+    fn config_loads_without_search_section() {
+        // The [search] table is serde-defaulted, so a TOML predating Phase 11
+        // must still deserialize and fall back to the documented defaults.
+        let toml_input = r#"
+            [embedding]
+            provider = "deterministic"
+
+            [llm]
+            provider = "openai"
+
+            [server]
+            reindex_interval_secs = 3600
+
+            [hnsw]
+            max_connections = 16
+            ef_construction = 200
+            ef_search = 40
+            dimension = 1024
+        "#;
+        let config: Config = toml::from_str(toml_input).unwrap();
+        assert_eq!(config.search.rrf_k, 60);
+        assert_eq!(config.search.vector_weight, 0.7);
+        assert_eq!(config.search.sparse_weight, 0.3);
+    }
+
+    #[test]
+    fn search_config_round_trips_through_toml() {
+        let toml_input = r#"
+            rrf_k = 30
+            vector_weight = 0.6
+            sparse_weight = 0.4
+        "#;
+        let search: SearchConfig = toml::from_str(toml_input).unwrap();
+        assert_eq!(search.rrf_k, 30);
+        assert_eq!(search.vector_weight, 0.6);
+        assert_eq!(search.sparse_weight, 0.4);
+    }
+
+    #[test]
+    fn validate_search_config_accepts_defaults() {
+        validate_search_config(&SearchConfig::default()).expect("documented defaults are valid");
+    }
+
+    #[test]
+    fn validate_search_config_accepts_one_zero_weight() {
+        let search = SearchConfig {
+            rrf_k: 60,
+            vector_weight: 0.0,
+            sparse_weight: 0.3,
+        };
+        validate_search_config(&search).expect("a single zero weight still leaves one live term");
+    }
+
+    #[test]
+    fn validate_search_config_rejects_zero_rrf_k() {
+        let search = SearchConfig {
+            rrf_k: 0,
+            ..SearchConfig::default()
+        };
+        let error = validate_search_config(&search).expect_err("rrf_k of 0 divides by k+rank base");
+        assert!(matches!(error, CoreError::ConfigValidation(_)));
+        assert!(error.to_string().contains("rrf_k"));
+    }
+
+    #[test]
+    fn validate_search_config_rejects_negative_weight() {
+        let search = SearchConfig {
+            rrf_k: 60,
+            vector_weight: -0.1,
+            sparse_weight: 0.3,
+        };
+        let error = validate_search_config(&search).expect_err("negative weight is invalid");
+        assert!(matches!(error, CoreError::ConfigValidation(_)));
+        assert!(error.to_string().contains("non-negative"));
+    }
+
+    #[test]
+    fn validate_search_config_rejects_non_finite_weight() {
+        let search = SearchConfig {
+            rrf_k: 60,
+            vector_weight: f64::NAN,
+            sparse_weight: 0.3,
+        };
+        let error = validate_search_config(&search).expect_err("NaN weight is invalid");
+        assert!(matches!(error, CoreError::ConfigValidation(_)));
+        assert!(error.to_string().contains("finite"));
+    }
+
+    #[test]
+    fn validate_search_config_rejects_all_zero_weights() {
+        let search = SearchConfig {
+            rrf_k: 60,
+            vector_weight: 0.0,
+            sparse_weight: 0.0,
+        };
+        let error = validate_search_config(&search).expect_err("both weights zero cancels output");
+        assert!(matches!(error, CoreError::ConfigValidation(_)));
     }
 }
