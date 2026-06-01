@@ -1,5 +1,43 @@
 # Changelog
 
+## 0.4.0 (unreleased)
+
+### Breaking changes
+- None.
+
+### New features
+- **Write-time deduplication.** Storing a memory whose context, action *and*
+  result are each at least `dedup_threshold` (default `0.95` cosine) similar to
+  an existing memory now folds into that memory — its `used_count` and
+  `last_used_at` are bumped — instead of creating a duplicate row. The
+  `memory_store` response gains additive `deduplicated` and `merged_into`
+  fields. Configurable via `[deduplication] dedup_threshold`.
+- **Configurable hybrid search** via a new `[search]` config block: `rrf_k`
+  (default `60`), `vector_weight` (default `0.7`), and `sparse_weight` (default
+  `0.3`).
+
+### Improvements
+- **Hybrid search now fuses results with Reciprocal Rank Fusion** —
+  `1/(k + rank)`, rank-based and scale-free — instead of the previous max+sum
+  of incomparably-scaled vector and sparse scores.
+- **Diversity-aware HNSW neighbor selection** (Malkov-Yashunin heuristic, now
+  the default; the naive top-M selector is retained and selectable). The new
+  graph structure applies to existing data after `engram reindex`.
+- **HNSW multi-graph insert is now all-or-nothing** — a failure rolls back the
+  graphs already inserted for that memory. u64-hash collisions now fail loudly
+  with `[6021]` instead of silently dropping a record. Lock access recovers
+  from a poisoned lock instead of cascading a panic.
+- **Router and chain terminology corrected** — adaptive contextual bandit (not
+  "Q-Learning"), temporal and co-occurrence chains (not "causal").
+
+### Fixes
+- The `indexed` flag is now written `false` until the HNSW insert is confirmed,
+  so a memory whose indexing fails is recovered by background reindex instead
+  of being marked indexed.
+- **Configuration is validated at startup.** An out-of-range `dedup_threshold`
+  and invalid `[search]` config (`rrf_k = 0`, non-finite weights, or all-zero
+  weights) now fail fast with `[6022] ConfigValidation`.
+
 ## 0.3.0 (2026-05-14)
 
 ### Breaking changes

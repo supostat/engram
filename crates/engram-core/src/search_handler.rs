@@ -259,6 +259,69 @@ mod tests {
         assert!(score_a > score_b);
     }
 
+    // Asymmetric weights must drive the final ranking, not just rank position.
+    // Construction: X is rank-1 in the dense-vector list and absent from sparse;
+    // Y is rank-1 in sparse and far down the vector list (rank-9). With heavy
+    // vector weighting (0.9 / 0.1) the dense source dominates and X leads; the
+    // symmetric default (0.7 / 0.3) lets Y's strong sparse hit win instead, so
+    // the two configs produce opposite orderings.
+    //
+    // Exact RRF (k = 60), heavy-vector 0.9 / 0.1:
+    //   X = 0.9 / (60 + 1)              = 0.014754098360655738
+    //   Y = 0.9 / (60 + 9) + 0.1/(60+1) = 0.014682822523164649  → X > Y
+    // Symmetric default 0.7 / 0.3:
+    //   X = 0.7 / (60 + 1)              = 0.011475409836065573
+    //   Y = 0.7 / (60 + 9) + 0.3/(60+1) = 0.015062960323117129  → Y > X
+    //
+    // Y sits at vector rank-9 because, sharing both lists, it accrues the heavy
+    // vector term too; only past rank-8 does X's single rank-1 vector hit
+    // overtake Y's rank-9 vector hit plus its rank-1 sparse hit at 0.9 / 0.1.
+    #[test]
+    fn asymmetric_weights_drive_final_ranking() {
+        let vector = vec![
+            vector_hit("x"),
+            vector_hit("v2"),
+            vector_hit("v3"),
+            vector_hit("v4"),
+            vector_hit("v5"),
+            vector_hit("v6"),
+            vector_hit("v7"),
+            vector_hit("v8"),
+            vector_hit("y"),
+        ];
+        let sparse = vec![sparse_hit("y")];
+
+        let heavy_vector = SearchConfig {
+            rrf_k: 60,
+            vector_weight: 0.9,
+            sparse_weight: 0.1,
+        };
+        let merged = merge_results(&vector, &sparse, &heavy_vector);
+
+        let score_x = merged.iter().find(|(id, _)| id == "x").unwrap().1;
+        let score_y = merged.iter().find(|(id, _)| id == "y").unwrap().1;
+        let expected_x = 0.9 / 61.0;
+        let expected_y = 0.9 / 69.0 + 0.1 / 61.0;
+        assert!((score_x - expected_x).abs() < 1e-12);
+        assert!((score_y - expected_y).abs() < 1e-12);
+        assert!(
+            score_x > score_y,
+            "heavy vector weighting must let the vector rank-1 id win: x={score_x}, y={score_y}"
+        );
+        let x_position = merged.iter().position(|(id, _)| id == "x").unwrap();
+        let y_position = merged.iter().position(|(id, _)| id == "y").unwrap();
+        assert!(x_position < y_position, "x must outrank y under 0.9 / 0.1");
+
+        let symmetric = SearchConfig::default();
+        let merged_symmetric = merge_results(&vector, &sparse, &symmetric);
+        let symmetric_x = merged_symmetric.iter().find(|(id, _)| id == "x").unwrap().1;
+        let symmetric_y = merged_symmetric.iter().find(|(id, _)| id == "y").unwrap().1;
+        assert!(
+            symmetric_y > symmetric_x,
+            "the symmetric default must produce the opposite order: x={symmetric_x}, y={symmetric_y}"
+        );
+    }
+
     #[test]
     fn merge_empty_inputs_yield_empty() {
         let merged = merge_results(&[], &[], &SearchConfig::default());

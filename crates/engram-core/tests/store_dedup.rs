@@ -105,6 +105,21 @@ fn make_distinct_store_params() -> Value {
     })
 }
 
+// Shares `make_store_params(marker)`'s CONTEXT text verbatim, but pairs it with
+// action/result drawn from the fully-distinct fixture above. Under the
+// all-three-fields dedup policy only the context field clears the threshold, so
+// the store must NOT merge: a context match alone is insufficient.
+fn make_shared_context_store_params(marker: &str) -> Value {
+    json!({
+        "memory_type": "decision",
+        "context": format!("dedup context {marker}"),
+        "action": "the operator reconfigured the distributed message broker partition assignment and \
+                    rebalanced consumer groups to drain a multi-day processing backlog gradually",
+        "result": "throughput recovered to nominal levels and downstream dashboards reflected the \
+                    corrected aggregates after the lengthy catch-up window finally completed cleanly",
+    })
+}
+
 async fn store(state: &Arc<ServerState>, params: Value) -> Value {
     dispatch::route("memory_store", state, params)
         .await
@@ -232,5 +247,39 @@ async fn dedup_search_error_degrades_to_insert() {
         row_count(&state),
         1,
         "the degraded store must still persist the row"
+    );
+}
+
+// Context-only match: memory B reuses A's CONTEXT text verbatim while its action
+// and result are fully distinct. The all-three-fields policy requires every
+// field to clear the threshold, so a single matching field must NOT trigger a
+// merge — B is a genuinely new memory.
+#[tokio::test]
+async fn shared_context_alone_does_not_deduplicate() {
+    let state = build_deterministic_state();
+
+    let first = store(&state, make_store_params("shared")).await;
+    let first_id = first["id"].as_str().expect("first id").to_string();
+    assert_eq!(row_count(&state), 1, "first store inserts exactly one row");
+
+    let second = store(&state, make_shared_context_store_params("shared")).await;
+    let second_id = second["id"].as_str().expect("second id").to_string();
+    assert_eq!(
+        second["deduplicated"],
+        json!(false),
+        "a context-only match must not deduplicate under the all-three-fields policy"
+    );
+    assert!(
+        second.get("merged_into").is_none(),
+        "merged_into must be omitted when deduplicated is false"
+    );
+    assert_ne!(
+        first_id, second_id,
+        "the non-merged memory must receive a distinct id"
+    );
+    assert_eq!(
+        row_count(&state),
+        2,
+        "matching context alone must still produce two rows"
     );
 }
