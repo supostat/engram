@@ -226,8 +226,8 @@ Dimension stays at `1024` because `voyage-4` API default matches; HNSW geometry 
 ## Testing
 
 ```bash
-cargo test --all              # 470+ Rust tests
-cd mcp-server && npm test     # 7 vitest unit tests + typecheck
+cargo test --all              # 560+ Rust tests
+cd mcp-server && npm test     # 11 vitest unit tests + typecheck
 cd trainer && pytest           # Python tests (pip install -e ".[dev]")
 cargo bench --all             # Criterion benchmarks
 ```
