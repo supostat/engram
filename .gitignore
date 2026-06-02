@@ -42,3 +42,4 @@ __pycache__/
 .dev-workflow-upgrade-backup
 .release-notes-*.md
 SPEC.md
+/docs/
