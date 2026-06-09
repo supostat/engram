@@ -6,8 +6,8 @@ use serde::{Deserialize, Serialize};
 
 use engram_hnsw::HnswParams;
 use engram_llm_client::{
-    EmbeddingProvider, LocalTextGenerator, OpenAITextGenerator, TextGenerator,
-    VoyageEmbeddingProvider,
+    EmbeddingProvider, LocalTextGenerator, OllamaEmbeddingProvider, OpenAITextGenerator,
+    TextGenerator, VoyageEmbeddingProvider,
 };
 
 use crate::config_loader::{
@@ -27,6 +27,7 @@ const LLM_SECTION: &str = "llm";
 const DEFAULT_EMBEDDING_PROVIDER: &str = "voyage";
 pub const DEFAULT_EMBEDDING_MODEL: &str = "voyage-4";
 const DEFAULT_EMBEDDING_DIMENSION: usize = 1024;
+pub const DEFAULT_EMBEDDING_HOST: &str = "http://localhost:11434";
 const DEFAULT_HYDE_THRESHOLD: usize = 0;
 const DEFAULT_LLM_PROVIDER: &str = "openai";
 const DEFAULT_LLM_MODEL: &str = "gpt-4o-mini";
@@ -84,6 +85,11 @@ pub struct EmbeddingConfig {
     /// mismatch fails fast at HNSW insert with `[3002] DimensionMismatch`.
     #[serde(default)]
     pub output_dimension: Option<usize>,
+    /// Base URL of the Ollama daemon for the `ollama` provider (e.g.
+    /// `http://localhost:11434`). Ignored by non-Ollama providers. Omit to use
+    /// `DEFAULT_EMBEDDING_HOST`; override at runtime with `ENGRAM_OLLAMA_HOST`.
+    #[serde(default)]
+    pub host: Option<String>,
     #[serde(default)]
     pub hyde_threshold: usize,
 }
@@ -302,6 +308,20 @@ impl Config {
                 )?;
                 Ok(Box::new(provider))
             }
+            "ollama" => {
+                let host = self
+                    .embedding
+                    .host
+                    .clone()
+                    .unwrap_or_else(|| DEFAULT_EMBEDDING_HOST.into());
+                let model = self
+                    .embedding
+                    .model
+                    .clone()
+                    .unwrap_or_else(|| engram_llm_client::ollama::DEFAULT_OLLAMA_MODEL.into());
+                let provider = OllamaEmbeddingProvider::new(host, model, dimension)?;
+                Ok(Box::new(provider))
+            }
             "deterministic" => Ok(Box::new(DeterministicEmbeddingProvider { dimension })),
             other => Err(CoreError::InvalidProvider(format!(
                 "{other} embedding not supported"
@@ -374,6 +394,11 @@ impl Config {
         {
             self.embedding.api_key = Some(value);
         }
+        if self.embedding.provider == "ollama"
+            && let Ok(value) = std::env::var("ENGRAM_OLLAMA_HOST")
+        {
+            self.embedding.host = Some(value);
+        }
         if self.llm.provider == "openai"
             && let Ok(value) = std::env::var("ENGRAM_OPENAI_API_KEY")
         {
@@ -392,6 +417,7 @@ impl Default for Config {
                 model: Some(DEFAULT_EMBEDDING_MODEL.into()),
                 dimension: Some(DEFAULT_EMBEDDING_DIMENSION),
                 output_dimension: None,
+                host: None,
                 hyde_threshold: DEFAULT_HYDE_THRESHOLD,
             },
             llm: LlmConfig {
@@ -581,6 +607,44 @@ mod tests {
         "#;
         let config: EmbeddingConfig = toml::from_str(toml_input).unwrap();
         assert_eq!(config.output_dimension, Some(1024));
+    }
+
+    #[test]
+    fn embedding_config_deserializes_without_host() {
+        let toml_input = r#"
+            provider = "ollama"
+            model = "qwen3-embedding:0.6b"
+            dimension = 1024
+        "#;
+        let config: EmbeddingConfig = toml::from_str(toml_input).unwrap();
+        assert_eq!(config.host, None);
+    }
+
+    #[test]
+    fn embedding_config_deserializes_with_host() {
+        let toml_input = r#"
+            provider = "ollama"
+            model = "qwen3-embedding:0.6b"
+            dimension = 1024
+            host = "http://ollama.internal:11434"
+        "#;
+        let config: EmbeddingConfig = toml::from_str(toml_input).unwrap();
+        assert_eq!(config.host.as_deref(), Some("http://ollama.internal:11434"));
+    }
+
+    #[test]
+    fn build_embedding_provider_ollama_uses_prefixed_model_name() {
+        let mut config = Config::default();
+        config.embedding.provider = "ollama".into();
+        config.embedding.model = Some("qwen3-embedding:0.6b".into());
+        config.embedding.dimension = Some(1024);
+        config.embedding.host = Some("http://127.0.0.1:1".into());
+
+        let provider = config
+            .build_embedding_provider()
+            .expect("ollama provider builds without a live daemon");
+        assert_eq!(provider.model_name(), "ollama:qwen3-embedding:0.6b");
+        assert_eq!(provider.dimension(), 1024);
     }
 
     #[test]

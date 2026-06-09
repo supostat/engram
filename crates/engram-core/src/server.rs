@@ -53,12 +53,10 @@ pub async fn run(config: Config) -> Result<(), CoreError> {
     };
     {
         let database = lock_helpers::lock_db(&state);
-        let configured_model = config
-            .embedding
-            .model
-            .as_deref()
-            .unwrap_or(config::DEFAULT_EMBEDDING_MODEL);
-        crate::migrations::embedding_model_v1::check(&database, configured_model)?;
+        crate::migrations::embedding_model_v1::check(
+            &database,
+            state.embedding_provider.model_name(),
+        )?;
     }
     warn_missing_api_keys(&config);
     let shared_state = Arc::new(state);
@@ -359,7 +357,10 @@ fn warn_missing_api_keys(config: &Config) {
         .is_some_and(|k| !k.is_empty());
     let has_llm_key = config.llm.api_key.as_deref().is_some_and(|k| !k.is_empty());
 
-    if !has_embedding_key && config.embedding.provider != "deterministic" {
+    if !has_embedding_key
+        && config.embedding.provider != "deterministic"
+        && config.embedding.provider != "ollama"
+    {
         eprintln!(
             "warning: {} embedding provider configured without api key (set ENGRAM_VOYAGE_API_KEY)",
             config.embedding.provider

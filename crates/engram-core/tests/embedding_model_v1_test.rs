@@ -58,3 +58,27 @@ fn record_overwrites_existing_value() {
     // And check against the old model must now fail.
     assert!(embedding_model_v1::check(&database, "voyage-code-3").is_err());
 }
+
+#[test]
+fn deterministic_model_round_trips() {
+    // The startup guard now sources the model from `provider.model_name()`.
+    // For the deterministic provider that name is "deterministic", so a record
+    // of "deterministic" must round-trip and not collide with an API model.
+    let database = Database::in_memory().expect("in-memory database");
+    embedding_model_v1::record(&database, "deterministic").unwrap();
+
+    assert!(embedding_model_v1::check(&database, "deterministic").is_ok());
+    assert!(embedding_model_v1::check(&database, "voyage-4").is_err());
+}
+
+#[test]
+fn prefixed_ollama_model_round_trips() {
+    // Ollama's `model_name()` is prefixed ("ollama:<model>") to disambiguate
+    // it from the bare model id another provider might report. The guard must
+    // compare the full prefixed string, so the bare id must mismatch.
+    let database = Database::in_memory().expect("in-memory database");
+    embedding_model_v1::record(&database, "ollama:qwen3-embedding:0.6b").unwrap();
+
+    assert!(embedding_model_v1::check(&database, "ollama:qwen3-embedding:0.6b").is_ok());
+    assert!(embedding_model_v1::check(&database, "qwen3-embedding:0.6b").is_err());
+}

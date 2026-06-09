@@ -1,4 +1,8 @@
 use engram_llm_client::error::ApiError;
+use engram_llm_client::ollama::{
+    DEFAULT_OLLAMA_MODEL, OllamaEmbeddingProvider,
+    parse_embedding_response as parse_ollama_embedding_response,
+};
 use engram_llm_client::openai::{
     DEFAULT_OPENAI_MODEL, OpenAITextGenerator, map_llm_error, parse_chat_response,
 };
@@ -499,4 +503,76 @@ fn voyage_new_sets_default_model_and_dimension() {
 fn openai_new_sets_default_model() {
     let generator = OpenAITextGenerator::new("test-key".into()).unwrap();
     assert_eq!(generator.model_name(), DEFAULT_OPENAI_MODEL);
+}
+
+// ── Ollama provider ─────────────────────────────────────────────────────
+
+#[test]
+fn ollama_connection_refused_returns_embedding_api_unavailable() {
+    let provider = OllamaEmbeddingProvider::with_config(
+        "http://127.0.0.1:1".into(),
+        DEFAULT_OLLAMA_MODEL.into(),
+        1024,
+        RetryConfig {
+            max_retries: 0,
+            initial_backoff_ms: 1,
+            max_backoff_ms: 10,
+            backoff_multiplier: 2.0,
+        },
+    )
+    .unwrap();
+
+    let result = provider.embed("test", None);
+    assert!(matches!(
+        result.unwrap_err(),
+        ApiError::EmbeddingApiUnavailable(_)
+    ));
+}
+
+#[test]
+fn parse_ollama_embedding_response_valid() {
+    let body = r#"{"embeddings":[[0.1,0.2,0.3]]}"#;
+    let result = parse_ollama_embedding_response(body).unwrap();
+    assert_eq!(result.len(), 3);
+    assert!((result[0] - 0.1).abs() < f32::EPSILON);
+    assert!((result[1] - 0.2).abs() < f32::EPSILON);
+    assert!((result[2] - 0.3).abs() < f32::EPSILON);
+}
+
+#[test]
+fn parse_ollama_embedding_response_missing() {
+    let body = r#"{"result":"ok"}"#;
+    let result = parse_ollama_embedding_response(body);
+    assert!(matches!(
+        result.unwrap_err(),
+        ApiError::EmbeddingApiUnavailable(_)
+    ));
+}
+
+#[test]
+fn parse_ollama_embedding_response_non_numeric() {
+    let body = r#"{"embeddings":[["x"]]}"#;
+    let result = parse_ollama_embedding_response(body);
+    assert!(matches!(
+        result.unwrap_err(),
+        ApiError::EmbeddingApiUnavailable(_)
+    ));
+}
+
+#[test]
+fn ollama_live_embed() {
+    if std::env::var("ENGRAM_OLLAMA_LIVE").is_err() {
+        return;
+    }
+    let provider = OllamaEmbeddingProvider::new(
+        "http://localhost:11434".into(),
+        DEFAULT_OLLAMA_MODEL.into(),
+        1024,
+    )
+    .unwrap();
+
+    let embedding = provider
+        .embed("hello world", Some("document"))
+        .expect("live ollama embed should succeed");
+    assert!(!embedding.is_empty());
 }
