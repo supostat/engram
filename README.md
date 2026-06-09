@@ -252,7 +252,7 @@ The Ollama provider needs no API key. After switching an existing database to a 
 ## Testing
 
 ```bash
-cargo test --all              # 609+ Rust tests
+cargo test --all              # 646+ Rust tests
 cd mcp-server && npm test     # 11 vitest unit tests + typecheck
 cd trainer && pytest           # Python tests (pip install -e ".[dev]")
 cargo bench --all             # Criterion benchmarks
