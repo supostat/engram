@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.5.0 (2026-06-09)
+
+### Breaking changes
+- None.
+
+### New features
+- **Local Ollama embedding provider.** Set `[embedding] provider = "ollama"`
+  (e.g. `model = "qwen3-embedding:0.6b"` at 1024-dim) to produce real dense
+  vectors against a local [Ollama](https://ollama.com) daemon with no API key.
+  Switching an existing database is a one-time `engram reembed`; the `[6020]`
+  guard enforces that stored vectors match the active provider.
+- **Local Ollama text generator.** Set `[llm] provider = "ollama"` to run the
+  LLM judge, HyDE, and consolidation on a local chat model (e.g. `qwen3:4b`)
+  with no API key. An unreachable daemon falls back to the heuristic judge.
+- **Ollama endpoint configuration** — new `[embedding].host` / `[llm].host`
+  config fields and the `ENGRAM_OLLAMA_HOST` environment override select the
+  Ollama host (default `http://localhost:11434`).
+- **Ollama in the `engram init` TUI wizard** — selectable as both an embedding
+  and an LLM provider, with no API-key prompt.
+
+### Improvements
+- **Search degrades to FTS5 when embeddings are unavailable** instead of
+  failing the request. `memory_search` returns a `{ results, degraded }`
+  envelope on both the healthy and degraded paths; `degraded: true` signals
+  the vector branch was skipped (e.g. the embedding provider is unreachable).
+- **Localhost-tuned retry backoff** for the Ollama HTTP clients — short, few
+  retries — instead of reusing the cloud-latency budget. Provider
+  documentation is pinned against the bundled config template and README by a
+  docs-invariant test.
+
+### Fixes
+- None.
+
 ## 0.4.0 (2026-06-01)
 
 ### Breaking changes
