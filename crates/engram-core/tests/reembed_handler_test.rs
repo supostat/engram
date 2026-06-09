@@ -205,7 +205,7 @@ async fn reembed_refreshes_hnsw_so_search_returns_memory() {
     .await
     .expect("search after reembed should succeed");
 
-    let results = search
+    let results = search["results"]
         .as_array()
         .expect("search returns an array of memories");
     let found = results

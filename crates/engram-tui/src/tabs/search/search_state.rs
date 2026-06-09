@@ -225,7 +225,7 @@ impl SearchTabState {
         self.selected = 0;
         self.detail_open = false;
 
-        let entries = match data.as_array() {
+        let entries = match data["results"].as_array() {
             Some(array) => array,
             None => {
                 self.status = SearchStatus::NoResults;

@@ -56,7 +56,7 @@ async fn store_with_tags(state: &Arc<ServerState>, context: &str, tags: &[&str])
 }
 
 fn extract_ids(search_result: &Value) -> Vec<String> {
-    search_result
+    search_result["results"]
         .as_array()
         .expect("results array")
         .iter()

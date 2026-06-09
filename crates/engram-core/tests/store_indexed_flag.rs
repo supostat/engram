@@ -92,10 +92,10 @@ async fn search(state: &Arc<ServerState>, marker: &str) -> Vec<Value> {
         json!({ "query": format!("indexed-flag {marker}"), "limit": 10 }),
     )
     .await
-    .expect("memory_search")
-    .as_array()
-    .expect("search returns array")
-    .clone()
+    .expect("memory_search")["results"]
+        .as_array()
+        .expect("search returns array")
+        .clone()
 }
 
 fn results_contain(results: &[Value], memory_id: &str) -> bool {

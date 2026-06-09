@@ -73,7 +73,8 @@ async fn store_search_judge_status_cycle() {
     )
     .await
     .expect("search should succeed");
-    let results = search_result.as_array().expect("results array");
+    assert_eq!(search_result["degraded"], false);
+    let results = search_result["results"].as_array().expect("results array");
     let found = results.iter().any(|entry| entry["id"] == stored_id);
     assert!(found, "stored memory must appear in search results");
 
@@ -158,7 +159,7 @@ async fn store_export_import_roundtrip() {
     )
     .await
     .expect("search in fresh state should succeed");
-    let results = search_result.as_array().expect("results array");
+    let results = search_result["results"].as_array().expect("results array");
     assert!(!results.is_empty(), "imported memories must be searchable");
 }
 

@@ -66,7 +66,7 @@ async fn all_handlers_accessible() {
     )
     .await
     .expect("memory_search");
-    assert!(search.is_array());
+    assert!(search["results"].is_array());
 
     let judge = dispatch::route(
         "memory_judge",

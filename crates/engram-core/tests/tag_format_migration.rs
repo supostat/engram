@@ -233,7 +233,7 @@ async fn multi_tag_and_works_post_migration() {
     )
     .await
     .expect("search post-migration");
-    let ids: Vec<String> = results
+    let ids: Vec<String> = results["results"]
         .as_array()
         .expect("array")
         .iter()

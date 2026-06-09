@@ -201,7 +201,7 @@ async fn search_handler_finds_stored_memory() {
     });
     let search_result = dispatch::route("memory_search", &state, search_params).await;
     let results = search_result.expect("search should succeed");
-    let results_array = results.as_array().expect("results is an array");
+    let results_array = results["results"].as_array().expect("results is an array");
 
     let found = results_array.iter().any(|entry| entry["id"] == stored_id);
     assert!(found, "stored memory should appear in search results");

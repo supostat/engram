@@ -126,7 +126,7 @@ async fn router_state_changes_after_judge_series() {
     )
     .await
     .expect("post-learning search should succeed");
-    let results = final_search.as_array().expect("results array");
+    let results = final_search["results"].as_array().expect("results array");
     assert!(
         !results.is_empty(),
         "search must return results after learning"

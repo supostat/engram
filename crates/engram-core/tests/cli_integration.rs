@@ -96,6 +96,43 @@ fn output_jsonl_format_renders_object_as_single_line() {
     assert_eq!(reparsed["status"], "ok");
 }
 
+#[test]
+fn output_jsonl_search_envelope_emits_results_then_degraded_line() {
+    let value = json!({"results": [{"id": "a"}, {"id": "b"}], "degraded": true});
+    let formatted = format_output(&value, &OutputFormat::Jsonl);
+    let lines: Vec<&str> = formatted.lines().collect();
+    assert_eq!(lines.len(), 3);
+    let first: Value = serde_json::from_str(lines[0]).expect("valid jsonl line");
+    assert_eq!(first["id"], "a");
+    let second: Value = serde_json::from_str(lines[1]).expect("valid jsonl line");
+    assert_eq!(second["id"], "b");
+    let degraded: Value = serde_json::from_str(lines[2]).expect("valid jsonl line");
+    assert_eq!(degraded, json!({"degraded": true}));
+}
+
+#[test]
+fn output_text_search_envelope_renders_blocks_then_degraded_line() {
+    let value = json!({"results": [{"id": "a"}, {"id": "b"}], "degraded": true});
+    let formatted = format_output(&value, &OutputFormat::Text);
+    assert!(formatted.contains("id: a"));
+    assert!(formatted.contains("id: b"));
+    assert!(formatted.contains("\n---\n"));
+    assert!(formatted.ends_with("degraded: true"));
+}
+
+#[test]
+fn output_search_envelope_empty_results_renders_only_degraded() {
+    let value = json!({"results": [], "degraded": false});
+
+    let jsonl = format_output(&value, &OutputFormat::Jsonl);
+    assert_eq!(jsonl.lines().count(), 1);
+    let degraded: Value = serde_json::from_str(&jsonl).expect("valid jsonl");
+    assert_eq!(degraded, json!({"degraded": false}));
+
+    let text = format_output(&value, &OutputFormat::Text);
+    assert_eq!(text, "degraded: false");
+}
+
 #[tokio::test]
 async fn cli_store_and_search_full_cycle() {
     let state = build_deterministic_state();
@@ -116,7 +153,7 @@ async fn cli_store_and_search_full_cycle() {
     });
     let search_result = dispatch::route("memory_search", &state, search_params).await;
     let results = search_result.expect("search should succeed");
-    let results_array = results.as_array().expect("results array");
+    let results_array = results["results"].as_array().expect("results array");
     let found = results_array.iter().any(|entry| entry["id"] == stored_id);
     assert!(found, "stored memory must appear in search results");
 }
