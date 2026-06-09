@@ -60,6 +60,12 @@ enum Command {
         score: Option<f64>,
     },
 
+    /// Delete a memory by ID
+    Delete {
+        #[arg(long)]
+        id: String,
+    },
+
     /// Show system status
     Status,
 
@@ -231,6 +237,7 @@ fn build_dispatch_args(command: Command) -> (String, serde_json::Value) {
             query,
             score,
         } => build_judge_args(memory_id, query, score),
+        Command::Delete { id } => ("memory_delete".into(), json!({ "id": id })),
         Command::Status => ("memory_status".into(), json!({})),
         Command::Consolidate { action } => build_consolidate_args(action),
         Command::Train { action } => build_train_args(action),

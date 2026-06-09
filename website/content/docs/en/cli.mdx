@@ -127,6 +127,18 @@ engram judge --memory-id "abc-123-def" --score 0.8
 | `--query` | no | Query that found this memory |
 | `--score` | no | Explicit score from 0.0 to 1.0 |
 
+## engram delete
+
+Deletes a memory by ID. Removes the memory and its HNSW index entry, and is FK-safe: feedback tracking rows for the memory are cleared in the same transaction. Returns a not-found error if the ID does not exist.
+
+```bash
+engram delete --id "abc-123-def"
+```
+
+| Flag | Required | Description |
+|------|----------|-------------|
+| `--id` | yes | UUID of the memory to delete |
+
 ## engram status
 
 Shows system status: memory count, index size, pending judgments.

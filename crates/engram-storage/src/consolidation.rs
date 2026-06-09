@@ -42,7 +42,8 @@ impl Database {
 
     pub fn get_pending_judgments(&self, limit: usize) -> Result<Vec<String>, StorageError> {
         let mut statement = self.connection().prepare(
-            "SELECT DISTINCT memory_id FROM feedback_tracking WHERE judged = FALSE LIMIT ?1",
+            "SELECT memory_id FROM feedback_tracking \
+             GROUP BY memory_id HAVING MAX(judged) = 0 LIMIT ?1",
         )?;
         let rows = statement.query_map(params![limit as i64], |row| row.get(0))?;
         let mut results = Vec::new();

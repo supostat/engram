@@ -50,6 +50,13 @@ export const TOOL_DEFINITIONS = [
     }),
   },
   {
+    name: "memory_delete",
+    description: "Delete a memory by ID (removes it and its index entry; FK-safe)",
+    schema: z.object({
+      id: z.string().describe("Memory ID to delete"),
+    }),
+  },
+  {
     name: "memory_status",
     description: "Get system status: memory count, index size, pending judgments",
     schema: z.object({}),

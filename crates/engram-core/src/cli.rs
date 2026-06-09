@@ -65,6 +65,7 @@ fn save_indexes_if_mutating(method: &str, state: &Arc<ServerState>) -> Result<()
     let mutating = matches!(
         method,
         "memory_store"
+            | "memory_delete"
             | "memory_consolidate_apply"
             | "memory_import"
             | "memory_insights"

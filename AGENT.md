@@ -47,6 +47,13 @@ Optional `tags` (array of strings) filters results to memories that carry **all*
 }
 ```
 
+**memory_delete** — Delete a memory by ID. Removes the memory and its HNSW index entry; FK-safe (clears feedback tracking rows first). Returns `NotFound` if the ID is absent.
+```json
+{
+  "id": "uuid"
+}
+```
+
 **memory_status** — Get system health: memory count, index size, pending judgments.
 ```json
 {}

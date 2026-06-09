@@ -71,6 +71,30 @@ fn test_delete_memory() {
 }
 
 #[test]
+fn test_delete_memory_clears_feedback_tracking() {
+    let database = Database::in_memory().unwrap();
+    database.insert_memory(&make_memory("m1")).unwrap();
+    database.track_search("m1", "2026-01-01T00:00:00Z").unwrap();
+
+    // With PRAGMA foreign_keys ON the bare DELETE would have hit the
+    // feedback_tracking FK; the transactional delete clears the child rows first.
+    database.delete_memory("m1").unwrap();
+
+    let feedback_rows: i64 = database
+        .connection()
+        .query_row(
+            "SELECT COUNT(*) FROM feedback_tracking WHERE memory_id = ?1",
+            ["m1"],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(feedback_rows, 0, "feedback tracking rows must be cleared");
+
+    let result = database.get_memory("m1");
+    assert!(matches!(result, Err(StorageError::NotFound(_))));
+}
+
+#[test]
 fn test_delete_not_found() {
     let database = Database::in_memory().unwrap();
     let result = database.delete_memory("nonexistent");

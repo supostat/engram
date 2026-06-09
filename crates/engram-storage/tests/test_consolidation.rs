@@ -69,6 +69,41 @@ fn test_track_and_judge() {
 }
 
 #[test]
+fn test_pending_judgments_stays_empty_after_reshow() {
+    let database = Database::in_memory().unwrap();
+
+    database
+        .connection()
+        .execute(
+            "INSERT INTO memories (id, memory_type, context, action, result, created_at, updated_at)
+             VALUES ('m1', 'decision', 'ctx', 'act', 'res', '2026-01-01', '2026-01-01')",
+            [],
+        )
+        .unwrap();
+
+    database.track_search("m1", "2026-01-01T00:00:00Z").unwrap();
+    assert_eq!(
+        database.get_pending_judgments(10).unwrap(),
+        vec!["m1"],
+        "unjudged memory must be pending"
+    );
+
+    database.mark_judged("m1", "2026-01-01T01:00:00Z").unwrap();
+    assert!(
+        database.get_pending_judgments(10).unwrap().is_empty(),
+        "judged memory must not be pending"
+    );
+
+    // Re-showing an already-judged memory must NOT re-inflate the pending set:
+    // a fresh unjudged tracking row exists, but MAX(judged)=1 over the group.
+    database.track_search("m1", "2026-01-01T02:00:00Z").unwrap();
+    assert!(
+        database.get_pending_judgments(10).unwrap().is_empty(),
+        "re-showing a judged memory must keep pending empty"
+    );
+}
+
+#[test]
 fn test_pending_judgments_limit() {
     let database = Database::in_memory().unwrap();
 

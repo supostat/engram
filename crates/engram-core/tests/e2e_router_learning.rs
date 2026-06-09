@@ -192,8 +192,33 @@ async fn feedback_tracking_records_searches() {
     let pending_after = status_after["pending_judgments"]
         .as_u64()
         .expect("pending_judgments");
-    assert!(
-        pending_after <= pending_before,
-        "judging should not increase pending count"
+    assert_eq!(
+        pending_after, 0,
+        "judging every searched memory must drive pending to zero"
+    );
+
+    // Re-show the now-judged memory: a fresh unjudged tracking row is written,
+    // but the convergence fix keys pending on whether a memory was *ever* judged,
+    // so pending must stay at zero rather than re-inflating.
+    dispatch::route(
+        "memory_search",
+        &state,
+        json!({
+            "query": "feedback tracking context for search recording",
+            "limit": 5,
+        }),
+    )
+    .await
+    .expect("re-show search should succeed");
+
+    let status_reshow = dispatch::route("memory_status", &state, json!({}))
+        .await
+        .expect("status after re-show should succeed");
+    let pending_reshow = status_reshow["pending_judgments"]
+        .as_u64()
+        .expect("pending_judgments");
+    assert_eq!(
+        pending_reshow, 0,
+        "re-showing a judged memory must keep pending at zero"
     );
 }

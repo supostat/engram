@@ -4,6 +4,7 @@ use serde_json::Value;
 
 use crate::config_handler;
 use crate::consolidate_handler;
+use crate::delete_handler;
 use crate::error::CoreError;
 use crate::export_handler;
 use crate::import_handler;
@@ -24,6 +25,7 @@ pub async fn route(
 ) -> Result<Value, CoreError> {
     match method {
         "memory_store" => store_handler::handle(state, params).await,
+        "memory_delete" => delete_handler::handle(state, params).await,
         "memory_search" => search_handler::handle(state, params).await,
         "memory_judge" => judge_handler::handle(state, params).await,
         "memory_status" => status_handler::handle(state, params).await,

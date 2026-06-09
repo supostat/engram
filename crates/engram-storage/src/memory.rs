@@ -188,12 +188,16 @@ impl Database {
     }
 
     pub fn delete_memory(&self, id: &str) -> Result<(), StorageError> {
-        let affected = self
-            .connection()
-            .execute("DELETE FROM memories WHERE id = ?1", params![id])?;
+        let transaction = self.connection().unchecked_transaction()?;
+        transaction.execute(
+            "DELETE FROM feedback_tracking WHERE memory_id = ?1",
+            params![id],
+        )?;
+        let affected = transaction.execute("DELETE FROM memories WHERE id = ?1", params![id])?;
         if affected == 0 {
             return Err(StorageError::NotFound(format!("memory id={id}")));
         }
+        transaction.commit()?;
         Ok(())
     }
 
