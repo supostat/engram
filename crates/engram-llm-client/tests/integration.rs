@@ -3,6 +3,9 @@ use engram_llm_client::ollama::{
     DEFAULT_OLLAMA_MODEL, OllamaEmbeddingProvider,
     parse_embedding_response as parse_ollama_embedding_response,
 };
+use engram_llm_client::ollama_text::{
+    DEFAULT_OLLAMA_LLM_MODEL, OllamaTextGenerator, parse_generate_response,
+};
 use engram_llm_client::openai::{
     DEFAULT_OPENAI_MODEL, OpenAITextGenerator, map_llm_error, parse_chat_response,
 };
@@ -575,4 +578,77 @@ fn ollama_live_embed() {
         .embed("hello world", Some("document"))
         .expect("live ollama embed should succeed");
     assert!(!embedding.is_empty());
+}
+
+// ── Ollama text generator ───────────────────────────────────────────────
+
+#[test]
+fn ollama_text_connection_refused_returns_llm_api_unavailable() {
+    let generator = OllamaTextGenerator::with_config(
+        "http://127.0.0.1:1".into(),
+        DEFAULT_OLLAMA_LLM_MODEL.into(),
+        RetryConfig {
+            max_retries: 0,
+            initial_backoff_ms: 1,
+            max_backoff_ms: 10,
+            backoff_multiplier: 2.0,
+        },
+    )
+    .unwrap();
+
+    let result = generator.generate("test");
+    assert!(matches!(
+        result.unwrap_err(),
+        ApiError::LlmApiUnavailable(_)
+    ));
+}
+
+#[test]
+fn parse_generate_response_valid() {
+    let body = r#"{"response":"hello world"}"#;
+    let result = parse_generate_response(body).unwrap();
+    assert_eq!(result, "hello world");
+}
+
+#[test]
+fn parse_generate_response_invalid_json() {
+    let result = parse_generate_response("not json");
+    assert!(matches!(
+        result.unwrap_err(),
+        ApiError::LlmApiUnavailable(_)
+    ));
+}
+
+#[test]
+fn parse_generate_response_missing_response() {
+    let body = r#"{"result":"ok"}"#;
+    let result = parse_generate_response(body);
+    assert!(matches!(
+        result.unwrap_err(),
+        ApiError::LlmApiUnavailable(_)
+    ));
+}
+
+#[test]
+fn parse_generate_response_strips_think() {
+    let body = r#"{"response":"<think>r</think>answer"}"#;
+    let result = parse_generate_response(body).unwrap();
+    assert_eq!(result, "answer");
+}
+
+#[test]
+fn ollama_text_live_generate() {
+    if std::env::var("ENGRAM_OLLAMA_LIVE").is_err() {
+        return;
+    }
+    let generator = OllamaTextGenerator::new(
+        "http://localhost:11434".into(),
+        DEFAULT_OLLAMA_LLM_MODEL.into(),
+    )
+    .unwrap();
+
+    let answer = generator
+        .generate("Reply with the single word: ok")
+        .expect("live ollama generate should succeed");
+    assert!(!answer.is_empty());
 }

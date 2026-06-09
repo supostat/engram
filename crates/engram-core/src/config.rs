@@ -6,8 +6,8 @@ use serde::{Deserialize, Serialize};
 
 use engram_hnsw::HnswParams;
 use engram_llm_client::{
-    EmbeddingProvider, LocalTextGenerator, OllamaEmbeddingProvider, OpenAITextGenerator,
-    TextGenerator, VoyageEmbeddingProvider,
+    EmbeddingProvider, LocalTextGenerator, OllamaEmbeddingProvider, OllamaTextGenerator,
+    OpenAITextGenerator, TextGenerator, VoyageEmbeddingProvider,
 };
 
 use crate::config_loader::{
@@ -27,7 +27,8 @@ const LLM_SECTION: &str = "llm";
 const DEFAULT_EMBEDDING_PROVIDER: &str = "voyage";
 pub const DEFAULT_EMBEDDING_MODEL: &str = "voyage-4";
 const DEFAULT_EMBEDDING_DIMENSION: usize = 1024;
-pub const DEFAULT_EMBEDDING_HOST: &str = "http://localhost:11434";
+pub const DEFAULT_OLLAMA_HOST: &str = "http://localhost:11434";
+pub const DEFAULT_EMBEDDING_HOST: &str = DEFAULT_OLLAMA_HOST;
 const DEFAULT_HYDE_THRESHOLD: usize = 0;
 const DEFAULT_LLM_PROVIDER: &str = "openai";
 const DEFAULT_LLM_MODEL: &str = "gpt-4o-mini";
@@ -99,6 +100,11 @@ pub struct LlmConfig {
     pub provider: String,
     pub api_key: Option<String>,
     pub model: Option<String>,
+    /// Base URL of the Ollama daemon for the `ollama` provider (e.g.
+    /// `http://localhost:11434`). Ignored by non-Ollama providers. Omit to use
+    /// `DEFAULT_OLLAMA_HOST`; override at runtime with `ENGRAM_OLLAMA_HOST`.
+    #[serde(default)]
+    pub host: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -349,6 +355,18 @@ impl Config {
                     .map_err(|error| CoreError::InvalidProvider(error.to_string()))?;
                 Ok(Box::new(generator))
             }
+            "ollama" => {
+                let host = self
+                    .llm
+                    .host
+                    .clone()
+                    .unwrap_or_else(|| DEFAULT_OLLAMA_HOST.into());
+                let model = self.llm.model.clone().unwrap_or_else(|| {
+                    engram_llm_client::ollama_text::DEFAULT_OLLAMA_LLM_MODEL.into()
+                });
+                let generator = OllamaTextGenerator::new(host, model)?;
+                Ok(Box::new(generator))
+            }
             other => Err(CoreError::InvalidProvider(format!(
                 "{other} llm not supported"
             ))),
@@ -399,6 +417,11 @@ impl Config {
         {
             self.embedding.host = Some(value);
         }
+        if self.llm.provider == "ollama"
+            && let Ok(value) = std::env::var("ENGRAM_OLLAMA_HOST")
+        {
+            self.llm.host = Some(value);
+        }
         if self.llm.provider == "openai"
             && let Ok(value) = std::env::var("ENGRAM_OPENAI_API_KEY")
         {
@@ -424,6 +447,7 @@ impl Default for Config {
                 provider: DEFAULT_LLM_PROVIDER.into(),
                 api_key: None,
                 model: Some(DEFAULT_LLM_MODEL.into()),
+                host: None,
             },
             server: ServerConfig {
                 socket_path: None,
@@ -789,5 +813,54 @@ mod tests {
         };
         let error = validate_search_config(&search).expect_err("both weights zero cancels output");
         assert!(matches!(error, CoreError::ConfigValidation(_)));
+    }
+
+    #[test]
+    fn build_text_generator_ollama_uses_prefixed_model_name() {
+        let mut config = Config::default();
+        config.llm.provider = "ollama".into();
+        config.llm.model = Some("qwen3:4b".into());
+        config.llm.host = Some("http://127.0.0.1:1".into());
+        config.llm.api_key = None;
+
+        let generator = config
+            .build_text_generator()
+            .expect("ollama text generator builds without a live daemon or api key");
+        assert_eq!(generator.model_name(), "ollama:qwen3:4b");
+    }
+
+    #[test]
+    fn build_text_generator_ollama_builds_without_host() {
+        let mut config = Config::default();
+        config.llm.provider = "ollama".into();
+        config.llm.model = Some("qwen3:4b".into());
+        config.llm.host = None;
+        config.llm.api_key = None;
+
+        let generator = config
+            .build_text_generator()
+            .expect("ollama text generator falls back to the default host");
+        assert_eq!(generator.model_name(), "ollama:qwen3:4b");
+    }
+
+    #[test]
+    fn llm_config_deserializes_without_host() {
+        let toml_input = r#"
+            provider = "ollama"
+            model = "qwen3:4b"
+        "#;
+        let config: LlmConfig = toml::from_str(toml_input).unwrap();
+        assert_eq!(config.host, None);
+    }
+
+    #[test]
+    fn llm_config_deserializes_with_host() {
+        let toml_input = r#"
+            provider = "ollama"
+            model = "qwen3:4b"
+            host = "http://ollama.internal:11434"
+        "#;
+        let config: LlmConfig = toml::from_str(toml_input).unwrap();
+        assert_eq!(config.host.as_deref(), Some("http://ollama.internal:11434"));
     }
 }

@@ -366,7 +366,7 @@ fn warn_missing_api_keys(config: &Config) {
             config.embedding.provider
         );
     }
-    if !has_llm_key && config.llm.provider != "local" {
+    if !has_llm_key && config.llm.provider != "local" && config.llm.provider != "ollama" {
         eprintln!(
             "warning: {} llm provider configured without api key (set ENGRAM_OPENAI_API_KEY)",
             config.llm.provider
