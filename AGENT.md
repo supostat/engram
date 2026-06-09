@@ -100,10 +100,13 @@ Optional `tags` (array of strings) filters results to memories that carry **all*
 ```
 
 **memory_consolidate_apply** — Apply recommendations: merge, delete, or archive.
+`min_confidence` (0.0–1.0, default 0.0 = apply all) skips recommendations below
+that confidence — e.g. `0.7` applies only high-confidence merges.
 ```json
 {
   "stale_days": 30,
-  "min_score": 0.3
+  "min_score": 0.3,
+  "min_confidence": 0.7
 }
 ```
 

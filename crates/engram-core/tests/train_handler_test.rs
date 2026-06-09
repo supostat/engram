@@ -65,6 +65,90 @@ fn insert_test_memory(state: &Arc<ServerState>, id: &str, memory_type: &str) {
     database.insert_memory(&memory).expect("insert memory");
 }
 
+fn make_insight(id: &str, context: &str) -> engram_storage::Memory {
+    engram_storage::Memory {
+        id: id.to_string(),
+        memory_type: "insight".to_string(),
+        context: context.to_string(),
+        action: "insight action".to_string(),
+        result: "insight result".to_string(),
+        score: 0.0,
+        embedding_context: None,
+        embedding_action: None,
+        embedding_result: None,
+        indexed: false,
+        tags: None,
+        project: None,
+        parent_id: None,
+        source_ids: None,
+        insight_type: Some("cluster".to_string()),
+        created_at: "2025-01-01T00:00:00Z".to_string(),
+        updated_at: "2025-01-01T00:00:00Z".to_string(),
+        used_count: 0,
+        last_used_at: None,
+        superseded_by: None,
+    }
+}
+
+fn insight_ids(state: &Arc<ServerState>) -> Vec<String> {
+    let database = state.database.lock().unwrap();
+    let mut statement = database
+        .connection()
+        .prepare("SELECT id FROM memories WHERE memory_type = 'insight' ORDER BY id")
+        .expect("prepare");
+    let rows = statement
+        .query_map([], |row| row.get::<_, String>(0))
+        .expect("query");
+    rows.map(|row| row.expect("row")).collect()
+}
+
+// Full-replace idempotency: re-running the trainer write with the SAME insight
+// payload must leave the insight count flat (not doubled). A second, different
+// payload must fully replace the first (old gone, new present). This guards the
+// switch from append-only bulk_insert_memories to the full-replace replace_insights.
+#[tokio::test]
+async fn replace_insights_is_idempotent_and_full_replace() {
+    let state = build_deterministic_state();
+    let first_batch = vec![
+        make_insight("ins-a", "alpha"),
+        make_insight("ins-b", "beta"),
+    ];
+
+    {
+        let database = state.database.lock().unwrap();
+        let count = database
+            .replace_insights(&first_batch)
+            .expect("first replace");
+        assert_eq!(count, 2, "first replace inserts both insights");
+    }
+    assert_eq!(insight_ids(&state), vec!["ins-a", "ins-b"]);
+
+    {
+        let database = state.database.lock().unwrap();
+        database
+            .replace_insights(&first_batch)
+            .expect("idempotent replace");
+    }
+    assert_eq!(
+        insight_ids(&state),
+        vec!["ins-a", "ins-b"],
+        "re-replacing the same payload must keep the count flat, not double it"
+    );
+
+    let second_batch = vec![make_insight("ins-c", "gamma")];
+    {
+        let database = state.database.lock().unwrap();
+        database
+            .replace_insights(&second_batch)
+            .expect("replacing replace");
+    }
+    assert_eq!(
+        insight_ids(&state),
+        vec!["ins-c"],
+        "a different payload must fully replace: old insights gone, new present"
+    );
+}
+
 #[tokio::test]
 async fn train_list_empty() {
     let state = build_deterministic_state();

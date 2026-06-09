@@ -235,6 +235,45 @@ impl Database {
         Ok(count)
     }
 
+    pub fn replace_insights(&self, insights: &[Memory]) -> Result<usize, StorageError> {
+        if insights.is_empty() {
+            // A no-op generate must never wipe the existing insight set.
+            return Ok(0);
+        }
+        let transaction = self.connection().unchecked_transaction()?;
+        transaction.execute("DELETE FROM memories WHERE memory_type = 'insight'", [])?;
+        let mut statement = transaction.prepare(INSERT_SQL)?;
+        let mut count = 0;
+        for memory in insights {
+            statement.execute(params![
+                memory.id,
+                memory.memory_type,
+                memory.context,
+                memory.action,
+                memory.result,
+                memory.score,
+                memory.embedding_context,
+                memory.embedding_action,
+                memory.embedding_result,
+                memory.indexed,
+                memory.tags,
+                memory.project,
+                memory.parent_id,
+                memory.source_ids,
+                memory.insight_type,
+                memory.created_at,
+                memory.updated_at,
+                memory.used_count,
+                memory.last_used_at,
+                memory.superseded_by,
+            ])?;
+            count += 1;
+        }
+        drop(statement);
+        transaction.commit()?;
+        Ok(count)
+    }
+
     pub fn list_all_memories(&self) -> Result<Vec<Memory>, StorageError> {
         let mut statement = self
             .connection()
@@ -262,7 +301,7 @@ impl Database {
     pub fn get_indexed_memory_ids(&self) -> Result<Vec<String>, StorageError> {
         let mut statement = self
             .connection()
-            .prepare("SELECT id FROM memories WHERE indexed = TRUE")?;
+            .prepare("SELECT id FROM memories WHERE indexed = TRUE AND superseded_by IS NULL")?;
         let rows = statement.query_map([], |row| row.get::<_, String>(0))?;
         let mut results = Vec::new();
         for row in rows {

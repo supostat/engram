@@ -36,10 +36,18 @@ pub fn preview(
 }
 
 fn find_duplicates(database: &Database) -> Result<Vec<DuplicateGroup>, ConsolidateError> {
-    let memory_ids = list_memory_ids(database)?;
     let mut already_grouped: HashSet<String> = HashSet::new();
     let mut groups: Vec<DuplicateGroup> = Vec::new();
 
+    for group in find_exact_duplicate_groups(database)? {
+        already_grouped.insert(group.primary_id.clone());
+        for id in &group.duplicate_ids {
+            already_grouped.insert(id.clone());
+        }
+        groups.push(group);
+    }
+
+    let memory_ids = list_memory_ids(database)?;
     for memory_id in &memory_ids {
         if already_grouped.contains(memory_id) {
             continue;
@@ -47,6 +55,45 @@ fn find_duplicates(database: &Database) -> Result<Vec<DuplicateGroup>, Consolida
         if let Some(group) = try_build_group(database, memory_id, &mut already_grouped)? {
             groups.push(group);
         }
+    }
+    Ok(groups)
+}
+
+// Groups memories whose (context, action, result) triplet is byte-identical — exact
+// duplicates that FTS top-K ranking can miss once a group grows beyond the FTS limit.
+// Ids are concatenated with a newline (char(10)); UUID memory ids never contain a
+// newline, so splitting on it recovers the exact member set.
+fn find_exact_duplicate_groups(
+    database: &Database,
+) -> Result<Vec<DuplicateGroup>, ConsolidateError> {
+    let mut statement = database
+        .connection()
+        .prepare(
+            "SELECT GROUP_CONCAT(id, char(10)) FROM memories
+             WHERE superseded_by IS NULL AND memory_type != 'insight'
+             GROUP BY context, action, result
+             HAVING COUNT(*) > 1
+             ORDER BY MIN(created_at)",
+        )
+        .map_err(StorageError::from)?;
+    let rows = statement
+        .query_map([], |row| row.get::<_, String>(0))
+        .map_err(StorageError::from)?;
+    let mut groups = Vec::new();
+    for row in rows {
+        let concatenated = row.map_err(StorageError::from)?;
+        let mut ids: Vec<String> = concatenated.split('\n').map(str::to_string).collect();
+        ids.sort();
+        let mut members = ids.into_iter();
+        let primary_id = match members.next() {
+            Some(id) => id,
+            None => continue,
+        };
+        groups.push(DuplicateGroup {
+            primary_id,
+            duplicate_ids: members.collect(),
+            similarity: 1.0,
+        });
     }
     Ok(groups)
 }
@@ -83,7 +130,11 @@ fn try_build_group(
 fn list_memory_ids(database: &Database) -> Result<Vec<String>, ConsolidateError> {
     let mut statement = database
         .connection()
-        .prepare("SELECT id FROM memories ORDER BY created_at")
+        .prepare(
+            "SELECT id FROM memories
+             WHERE superseded_by IS NULL AND memory_type != 'insight'
+             ORDER BY created_at",
+        )
         .map_err(StorageError::from)?;
     let rows = statement
         .query_map([], |row| row.get::<_, String>(0))
@@ -110,7 +161,11 @@ fn find_fts_duplicates_for(
     };
     let duplicates: Vec<(String, f64)> = fts_results
         .into_iter()
-        .filter(|fts_result| fts_result.memory.id != memory_id)
+        .filter(|fts_result| {
+            fts_result.memory.id != memory_id
+                && fts_result.memory.memory_type != "insight"
+                && fts_result.memory.superseded_by.is_none()
+        })
         .map(|fts_result| (fts_result.memory.id, fts_result.rank))
         .collect();
     Ok(duplicates)

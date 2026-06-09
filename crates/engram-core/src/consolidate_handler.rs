@@ -5,9 +5,11 @@ use serde_json::{Value, json};
 
 use crate::error::CoreError;
 use crate::lock_helpers;
+use crate::persistence::hash_string_to_u64;
 use crate::server::ServerState;
 
 const MAX_STALE_DAYS: u32 = 3650;
+const MIN_CONFIDENCE_DEFAULT: f32 = 0.0;
 
 #[derive(Deserialize)]
 struct PreviewParams {
@@ -76,6 +78,7 @@ pub async fn handle_analyze(state: &Arc<ServerState>, params: Value) -> Result<V
 struct ApplyParams {
     stale_days: Option<u32>,
     min_score: Option<f64>,
+    min_confidence: Option<f32>,
 }
 
 pub async fn handle_apply(state: &Arc<ServerState>, params: Value) -> Result<Value, CoreError> {
@@ -87,18 +90,33 @@ pub async fn handle_apply(state: &Arc<ServerState>, params: Value) -> Result<Val
     let min_score = parsed
         .min_score
         .unwrap_or(state.config.consolidation.min_score);
+    let min_confidence = parsed.min_confidence.unwrap_or(MIN_CONFIDENCE_DEFAULT);
     validate_consolidation_params(stale_days, min_score)?;
+    validate_min_confidence(min_confidence)?;
     let state_clone = Arc::clone(state);
     let result = tokio::task::spawn_blocking(move || {
-        let database = lock_helpers::lock_db(&state_clone);
-        let preview = engram_consolidate::preview(&database, stale_days, min_score)?;
-        let text_gen_ref = state_clone
-            .text_generator
-            .as_deref()
-            .map(|generator| generator as &dyn engram_llm_client::TextGenerator);
-        let analysis = engram_consolidate::analyze(&database, &preview, text_gen_ref)?;
-        let apply_result =
-            engram_consolidate::apply(&database, &analysis.recommendations, "server")?;
+        let apply_result = {
+            let database = lock_helpers::lock_db(&state_clone);
+            let preview = engram_consolidate::preview(&database, stale_days, min_score)?;
+            let text_gen_ref = state_clone
+                .text_generator
+                .as_deref()
+                .map(|generator| generator as &dyn engram_llm_client::TextGenerator);
+            let analysis = engram_consolidate::analyze(&database, &preview, text_gen_ref)?;
+            engram_consolidate::apply(
+                &database,
+                &analysis.recommendations,
+                "server",
+                min_confidence,
+            )?
+        };
+        let mut indexes = lock_helpers::write_indexes(&state_clone);
+        for id in &apply_result.pruned_ids {
+            let hashed = hash_string_to_u64(id);
+            if indexes.contains(hashed) {
+                indexes.delete(hashed).map_err(CoreError::Hnsw)?;
+            }
+        }
         Ok::<_, CoreError>(json!({
             "merged": apply_result.merged,
             "deleted": apply_result.deleted,
@@ -168,4 +186,45 @@ fn validate_consolidation_params(stale_days: u32, min_score: f64) -> Result<(), 
         ));
     }
     Ok(())
+}
+
+fn validate_min_confidence(min_confidence: f32) -> Result<(), CoreError> {
+    if !(0.0..=1.0).contains(&min_confidence) {
+        return Err(CoreError::DispatchError(
+            "min_confidence must be between 0.0 and 1.0".into(),
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn min_confidence_in_range_is_accepted() {
+        assert!(validate_min_confidence(0.0).is_ok());
+        assert!(validate_min_confidence(0.5).is_ok());
+        assert!(validate_min_confidence(1.0).is_ok());
+    }
+
+    #[test]
+    fn min_confidence_out_of_range_is_rejected() {
+        assert!(matches!(
+            validate_min_confidence(-0.1),
+            Err(CoreError::DispatchError(_))
+        ));
+        assert!(matches!(
+            validate_min_confidence(1.1),
+            Err(CoreError::DispatchError(_))
+        ));
+    }
+
+    #[test]
+    fn min_confidence_nan_is_rejected() {
+        assert!(matches!(
+            validate_min_confidence(f32::NAN),
+            Err(CoreError::DispatchError(_))
+        ));
+    }
 }

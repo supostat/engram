@@ -204,7 +204,7 @@ async fn insert_generated_insights(
     let state_clone = Arc::clone(state);
     tokio::task::spawn_blocking(move || {
         let database = lock_helpers::lock_db(&state_clone);
-        database.bulk_insert_memories(&insights)?;
+        database.replace_insights(&insights)?;
         Ok::<u64, CoreError>(count)
     })
     .await

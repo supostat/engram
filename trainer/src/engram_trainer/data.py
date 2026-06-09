@@ -86,7 +86,10 @@ class DataReader:
         columns = ", ".join(MEMORIES_COLUMNS)
 
         if memory_types is None:
-            query = f"SELECT {columns} FROM memories"
+            query = (
+                f"SELECT {columns} FROM memories "
+                f"WHERE memory_type != 'insight' AND superseded_by IS NULL"
+            )
             cursor = self.connection.execute(query)
         else:
             placeholders = ", ".join("?" for _ in memory_types)

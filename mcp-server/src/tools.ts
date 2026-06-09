@@ -123,6 +123,7 @@ export const TOOL_DEFINITIONS = [
     schema: z.object({
       stale_days: z.number().optional(),
       min_score: z.number().optional(),
+      min_confidence: z.number().min(0).max(1).optional(),
     }),
   },
   {

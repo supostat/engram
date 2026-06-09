@@ -207,6 +207,52 @@ fn test_set_superseded_by_not_found() {
     assert!(matches!(result, Err(StorageError::NotFound(_))));
 }
 
+fn make_insight(id: &str) -> Memory {
+    let mut memory = make_memory(id);
+    memory.memory_type = "insight".to_string();
+    memory
+}
+
+fn count_insights(database: &Database) -> i64 {
+    database
+        .connection()
+        .query_row(
+            "SELECT COUNT(*) FROM memories WHERE memory_type = 'insight'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap()
+}
+
+#[test]
+fn test_replace_insights_empty_is_noop() {
+    let database = Database::in_memory().unwrap();
+    database.insert_memory(&make_insight("i1")).unwrap();
+
+    // Replacing with nothing must not wipe the existing insight set.
+    let replaced = database.replace_insights(&[]).unwrap();
+    assert_eq!(replaced, 0);
+    assert_eq!(count_insights(&database), 1);
+    assert_eq!(database.get_memory("i1").unwrap().id, "i1");
+}
+
+#[test]
+fn test_replace_insights_swaps_existing() {
+    let database = Database::in_memory().unwrap();
+    database.insert_memory(&make_insight("i1")).unwrap();
+
+    let replaced = database.replace_insights(&[make_insight("i2")]).unwrap();
+    assert_eq!(replaced, 1);
+    assert_eq!(count_insights(&database), 1);
+
+    let old = database.get_memory("i1");
+    assert!(
+        matches!(old, Err(StorageError::NotFound(_))),
+        "old insight must be replaced"
+    );
+    assert_eq!(database.get_memory("i2").unwrap().id, "i2");
+}
+
 #[test]
 fn test_bulk_insert_with_duplicates() {
     let database = Database::in_memory().unwrap();

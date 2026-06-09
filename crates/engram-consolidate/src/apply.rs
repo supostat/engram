@@ -10,12 +10,14 @@ pub struct ApplyResult {
     pub archived: usize,
     pub kept: usize,
     pub errors: Vec<String>,
+    pub pruned_ids: Vec<String>,
 }
 
 pub fn apply(
     database: &Database,
     recommendations: &[Recommendation],
     performed_by: &str,
+    min_confidence: f32,
 ) -> Result<ApplyResult, ConsolidateError> {
     let mut result = ApplyResult {
         merged: 0,
@@ -23,9 +25,13 @@ pub fn apply(
         archived: 0,
         kept: 0,
         errors: Vec::new(),
+        pruned_ids: Vec::new(),
     };
     let timestamp = current_utc_timestamp();
     for recommendation in recommendations {
+        if recommendation.confidence < min_confidence {
+            continue;
+        }
         apply_single(
             database,
             recommendation,
@@ -93,6 +99,7 @@ fn apply_merge(
         result.errors.push(format!("log merge: {error}"));
         return;
     }
+    result.pruned_ids.push(target_id.to_string());
     result.merged += 1;
 }
 
@@ -119,6 +126,7 @@ fn apply_delete(
         result.errors.push(format!("delete {memory_id}: {error}"));
         return;
     }
+    result.pruned_ids.push(memory_id.to_string());
     result.deleted += 1;
 }
 
@@ -144,6 +152,7 @@ fn apply_archive(
         result.errors.push(format!("log archive: {error}"));
         return;
     }
+    result.pruned_ids.push(memory_id.to_string());
     result.archived += 1;
 }
 

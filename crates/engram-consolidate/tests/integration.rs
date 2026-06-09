@@ -240,7 +240,7 @@ fn test_apply_merge_sets_superseded_by() {
         reasoning: "test merge".to_string(),
     }];
 
-    let result = apply(&database, &recommendations, "test-agent").unwrap();
+    let result = apply(&database, &recommendations, "test-agent", 0.0).unwrap();
     assert_eq!(result.merged, 1);
     assert!(result.errors.is_empty());
 
@@ -261,7 +261,7 @@ fn test_apply_delete_removes_memory() {
         reasoning: "garbage".to_string(),
     }];
 
-    let result = apply(&database, &recommendations, "test-agent").unwrap();
+    let result = apply(&database, &recommendations, "test-agent", 0.0).unwrap();
     assert_eq!(result.deleted, 1);
     assert!(result.errors.is_empty());
 
@@ -287,7 +287,7 @@ fn test_apply_archive_sets_indexed_false() {
         reasoning: "stale".to_string(),
     }];
 
-    let result = apply(&database, &recommendations, "test-agent").unwrap();
+    let result = apply(&database, &recommendations, "test-agent", 0.0).unwrap();
     assert_eq!(result.archived, 1);
     assert!(result.errors.is_empty());
 
@@ -317,7 +317,7 @@ fn test_apply_logs_to_consolidation_log() {
         reasoning: "test".to_string(),
     }];
 
-    apply(&database, &recommendations, "test-agent").unwrap();
+    apply(&database, &recommendations, "test-agent", 0.0).unwrap();
 
     let count: i64 = database
         .connection()
@@ -341,7 +341,7 @@ fn test_apply_keep_increments_counter() {
         reasoning: "keep both".to_string(),
     }];
 
-    let result = apply(&database, &recommendations, "test-agent").unwrap();
+    let result = apply(&database, &recommendations, "test-agent", 0.0).unwrap();
     assert_eq!(result.kept, 1);
     assert_eq!(result.merged, 0);
     assert_eq!(result.deleted, 0);
@@ -409,7 +409,7 @@ fn test_apply_merge_nonexistent_memory_collects_error() {
         reasoning: "test merge nonexistent".to_string(),
     }];
 
-    let result = apply(&database, &recommendations, "test-agent").unwrap();
+    let result = apply(&database, &recommendations, "test-agent", 0.0).unwrap();
     assert_eq!(result.merged, 0, "merge should not succeed");
     assert!(
         !result.errors.is_empty(),
@@ -419,6 +419,254 @@ fn test_apply_merge_nonexistent_memory_collects_error() {
         result.errors[0].contains("nonexistent-target"),
         "error should reference the target memory id"
     );
+}
+
+fn make_identical(id: &str, shared_token: &str) -> Memory {
+    let mut memory = make_memory(id, shared_token);
+    memory.action = "identical action body".to_string();
+    memory.result = "identical result body".to_string();
+    memory
+}
+
+// Exact-duplicate grouping must collect ALL rows with a byte-identical
+// (context, action, result) triplet into one group, even past the FTS top-5 limit
+// that the FTS-only pass would truncate.
+#[test]
+fn test_preview_exact_dedup_beyond_fts_top5() {
+    let database = Database::in_memory().unwrap();
+    let shared = "sharedtoken";
+    let ids = ["e1", "e2", "e3", "e4", "e5", "e6"];
+    for id in ids {
+        database.insert_memory(&make_identical(id, shared)).unwrap();
+    }
+
+    let result = preview(&database, 365, 0.1).unwrap();
+    let exact_group = result
+        .duplicates
+        .iter()
+        .find(|group| {
+            let mut members: Vec<&str> = std::iter::once(group.primary_id.as_str())
+                .chain(group.duplicate_ids.iter().map(String::as_str))
+                .collect();
+            members.sort();
+            members == ids
+        })
+        .expect("a single exact-duplicate group must contain all six identical rows");
+    assert_eq!(
+        exact_group.duplicate_ids.len(),
+        5,
+        "the primary plus five duplicates make all six members"
+    );
+    assert_eq!(exact_group.similarity, 1.0, "exact duplicates score 1.0");
+}
+
+// Insights and superseded rows must never be grouped as duplicates of a live source,
+// not via the exact pass nor via the FTS pass.
+#[test]
+fn test_preview_excludes_insights_and_superseded() {
+    let database = Database::in_memory().unwrap();
+    let shared = "duplicate detection corpus tokens";
+    database
+        .insert_memory(&make_memory("src1", shared))
+        .unwrap();
+
+    let mut insight = make_memory("insight1", shared);
+    insight.memory_type = "insight".to_string();
+    insight.action = "action for src1".to_string();
+    insight.result = "result for src1".to_string();
+    database.insert_memory(&insight).unwrap();
+
+    let mut retired = make_memory("retired1", shared);
+    retired.action = "action for src1".to_string();
+    retired.result = "result for src1".to_string();
+    database.insert_memory(&retired).unwrap();
+    database.set_superseded_by("retired1", "src1").unwrap();
+
+    let result = preview(&database, 365, 0.1).unwrap();
+    let grouped_ids: Vec<String> = result
+        .duplicates
+        .iter()
+        .flat_map(|group| {
+            std::iter::once(group.primary_id.clone()).chain(group.duplicate_ids.iter().cloned())
+        })
+        .collect();
+    assert!(
+        !grouped_ids.contains(&"insight1".to_string()),
+        "an insight must never be grouped with a live source"
+    );
+    assert!(
+        !grouped_ids.contains(&"retired1".to_string()),
+        "a superseded row must never be grouped with a live source"
+    );
+}
+
+#[test]
+fn test_analyze_single_survivor() {
+    let database = Database::in_memory().unwrap();
+    let shared = "single survivor corpus";
+
+    let mut insight = make_memory("ins1", shared);
+    insight.memory_type = "insight".to_string();
+    insight.score = 0.99;
+    database.insert_memory(&insight).unwrap();
+
+    let mut high = make_memory("high1", shared);
+    high.score = 0.8;
+    database.insert_memory(&high).unwrap();
+
+    let mut low = make_memory("low1", shared);
+    low.score = 0.2;
+    database.insert_memory(&low).unwrap();
+
+    let preview_result = PreviewResult {
+        duplicates: vec![DuplicateGroup {
+            primary_id: "ins1".to_string(),
+            duplicate_ids: vec!["high1".to_string(), "low1".to_string()],
+            similarity: 1.0,
+        }],
+        stale: Vec::new(),
+        garbage: Vec::new(),
+    };
+
+    let analysis = analyze(&database, &preview_result, None).unwrap();
+    assert_eq!(
+        analysis.recommendations.len(),
+        2,
+        "a 3-member group produces exactly two non-survivor recommendations"
+    );
+
+    let mut survivors = std::collections::HashSet::new();
+    let mut targets = std::collections::HashSet::new();
+    for recommendation in &analysis.recommendations {
+        match &recommendation.action {
+            RecommendedAction::Merge {
+                source_id,
+                target_id,
+            } => {
+                survivors.insert(source_id.clone());
+                targets.insert(target_id.clone());
+            }
+            other => panic!("expected Merge, got {other:?}"),
+        }
+    }
+    assert_eq!(survivors.len(), 1, "every merge must share one survivor");
+    let survivor = survivors.into_iter().next().unwrap();
+    assert_eq!(
+        survivor, "high1",
+        "the highest-score non-insight must be the survivor"
+    );
+    assert_ne!(survivor, "ins1", "an insight must never be the survivor");
+    assert_eq!(
+        targets,
+        ["high1", "low1", "ins1"]
+            .into_iter()
+            .filter(|id| *id != survivor)
+            .map(str::to_string)
+            .collect()
+    );
+}
+
+#[test]
+fn test_apply_returns_pruned_ids() {
+    let database = Database::in_memory().unwrap();
+    database
+        .insert_memory(&make_memory("survivor", "merge survivor context"))
+        .unwrap();
+    database
+        .insert_memory(&make_memory("merged", "merge survivor context"))
+        .unwrap();
+    insert_orphan_memory(&database, "garbage");
+    let mut stale = make_memory("stale", "stale archive context");
+    stale.indexed = true;
+    database.insert_memory(&stale).unwrap();
+
+    let recommendations = vec![
+        engram_consolidate::Recommendation {
+            action: RecommendedAction::Merge {
+                source_id: "survivor".to_string(),
+                target_id: "merged".to_string(),
+            },
+            confidence: 0.8,
+            reasoning: "merge".to_string(),
+        },
+        engram_consolidate::Recommendation {
+            action: RecommendedAction::Delete {
+                memory_id: "garbage".to_string(),
+            },
+            confidence: 0.95,
+            reasoning: "delete".to_string(),
+        },
+        engram_consolidate::Recommendation {
+            action: RecommendedAction::Archive {
+                memory_id: "stale".to_string(),
+            },
+            confidence: 0.9,
+            reasoning: "archive".to_string(),
+        },
+        engram_consolidate::Recommendation {
+            action: RecommendedAction::Keep {
+                memory_id: "survivor".to_string(),
+            },
+            confidence: 0.7,
+            reasoning: "keep".to_string(),
+        },
+    ];
+
+    let result = apply(&database, &recommendations, "test-agent", 0.0).unwrap();
+    let pruned: std::collections::HashSet<&str> =
+        result.pruned_ids.iter().map(String::as_str).collect();
+    assert!(pruned.contains("merged"), "merge target must be pruned");
+    assert!(pruned.contains("garbage"), "deleted id must be pruned");
+    assert!(pruned.contains("stale"), "archived id must be pruned");
+    assert!(
+        !pruned.contains("survivor"),
+        "the merge survivor must NOT be pruned"
+    );
+    assert_eq!(
+        result.pruned_ids.len(),
+        3,
+        "kept survivor adds nothing to pruned_ids"
+    );
+}
+
+#[test]
+fn test_apply_min_confidence_gate() {
+    let database = Database::in_memory().unwrap();
+    database
+        .insert_memory(&make_memory("g1", "confidence gate context"))
+        .unwrap();
+    database
+        .insert_memory(&make_memory("g2", "confidence gate context"))
+        .unwrap();
+
+    let recommendation = engram_consolidate::Recommendation {
+        action: RecommendedAction::Merge {
+            source_id: "g1".to_string(),
+            target_id: "g2".to_string(),
+        },
+        confidence: 0.6,
+        reasoning: "borderline".to_string(),
+    };
+
+    let skipped = apply(
+        &database,
+        std::slice::from_ref(&recommendation),
+        "test-agent",
+        0.7,
+    )
+    .unwrap();
+    assert_eq!(skipped.merged, 0, "a rec below min_confidence is skipped");
+    assert!(skipped.pruned_ids.is_empty());
+
+    let applied = apply(
+        &database,
+        std::slice::from_ref(&recommendation),
+        "test-agent",
+        0.5,
+    )
+    .unwrap();
+    assert_eq!(applied.merged, 1, "a rec at/above min_confidence applies");
+    assert_eq!(applied.pruned_ids, vec!["g2".to_string()]);
 }
 
 #[test]

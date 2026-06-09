@@ -11,7 +11,7 @@ class TestReadMemories:
         memories = reader.read_memories()
         reader.close()
 
-        assert len(memories) == 5
+        assert len(memories) == 4
         first = next(m for m in memories if m.id == "mem-001")
         assert first.memory_type == "decision"
         assert first.context == "Choosing database for project"
@@ -61,6 +61,22 @@ class TestReadMemories:
             assert insight.insight_type == "cluster"
             assert insight.source_ids == "mem-001,mem-002"
 
+    def test_read_memories_excludes_insight_and_superseded(self, test_database_path):
+        writer = sqlite3.connect(test_database_path)
+        writer.execute(
+            "UPDATE memories SET superseded_by = 'mem-001' WHERE id = 'mem-002'"
+        )
+        writer.commit()
+        writer.close()
+
+        with DataReader(test_database_path) as reader:
+            memories = reader.read_memories()
+
+        ids = {m.id for m in memories}
+        assert "mem-004" not in ids, "no-args read must omit the insight row"
+        assert "mem-002" not in ids, "no-args read must omit superseded rows"
+        assert ids == {"mem-001", "mem-003", "mem-005"}
+
 
 class TestReadQTable:
     def test_read_q_table(self, test_database_path):
@@ -103,7 +119,7 @@ class TestContextManager:
     def test_context_manager_opens_and_closes(self, test_database_path):
         with DataReader(test_database_path) as reader:
             memories = reader.read_memories()
-            assert len(memories) == 5
+            assert len(memories) == 4
 
     def test_context_manager_closes_on_exception(self, test_database_path):
         with pytest.raises(RuntimeError):

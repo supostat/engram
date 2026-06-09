@@ -78,21 +78,56 @@ fn analyze_duplicate_group(
     }
 }
 
+fn load_group_members(
+    database: &Database,
+    group: &crate::preview::DuplicateGroup,
+) -> Result<Vec<engram_storage::Memory>, ConsolidateError> {
+    let mut members = Vec::with_capacity(1 + group.duplicate_ids.len());
+    members.push(database.get_memory(&group.primary_id)?);
+    for duplicate_id in &group.duplicate_ids {
+        members.push(database.get_memory(duplicate_id)?);
+    }
+    Ok(members)
+}
+
+// Picks the single memory the rest of the group folds into. Total order, applied in
+// priority sequence: a non-insight beats an insight, then higher score, then higher
+// usage, then the earlier creation, then the smaller id as a deterministic final
+// tie-break. An insight is therefore never chosen while any non-insight member exists.
+fn choose_survivor(members: &[engram_storage::Memory]) -> &engram_storage::Memory {
+    members
+        .iter()
+        .max_by(|left, right| {
+            let left_non_insight = u8::from(left.memory_type != "insight");
+            let right_non_insight = u8::from(right.memory_type != "insight");
+            left_non_insight
+                .cmp(&right_non_insight)
+                .then_with(|| left.score.total_cmp(&right.score))
+                .then_with(|| left.used_count.cmp(&right.used_count))
+                .then_with(|| right.created_at.cmp(&left.created_at))
+                .then_with(|| right.id.cmp(&left.id))
+        })
+        .expect("a duplicate group always has at least one member")
+}
+
 fn analyze_with_llm(
     database: &Database,
     group: &crate::preview::DuplicateGroup,
     text_generator: &dyn TextGenerator,
 ) -> Result<Vec<Recommendation>, ConsolidateError> {
-    let primary = database.get_memory(&group.primary_id)?;
+    let members = load_group_members(database, group)?;
+    let survivor = choose_survivor(&members);
     let mut recommendations = Vec::new();
 
-    for duplicate_id in &group.duplicate_ids {
-        let duplicate = database.get_memory(duplicate_id)?;
-        let prompt = build_merge_prompt(&primary, &duplicate);
+    for member in &members {
+        if member.id == survivor.id {
+            continue;
+        }
+        let prompt = build_merge_prompt(survivor, member);
         let response = text_generator
             .generate(&prompt)
             .map_err(|error| ConsolidateError::AnalysisFailed(error.to_string()))?;
-        let recommendation = parse_llm_response(&group.primary_id, duplicate_id, &response);
+        let recommendation = parse_llm_response(&survivor.id, &member.id, &response);
         recommendations.push(recommendation);
     }
     Ok(recommendations)
@@ -118,14 +153,14 @@ fn build_merge_prompt(
     )
 }
 
-fn parse_llm_response(primary_id: &str, duplicate_id: &str, response: &str) -> Recommendation {
+fn parse_llm_response(survivor_id: &str, member_id: &str, response: &str) -> Recommendation {
     let normalized = response.trim().to_uppercase();
     let normalized_first_word = normalized.split_whitespace().next().unwrap_or("");
     if normalized_first_word == "MERGE" {
         Recommendation {
             action: RecommendedAction::Merge {
-                source_id: primary_id.to_string(),
-                target_id: duplicate_id.to_string(),
+                source_id: survivor_id.to_string(),
+                target_id: member_id.to_string(),
             },
             confidence: LLM_MERGE_CONFIDENCE,
             reasoning: "LLM recommended merge".to_string(),
@@ -133,7 +168,7 @@ fn parse_llm_response(primary_id: &str, duplicate_id: &str, response: &str) -> R
     } else {
         Recommendation {
             action: RecommendedAction::Keep {
-                memory_id: duplicate_id.to_string(),
+                memory_id: member_id.to_string(),
             },
             confidence: LLM_KEEP_CONFIDENCE,
             reasoning: "LLM recommended keeping both".to_string(),
@@ -145,49 +180,23 @@ fn analyze_with_heuristic(
     database: &Database,
     group: &crate::preview::DuplicateGroup,
 ) -> Vec<Recommendation> {
-    let primary = match database.get_memory(&group.primary_id) {
-        Ok(memory) => memory,
+    let members = match load_group_members(database, group) {
+        Ok(members) => members,
         Err(_) => return Vec::new(),
     };
-    let mut recommendations = Vec::new();
-
-    for duplicate_id in &group.duplicate_ids {
-        let duplicate = match database.get_memory(duplicate_id) {
-            Ok(memory) => memory,
-            Err(_) => continue,
-        };
-        let recommendation = heuristic_merge_decision(&primary, &duplicate);
-        recommendations.push(recommendation);
-    }
-    recommendations
-}
-
-fn heuristic_merge_decision(
-    primary: &engram_storage::Memory,
-    duplicate: &engram_storage::Memory,
-) -> Recommendation {
-    let primary_wins = primary.score > duplicate.score
-        || (primary.score == duplicate.score && primary.used_count >= duplicate.used_count);
-
-    if primary_wins {
-        Recommendation {
+    let survivor = choose_survivor(&members);
+    members
+        .iter()
+        .filter(|member| member.id != survivor.id)
+        .map(|member| Recommendation {
             action: RecommendedAction::Merge {
-                source_id: primary.id.clone(),
-                target_id: duplicate.id.clone(),
+                source_id: survivor.id.clone(),
+                target_id: member.id.clone(),
             },
             confidence: HEURISTIC_MERGE_CONFIDENCE,
-            reasoning: "heuristic: primary has higher score or usage".to_string(),
-        }
-    } else {
-        Recommendation {
-            action: RecommendedAction::Merge {
-                source_id: duplicate.id.clone(),
-                target_id: primary.id.clone(),
-            },
-            confidence: HEURISTIC_MERGE_CONFIDENCE,
-            reasoning: "heuristic: duplicate has higher score or usage".to_string(),
-        }
-    }
+            reasoning: "heuristic: survivor has higher score or usage".to_string(),
+        })
+        .collect()
 }
 
 fn build_archive_recommendation(memory_id: &str) -> Recommendation {

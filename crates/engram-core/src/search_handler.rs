@@ -197,6 +197,9 @@ async fn load_memories(
                 Ok(m) => m,
                 Err(_) => continue,
             };
+            if memory.superseded_by.is_some() {
+                continue;
+            }
             let _ = database.track_search(memory_id, &timestamp);
             let score = scores.get(memory_id.as_str()).copied().unwrap_or(0.0);
             results.push(json!({
