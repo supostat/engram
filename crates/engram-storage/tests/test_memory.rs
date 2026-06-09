@@ -74,7 +74,9 @@ fn test_delete_memory() {
 fn test_delete_memory_clears_feedback_tracking() {
     let database = Database::in_memory().unwrap();
     database.insert_memory(&make_memory("m1")).unwrap();
-    database.track_search("m1", "2026-01-01T00:00:00Z").unwrap();
+    database
+        .track_search("m1", "q-test", "2026-01-01T00:00:00Z")
+        .unwrap();
 
     // With PRAGMA foreign_keys ON the bare DELETE would have hit the
     // feedback_tracking FK; the transactional delete clears the child rows first.

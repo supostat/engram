@@ -34,6 +34,28 @@ pub(crate) fn limit_results(results: Vec<(String, f64)>, top_k: usize) -> Vec<(S
     results.into_iter().take(top_k).collect()
 }
 
+pub(crate) const SHADOW_K_SET: [usize; 4] = [3, 5, 10, 20];
+
+/// Counterfactual RRF-mass coverage at each cutoff in `k_set`: the fraction of
+/// the total fused score captured by the top-k hits. Pure and side-effect-free —
+/// the result is logged for offline analysis and never feeds the served ranking.
+pub(crate) fn shadow_rewards_for_k_set(
+    merged: &[(String, f64)],
+    k_set: &[usize],
+) -> Vec<(usize, f64)> {
+    let total: f64 = merged.iter().map(|(_, score)| score).sum();
+    if merged.is_empty() || total <= 0.0 {
+        return Vec::new();
+    }
+    k_set
+        .iter()
+        .map(|&k| {
+            let covered: f64 = merged.iter().take(k).map(|(_, score)| score).sum();
+            (k, covered / total)
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -151,5 +173,59 @@ mod tests {
         assert_eq!(merged[0].0, "only_sparse");
         let expected = search.sparse_weight / (k + 1.0);
         assert!((merged[0].1 - expected).abs() < 1e-12);
+    }
+
+    fn scored(id: &str, score: f64) -> (String, f64) {
+        (id.to_string(), score)
+    }
+
+    #[test]
+    fn shadow_rewards_are_monotonic_non_decreasing() {
+        let merged = vec![
+            scored("a", 0.5),
+            scored("b", 0.3),
+            scored("c", 0.1),
+            scored("d", 0.1),
+        ];
+        let rewards = shadow_rewards_for_k_set(&merged, &SHADOW_K_SET);
+        assert_eq!(rewards.len(), SHADOW_K_SET.len());
+        for window in rewards.windows(2) {
+            assert!(
+                window[1].1 >= window[0].1,
+                "reward must not decrease as k grows: {window:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn shadow_reward_is_one_when_k_covers_all() {
+        let merged = vec![scored("a", 0.6), scored("b", 0.4)];
+        let rewards = shadow_rewards_for_k_set(&merged, &[10]);
+        assert_eq!(rewards.len(), 1);
+        assert_eq!(rewards[0].0, 10);
+        assert!((rewards[0].1 - 1.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn shadow_rewards_empty_merged_yields_empty() {
+        let rewards = shadow_rewards_for_k_set(&[], &SHADOW_K_SET);
+        assert!(rewards.is_empty());
+    }
+
+    #[test]
+    fn shadow_rewards_non_positive_total_yields_empty() {
+        let merged = vec![scored("a", 0.0), scored("b", 0.0)];
+        let rewards = shadow_rewards_for_k_set(&merged, &SHADOW_K_SET);
+        assert!(rewards.is_empty());
+    }
+
+    #[test]
+    fn shadow_reward_single_element_is_one() {
+        let merged = vec![scored("a", 0.42)];
+        let rewards = shadow_rewards_for_k_set(&merged, &SHADOW_K_SET);
+        assert_eq!(rewards.len(), SHADOW_K_SET.len());
+        for (_, reward) in rewards {
+            assert!((reward - 1.0).abs() < 1e-12);
+        }
     }
 }

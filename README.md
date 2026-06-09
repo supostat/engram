@@ -1,6 +1,6 @@
 # Engram
 
-Memory system for AI agents. Stores decisions, patterns, and bugfixes with semantic search, automatic deduplication, and self-learning optimization.
+Memory system for AI agents. Stores decisions, patterns, and bugfixes with semantic search and automatic deduplication.
 
 ## Architecture
 
@@ -25,7 +25,7 @@ Memory system for AI agents. Stores decisions, patterns, and bugfixes with seman
 │  engram-embeddings Voyage/OpenAI + HyDE             │
 │  engram-judge      Heuristic + LLM scoring          │
 │  engram-consolidate Dedup preview/analyze/apply     │
-│  engram-router     Adaptive routing (4 levels)      │
+│  engram-router     Routing scaffolding (4 levels)   │
 │  engram-llm-client API + local ONNX inference       │
 └─────────────────────────────────────────────────────┘
                │ stdout JSON Lines
@@ -95,20 +95,21 @@ engram train generate  # regular models + insights
 - **HyDE** — opt-in via `embedding.hyde_threshold > 0` (disabled by default). When enabled, LLM generates a hypothetical memory and embeds the hypothesis instead of the raw query. Cache is keyed by the original query, so repeated calls hit the cache instantly.
 - **Automatic deduplication** — at write time a candidate is a duplicate only when all three fields (context, action, result) each have cosine similarity ≥ the dedup threshold (default 0.95)
 - **Consolidation** — preview → LLM analysis → apply (merge/delete/archive)
-- **Adaptive routing (contextual bandit)** — 4 levels: search strategy, LLM selection, contextualization, proactivity. The update is `Q ← Q + α(reward − Q)`, an EMA of immediate reward with no state transition and no discounted-future term (γ·max Q(s′,·)) — a contextual bandit over immediate reward, not full reinforcement learning
-- **Three learning loops** — fast (per-call bandit update), medium (trainer daily/weekly), deep (LoRA fine-tune)
+- **Routing scaffolding (contextual bandit)** — 4 levels: search strategy, LLM selection, contextualization, proactivity. The contextual-bandit Q-update `Q ← Q + α(reward − Q)` (an EMA of immediate reward with no state transition and no discounted-future term (γ·max Q(s′,·)) — not full reinforcement learning) is **not invoked during serving**: searches use static per-mode defaults, and each search's decision is written to the `routing_log` table for offline analysis
+- **Two active learning loops** — the trainer (daily/weekly model regeneration) and deep LoRA fine-tuning. A third per-call routing-update loop is scaffolded but not active in serving
+- **Explicit judging** — judging is explicit via `memory_judge`; there is no automatic search-time scoring. Search only tracks which memories were shown (for pending-judgment bookkeeping)
 - **Cross-project transfer** — project-scoped search with score multiplier, insights are project-agnostic
-- **Graceful degradation** — every API dependency has a local fallback (FTS for search, heuristics for judge)
+- **Graceful degradation** — every API dependency has a local fallback (FTS for search, heuristics for the judge fallback)
 - **Local inference** — optional ONNX runtime for text generation (feature-gated)
 
-## Self-Learning Models
+## Trainer Models
 
 Trainer produces three ONNX models stored in `~/.engram/models/`:
 
 | Model | Size | Algorithm | Purpose |
 |-------|------|-----------|---------|
-| `mode_classifier.onnx` | 13 KB | TF-IDF + LogisticRegression | Classifies query type (query/research/brainstorm/debugging) for adaptive routing decisions |
-| `ranking_model.onnx` | 23 KB | GradientBoosting | Re-ranks search results by score, usage, recency, length, and tags |
+| `mode_classifier.onnx` | 13 KB | TF-IDF + LogisticRegression | Classifies query type (query/research/brainstorm/debugging) for routing decisions |
+| `ranking_model.onnx` | 23 KB | GradientBoosting | Trained to re-rank by score/usage/recency/length/tags — produced by the trainer, not yet applied in the live search path (scaffolding) |
 | `text_generator.onnx` | ~312 MB | DistilGPT2 + LoRA | Local text generation replacing API calls for HyDE and routine operations |
 
 The first two models are trained during regular `engram train generate` runs. The text generator requires the trainer's `--deep` flag (`python -m engram_trainer --deep`) with PyTorch installed.
@@ -129,7 +130,7 @@ The first two models are trained during regular `engram train generate` runs. Th
 ```
 crates/
   engram-hnsw/          HNSW approximate nearest neighbor search
-  engram-router/        Hierarchical adaptive routing (contextual bandit)
+  engram-router/        Hierarchical routing scaffolding (contextual bandit)
   engram-storage/       SQLite storage with FTS5
   engram-llm-client/    LLM provider traits (Voyage, OpenAI, local ONNX)
   engram-embeddings/    Three-field embedding with HyDE
@@ -138,7 +139,7 @@ crates/
   engram-core/          CLI + server binary
   engram-tui/           Terminal dashboard (ratatui)
 mcp-server/             TypeScript MCP server
-trainer/                Python self-learning trainer
+trainer/                Python model trainer (clustering, ranking, LoRA)
 website/                Documentation site (Fumadocs)
 ```
 

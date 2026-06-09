@@ -23,10 +23,15 @@ impl Database {
         Ok(())
     }
 
-    pub fn track_search(&self, memory_id: &str, timestamp: &str) -> Result<(), StorageError> {
+    pub fn track_search(
+        &self,
+        memory_id: &str,
+        query_id: &str,
+        timestamp: &str,
+    ) -> Result<(), StorageError> {
         self.connection().execute(
-            "INSERT INTO feedback_tracking (memory_id, searched_at) VALUES (?1, ?2)",
-            params![memory_id, timestamp],
+            "INSERT INTO feedback_tracking (memory_id, query_id, searched_at) VALUES (?1, ?2, ?3)",
+            params![memory_id, query_id, timestamp],
         )?;
         Ok(())
     }

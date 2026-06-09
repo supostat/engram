@@ -57,7 +57,9 @@ fn test_track_and_judge() {
         )
         .unwrap();
 
-    database.track_search("m1", "2026-01-01T00:00:00Z").unwrap();
+    database
+        .track_search("m1", "q-test", "2026-01-01T00:00:00Z")
+        .unwrap();
 
     let pending = database.get_pending_judgments(10).unwrap();
     assert_eq!(pending, vec!["m1"]);
@@ -81,7 +83,9 @@ fn test_pending_judgments_stays_empty_after_reshow() {
         )
         .unwrap();
 
-    database.track_search("m1", "2026-01-01T00:00:00Z").unwrap();
+    database
+        .track_search("m1", "q-test", "2026-01-01T00:00:00Z")
+        .unwrap();
     assert_eq!(
         database.get_pending_judgments(10).unwrap(),
         vec!["m1"],
@@ -96,7 +100,9 @@ fn test_pending_judgments_stays_empty_after_reshow() {
 
     // Re-showing an already-judged memory must NOT re-inflate the pending set:
     // a fresh unjudged tracking row exists, but MAX(judged)=1 over the group.
-    database.track_search("m1", "2026-01-01T02:00:00Z").unwrap();
+    database
+        .track_search("m1", "q-test", "2026-01-01T02:00:00Z")
+        .unwrap();
     assert!(
         database.get_pending_judgments(10).unwrap().is_empty(),
         "re-showing a judged memory must keep pending empty"
@@ -117,7 +123,9 @@ fn test_pending_judgments_limit() {
                 [&id],
             )
             .unwrap();
-        database.track_search(&id, "2026-01-01T00:00:00Z").unwrap();
+        database
+            .track_search(&id, "q-test", "2026-01-01T00:00:00Z")
+            .unwrap();
     }
 
     let pending = database.get_pending_judgments(3).unwrap();
@@ -127,7 +135,7 @@ fn test_pending_judgments_limit() {
 #[test]
 fn test_track_search_invalid_memory_id() {
     let database = Database::in_memory().unwrap();
-    let result = database.track_search("nonexistent_memory", "2026-01-01T00:00:00Z");
+    let result = database.track_search("nonexistent_memory", "q-test", "2026-01-01T00:00:00Z");
     assert!(result.is_err(), "FK violation must produce an error");
 }
 

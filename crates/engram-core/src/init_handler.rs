@@ -360,6 +360,15 @@ mod docs_invariant_tests {
     const README: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../README.md"));
     const EMBEDDING_PROVIDERS: [&str; 3] = ["voyage", "ollama", "deterministic"];
     const LLM_PROVIDERS: [&str; 3] = ["openai", "ollama", "local"];
+    const BANNED_ROUTING_CLAIMS: [&str; 7] = [
+        "feeds the adaptive router",
+        "trains the adaptive router",
+        "per-call bandit update",
+        "self-learning optimization",
+        "three learning loops",
+        "self-learning trainer",
+        "self-learning",
+    ];
 
     #[test]
     fn every_provider_enum_appears_in_template_and_readme() {
@@ -372,6 +381,19 @@ mod docs_invariant_tests {
                 README.contains(provider),
                 "README must document provider `{provider}`"
             );
+        }
+    }
+
+    #[test]
+    fn docs_make_no_active_adaptive_routing_claim() {
+        for doc in [README, super::AGENT_MD_CONTENT] {
+            let lower = doc.to_lowercase();
+            for phrase in BANNED_ROUTING_CLAIMS {
+                assert!(
+                    !lower.contains(phrase),
+                    "docs must not claim active adaptive routing: `{phrase}`"
+                );
+            }
         }
     }
 }

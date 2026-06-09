@@ -21,6 +21,7 @@ fn test_database_creates_all_tables() {
         "q_table",
         "consolidation_log",
         "feedback_tracking",
+        "routing_log",
         "recommendations",
         "metrics",
     ];

@@ -84,11 +84,30 @@ CREATE TABLE IF NOT EXISTS consolidation_log (
 pub const CREATE_FEEDBACK_TRACKING: &str = r#"
 CREATE TABLE IF NOT EXISTS feedback_tracking (
     memory_id TEXT NOT NULL,
+    query_id TEXT,
     searched_at TEXT NOT NULL,
     judged BOOLEAN DEFAULT FALSE,
     judged_at TEXT,
     FOREIGN KEY (memory_id) REFERENCES memories(id)
 )
+"#;
+
+pub const CREATE_ROUTING_LOG: &str = r#"
+CREATE TABLE IF NOT EXISTS routing_log (
+    query_id TEXT PRIMARY KEY,
+    mode TEXT NOT NULL,
+    search_strategy TEXT NOT NULL,
+    llm_selection TEXT NOT NULL,
+    contextualization TEXT NOT NULL,
+    proactivity TEXT NOT NULL,
+    top_k INTEGER NOT NULL,
+    shadow_rewards TEXT,
+    created_at TEXT NOT NULL
+)
+"#;
+
+pub const CREATE_ROUTING_LOG_CREATED_AT_INDEX: &str = r#"
+CREATE INDEX IF NOT EXISTS idx_routing_log_created_at ON routing_log(created_at)
 "#;
 
 pub const CREATE_RECOMMENDATIONS: &str = r#"
@@ -130,6 +149,8 @@ const SCHEMA_STATEMENTS: &[&str] = &[
     CREATE_Q_TABLE,
     CREATE_CONSOLIDATION_LOG,
     CREATE_FEEDBACK_TRACKING,
+    CREATE_ROUTING_LOG,
+    CREATE_ROUTING_LOG_CREATED_AT_INDEX,
     CREATE_RECOMMENDATIONS,
     CREATE_METRICS,
     CREATE_SCHEMA_META,

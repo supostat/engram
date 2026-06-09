@@ -38,7 +38,7 @@ Engram is a memory system for AI agents. Use it to store decisions, patterns, an
 ```
 Optional `tags` (array of strings) filters results to memories that carry **all** specified tags.
 
-**memory_judge** — Rate a memory's quality. Feeds the adaptive router (contextual bandit) to improve future search.
+**memory_judge** — Rate a memory's quality. Records the memory's score; the score is used by consolidation (the `min_score` stale-pruning filter). It does not influence live search ranking, which is positional RRF. The router's contextual-bandit Q-update is scaffolding and is not invoked during serving.
 ```json
 {
   "memory_id": "uuid",
@@ -165,7 +165,7 @@ memory_judge({ memory_id: "abc-123", query: "auth middleware", score: 0.9 })
 
 **When to judge:** after completing a task where search results contributed. Judge 1-3 most helpful memories, not all results.
 
-This trains the adaptive router (a contextual bandit over immediate reward — `Q ← Q + α(reward − Q)`, an EMA with no state transition and no discounted-future term, so not full reinforcement learning) — future searches rank proven memories higher.
+Judging records the memory's score, consumed by consolidation's `min_score` filter. It does not affect live ranking, which is positional RRF; the trainer's `ranking_model.onnx` consumes score but is trained-but-unapplied scaffolding. The router's contextual-bandit Q-update (`Q ← Q + α(reward − Q)`, an EMA with no state transition and no discounted-future term, so not full reinforcement learning) is scaffolding and is not invoked during serving — searches use static per-mode defaults, and each search's decision is written to the `routing_log` table for offline analysis.
 
 ### Consolidation workflow
 

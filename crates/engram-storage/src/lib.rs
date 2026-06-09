@@ -6,6 +6,7 @@ pub mod error;
 pub mod fts;
 pub mod memory;
 pub mod q_table_store;
+pub mod routing_log;
 pub mod schema;
 
 pub use database::Database;
