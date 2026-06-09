@@ -18,6 +18,20 @@ impl Default for RetryConfig {
     }
 }
 
+impl RetryConfig {
+    /// Backoff budget tuned for a localhost daemon (e.g. Ollama). A refused or
+    /// momentarily-busy local socket should surface quickly instead of spending
+    /// the multi-second cloud budget, so retries stay short and few.
+    pub fn localhost() -> Self {
+        Self {
+            max_retries: 2,
+            initial_backoff_ms: 50,
+            max_backoff_ms: 500,
+            backoff_multiplier: 2.0,
+        }
+    }
+}
+
 pub fn compute_backoff(config: &RetryConfig, attempt: u32) -> u64 {
     let backoff = config.initial_backoff_ms as f64 * config.backoff_multiplier.powi(attempt as i32);
     if !backoff.is_finite() {

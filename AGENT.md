@@ -182,3 +182,7 @@ If the daemon fails with `[6020] EmbeddingModelMismatch`, the database was last 
 - Or revert the config to the model named as `stored:` in the error message.
 
 After `engram reembed` finishes cleanly, the next daemon start passes the guard and memory tools resume working.
+
+## Local / Ollama providers (no API key)
+
+If `engram.toml` sets `provider = "ollama"` for `[embedding]` and/or `[llm]`, Engram talks to a local Ollama daemon — there is no API key to configure or surface. Missing-key warnings do not apply to ollama. The host defaults to `http://localhost:11434` and is overridable via the `ENGRAM_OLLAMA_HOST` env var. If memory tools fail with a connection error under this provider, the Ollama daemon is likely not running or the model is not pulled (`ollama pull qwen3-embedding:0.6b`, `ollama pull qwen3:4b`) — ask the user to start it rather than retrying.

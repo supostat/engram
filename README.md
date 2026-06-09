@@ -159,16 +159,18 @@ Engram splits state across two locations:
 path = "~/.engram/memories.db"
 
 [embedding]
-provider = "voyage"        # voyage | deterministic
+provider = "voyage"        # voyage | ollama | deterministic
 model = "voyage-4"
+# host = "http://localhost:11434"   # ollama only; ENGRAM_OLLAMA_HOST overrides
 # output_dimension is optional. Omit to use the Voyage API default (1024,
 # which matches [hnsw].dimension below). Set to one of 256/512/1024/2048
 # for Voyage-4 Matryoshka truncation — must match [hnsw].dimension.
 hyde_threshold = 0          # 0 = HyDE disabled (default); N>0 = enable for queries shorter than N words
 
 [llm]
-provider = "openai"         # openai | local
+provider = "openai"         # openai | ollama | local
 model = "gpt-4o-mini"
+# host = "http://localhost:11434"   # ollama only; ENGRAM_OLLAMA_HOST overrides
 
 [server]
 # Fallback only — runtime prefers <project>/.engram/engram.sock
@@ -192,7 +194,7 @@ trainer_timeout_secs = 300
 models_path = "~/.engram/models"
 ```
 
-Environment variables override config: `ENGRAM_VOYAGE_API_KEY`, `ENGRAM_OPENAI_API_KEY`, `ENGRAM_DB_PATH`, `ENGRAM_SOCKET_PATH`, `ENGRAM_EMBEDDING_MODEL`, `ENGRAM_LLM_MODEL`, `ENGRAM_TRAINER_BINARY`, `ENGRAM_TRAINER_TIMEOUT`, `ENGRAM_MODELS_PATH`.
+Environment variables override config: `ENGRAM_VOYAGE_API_KEY`, `ENGRAM_OPENAI_API_KEY`, `ENGRAM_DB_PATH`, `ENGRAM_SOCKET_PATH`, `ENGRAM_EMBEDDING_MODEL`, `ENGRAM_LLM_MODEL`, `ENGRAM_TRAINER_BINARY`, `ENGRAM_TRAINER_TIMEOUT`, `ENGRAM_MODELS_PATH`, `ENGRAM_OLLAMA_HOST`.
 
 ### Migrating from a previous global install
 
@@ -223,10 +225,33 @@ If you want to keep the old behaviour, set `embedding.model = "voyage-code-3"` i
 
 Dimension stays at `1024` because `voyage-4` API default matches; HNSW geometry survives the migration. Within the voyage-4 family (`voyage-4-large`, `voyage-4`, `voyage-4-lite`, `voyage-4-nano`) embeddings share one space, so future switches inside the family do not require another reembed.
 
+### Offline / local models
+
+Engram runs fully offline against a local [Ollama](https://ollama.com) daemon — no API keys, no outbound calls. Pull the models, point the providers at Ollama, and reembed:
+
+```bash
+ollama pull qwen3-embedding:0.6b   # embeddings (1024-dim)
+ollama pull qwen3:4b               # LLM (consolidation, HyDE, judge)
+```
+
+```toml
+[embedding]
+provider = "ollama"
+model = "qwen3-embedding:0.6b"
+dimension = 1024
+# host defaults to http://localhost:11434; override with ENGRAM_OLLAMA_HOST
+
+[llm]
+provider = "ollama"
+model = "qwen3:4b"
+```
+
+The Ollama provider needs no API key. After switching an existing database to a new embedding model, run `engram reembed` (see above) so stored vectors match the active provider before the daemon will start (the `[6020]` guard enforces this).
+
 ## Testing
 
 ```bash
-cargo test --all              # 560+ Rust tests
+cargo test --all              # 609+ Rust tests
 cd mcp-server && npm test     # 11 vitest unit tests + typecheck
 cd trainer && pytest           # Python tests (pip install -e ".[dev]")
 cargo bench --all             # Criterion benchmarks

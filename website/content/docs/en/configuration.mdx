@@ -41,15 +41,17 @@ The `database.path` and `server.socket_path` values in `engram.toml` are kept as
 path = "~/.engram/memories.db"
 
 [embedding]
-provider = "voyage"         # voyage | deterministic
+provider = "voyage"         # voyage | ollama | deterministic
 model = "voyage-4"
+# host = "http://localhost:11434"   # ollama only; ENGRAM_OLLAMA_HOST overrides
 # api_key = "..."           # or via ENGRAM_VOYAGE_API_KEY
 # output_dimension = 1024   # optional; Voyage-4 Matryoshka (256/512/1024/2048). Must match [hnsw].dimension.
 hyde_threshold = 0          # 0 = HyDE disabled (default); N>0 enables HyDE for queries shorter than N words
 
 [llm]
-provider = "openai"         # openai | local
+provider = "openai"         # openai | ollama | local
 model = "gpt-4o-mini"
+# host = "http://localhost:11434"   # ollama only; ENGRAM_OLLAMA_HOST overrides
 # api_key = "..."           # or via ENGRAM_OPENAI_API_KEY
 
 [server]
@@ -85,7 +87,7 @@ models_path = "~/.engram/models"
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `provider` | `voyage` | Embedding provider: `voyage` or `deterministic` |
+| `provider` | `voyage` | Embedding provider: `voyage`, `ollama`, or `deterministic` |
 | `model` | `voyage-4` | Embedding model |
 | `api_key` | — | API key (prefer environment variable) |
 | `dimension` | `1024` | Embedding vector dimension |
@@ -96,17 +98,21 @@ models_path = "~/.engram/models"
 
 The `deterministic` provider requires no API key and generates deterministic embeddings from text. Suitable for testing.
 
+The `ollama` provider talks to a local [Ollama](https://ollama.com) daemon (default host `http://localhost:11434`, overridable via `ENGRAM_OLLAMA_HOST`) and needs no API key — e.g. `model = "qwen3-embedding:0.6b"` at 1024-dim. Switching an existing database to it is a one-time [`engram reembed`](/docs/cli#engram-reembed).
+
 When `hyde_threshold > 0`, short queries trigger an LLM call that produces a hypothetical memory, and the embedding is built from the hypothesis instead of the raw query. Trade-off: cache miss adds ~1.5s latency per query but improves recall on terse queries; cache is keyed by the **original query**, so repeated identical queries hit the cache without an extra LLM call.
 
 ### llm
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `provider` | `openai` | LLM provider: `openai` or `local` |
+| `provider` | `openai` | LLM provider: `openai`, `ollama`, or `local` |
 | `model` | `gpt-4o-mini` | Text generation model |
 | `api_key` | — | API key (prefer environment variable) |
 
 The `local` provider uses an ONNX model from `trainer.models_path` for local generation without API calls.
+
+The `ollama` provider runs LLM features (judge, HyDE, consolidation) on a local Ollama chat model (e.g. `model = "qwen3:4b"`) with no API key; if the daemon is unreachable, judge falls back to heuristics.
 
 ### server
 
@@ -145,6 +151,7 @@ The `local` provider uses an ONNX model from `trainer.models_path` for local gen
 |----------|-----------|
 | `ENGRAM_VOYAGE_API_KEY` | `embedding.api_key` (when provider=voyage) |
 | `ENGRAM_OPENAI_API_KEY` | `llm.api_key` (when provider=openai) |
+| `ENGRAM_OLLAMA_HOST` | `embedding.host` / `llm.host` (when provider=ollama) |
 | `ENGRAM_DB_PATH` | `database.path` |
 | `ENGRAM_SOCKET_PATH` | `server.socket_path` |
 | `ENGRAM_EMBEDDING_MODEL` | `embedding.model` |

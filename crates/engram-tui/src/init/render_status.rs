@@ -102,7 +102,9 @@ impl InitWizard {
             .is_some_and(|k| !k.is_empty())
         {
             ("✓ API key", theme::GREEN)
-        } else if config.embedding_provider == "deterministic" {
+        } else if config.embedding_provider == "deterministic"
+            || config.embedding_provider == "ollama"
+        {
             ("not required", theme::MUTED)
         } else {
             ("✗ API key", theme::RED)

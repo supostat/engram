@@ -20,7 +20,7 @@ pub struct OllamaEmbeddingProvider {
 
 impl OllamaEmbeddingProvider {
     pub fn new(host: String, model: String, dimension: usize) -> Result<Self, ApiError> {
-        Self::with_config(host, model, dimension, RetryConfig::default())
+        Self::with_config(host, model, dimension, RetryConfig::localhost())
     }
 
     pub fn with_config(
@@ -214,6 +214,21 @@ mod tests {
     fn model_name_is_prefixed_with_provider() {
         let provider = provider();
         assert_eq!(provider.model_name(), "ollama:qwen3-embedding:0.6b");
+    }
+
+    #[test]
+    fn new_wires_localhost_retry_config() {
+        let provider = OllamaEmbeddingProvider::new(
+            "http://localhost:11434".into(),
+            DEFAULT_OLLAMA_MODEL.into(),
+            1024,
+        )
+        .unwrap();
+
+        assert_eq!(provider.retry_config.max_retries, 2);
+        assert_eq!(provider.retry_config.initial_backoff_ms, 50);
+        assert_eq!(provider.retry_config.max_backoff_ms, 500);
+        assert!((provider.retry_config.backoff_multiplier - 2.0).abs() < f64::EPSILON);
     }
 
     #[test]

@@ -82,15 +82,17 @@ pub struct InitWizard {
     pub(super) status_menu_selection: usize,
 }
 
-pub const EMBEDDING_OPTIONS: [&str; 2] = ["voyage", "deterministic"];
-pub const EMBEDDING_LABELS: [&str; 2] = [
+pub const EMBEDDING_OPTIONS: [&str; 3] = ["voyage", "ollama", "deterministic"];
+pub const EMBEDDING_LABELS: [&str; 3] = [
     "Voyage AI  (voyage-4, recommended)",
+    "Ollama  (qwen3-embedding:0.6b, local, no API key)",
     "Deterministic  (no API key, lower quality)",
 ];
 
-pub const LLM_OPTIONS: [&str; 3] = ["openai", "local", "none"];
-pub const LLM_LABELS: [&str; 3] = [
+pub const LLM_OPTIONS: [&str; 4] = ["openai", "ollama", "local", "none"];
+pub const LLM_LABELS: [&str; 4] = [
     "OpenAI  (gpt-4o-mini, recommended)",
+    "Ollama  (qwen3:4b, local, no API key)",
     "Local  (via engram-llm, no API key)",
     "None  (disable LLM features)",
 ];

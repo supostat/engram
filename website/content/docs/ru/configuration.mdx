@@ -41,15 +41,17 @@ CLI-флаг `--config <path>`, если передан, заменяет гло
 path = "~/.engram/memories.db"
 
 [embedding]
-provider = "voyage"         # voyage | deterministic
+provider = "voyage"         # voyage | ollama | deterministic
 model = "voyage-4"
+# host = "http://localhost:11434"   # ollama only; ENGRAM_OLLAMA_HOST overrides
 # api_key = "..."           # или через ENGRAM_VOYAGE_API_KEY
 # output_dimension = 1024   # опционально; Voyage-4 Matryoshka (256/512/1024/2048). Должно совпадать с [hnsw].dimension.
 hyde_threshold = 0          # 0 = HyDE выключен (по умолчанию); N>0 включает HyDE для запросов короче N слов
 
 [llm]
-provider = "openai"         # openai | local
+provider = "openai"         # openai | ollama | local
 model = "gpt-4o-mini"
+# host = "http://localhost:11434"   # ollama only; ENGRAM_OLLAMA_HOST overrides
 # api_key = "..."           # или через ENGRAM_OPENAI_API_KEY
 
 [server]
@@ -85,7 +87,7 @@ models_path = "~/.engram/models"
 
 | Параметр | По умолчанию | Описание |
 |----------|-------------|----------|
-| `provider` | `voyage` | Провайдер эмбеддингов: `voyage` или `deterministic` |
+| `provider` | `voyage` | Провайдер эмбеддингов: `voyage`, `ollama` или `deterministic` |
 | `model` | `voyage-4` | Модель эмбеддингов |
 | `api_key` | — | API-ключ (предпочтительно через переменную окружения) |
 | `dimension` | `1024` | Размерность вектора эмбеддинга |
@@ -96,17 +98,21 @@ models_path = "~/.engram/models"
 
 Провайдер `deterministic` не требует API-ключа и генерирует детерминированные эмбеддинги из текста. Подходит для тестирования.
 
+Провайдер `ollama` обращается к локальному демону [Ollama](https://ollama.com) (host по умолчанию `http://localhost:11434`, переопределяется через `ENGRAM_OLLAMA_HOST`) и не требует API-ключа — например, `model = "qwen3-embedding:0.6b"` при 1024-dim. Переключение существующей базы на него — однократный [`engram reembed`](/docs/cli#engram-reembed).
+
 При `hyde_threshold > 0` короткие запросы запускают LLM-вызов, который генерирует гипотетическое воспоминание, и эмбеддинг строится по гипотезе вместо сырого запроса. Trade-off: cache miss добавляет ~1.5s на запрос, но улучшает recall на коротких запросах; кеш ключуется по **оригинальному запросу**, поэтому повторные одинаковые запросы попадают в кеш без дополнительного LLM-вызова.
 
 ### llm
 
 | Параметр | По умолчанию | Описание |
 |----------|-------------|----------|
-| `provider` | `openai` | Провайдер LLM: `openai` или `local` |
+| `provider` | `openai` | Провайдер LLM: `openai`, `ollama` или `local` |
 | `model` | `gpt-4o-mini` | Модель для генерации текста |
 | `api_key` | — | API-ключ (предпочтительно через переменную окружения) |
 
 Провайдер `local` использует ONNX-модель из `trainer.models_path` для локальной генерации без API-вызовов.
+
+Провайдер `ollama` запускает LLM-функции (judge, HyDE, консолидация) на локальной chat-модели Ollama (например, `model = "qwen3:4b"`) без API-ключа; если демон недоступен, judge откатывается на эвристики.
 
 ### server
 
@@ -145,6 +151,7 @@ models_path = "~/.engram/models"
 |-----------|---------------|
 | `ENGRAM_VOYAGE_API_KEY` | `embedding.api_key` (при provider=voyage) |
 | `ENGRAM_OPENAI_API_KEY` | `llm.api_key` (при provider=openai) |
+| `ENGRAM_OLLAMA_HOST` | `embedding.host` / `llm.host` (при provider=ollama) |
 | `ENGRAM_DB_PATH` | `database.path` |
 | `ENGRAM_SOCKET_PATH` | `server.socket_path` |
 | `ENGRAM_EMBEDDING_MODEL` | `embedding.model` |

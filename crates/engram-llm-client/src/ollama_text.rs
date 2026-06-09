@@ -25,7 +25,7 @@ pub struct OllamaTextGenerator {
 
 impl OllamaTextGenerator {
     pub fn new(host: String, model: String) -> Result<Self, ApiError> {
-        Self::with_config(host, model, RetryConfig::default())
+        Self::with_config(host, model, RetryConfig::localhost())
     }
 
     pub fn with_config(
@@ -176,6 +176,20 @@ mod tests {
     fn model_name_is_prefixed_with_provider() {
         let generator = generator();
         assert_eq!(generator.model_name(), "ollama:qwen3:4b");
+    }
+
+    #[test]
+    fn new_wires_localhost_retry_config() {
+        let generator = OllamaTextGenerator::new(
+            "http://localhost:11434".into(),
+            DEFAULT_OLLAMA_LLM_MODEL.into(),
+        )
+        .unwrap();
+
+        assert_eq!(generator.retry_config.max_retries, 2);
+        assert_eq!(generator.retry_config.initial_backoff_ms, 50);
+        assert_eq!(generator.retry_config.max_backoff_ms, 500);
+        assert!((generator.retry_config.backoff_multiplier - 2.0).abs() < f64::EPSILON);
     }
 
     #[test]

@@ -26,9 +26,10 @@ const DEFAULT_CONFIG_TEMPLATE: &str = r#"# Global engram config. Runtime always 
 # both.
 
 [embedding]
-provider = "voyage"
+provider = "voyage"        # voyage | ollama | deterministic
 model = "voyage-4"
 dimension = 1024
+# host: only for provider = "ollama". Defaults to http://localhost:11434 (ENGRAM_OLLAMA_HOST overrides).
 # hyde_threshold: opt-in HyDE. 0 = disabled (default). N>0 = enable HyDE
 # when the query has fewer than N words. HyDE adds ~1.5s latency on cache
 # miss but improves recall on terse queries; cache is keyed by the
@@ -36,8 +37,9 @@ dimension = 1024
 hyde_threshold = 0
 
 [llm]
-provider = "openai"
+provider = "openai"        # openai | ollama | local
 model = "gpt-4o-mini"
+# host: only for provider = "ollama". Defaults to http://localhost:11434 (ENGRAM_OLLAMA_HOST overrides).
 
 [server]
 # socket_path is optional and only used as a last-resort fallback when no
@@ -70,9 +72,11 @@ const PROJECT_LOCAL_CONFIG_TEMPLATE: &str = r#"# Project-local engram config. Ev
 # dimension = 1024
 # output_dimension = 1024
 # hyde_threshold = 0
+# host = "http://localhost:11434"   # only for provider = "ollama"
 
 # [llm]
 # model = "gpt-4o-mini"
+# host = "http://localhost:11434"   # only for provider = "ollama"
 
 # [server]
 # reindex_interval_secs = 3600
@@ -347,4 +351,27 @@ fn print_completion_info(project_dir: &Path) {
     println!("MCP config written to .mcp.json; Claude Code will pick it up automatically.");
     println!("Add to your project's CLAUDE.md:");
     println!("  Engram memory system: .engram/AGENT.md");
+}
+
+#[cfg(test)]
+mod docs_invariant_tests {
+    use super::DEFAULT_CONFIG_TEMPLATE;
+
+    const README: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../README.md"));
+    const EMBEDDING_PROVIDERS: [&str; 3] = ["voyage", "ollama", "deterministic"];
+    const LLM_PROVIDERS: [&str; 3] = ["openai", "ollama", "local"];
+
+    #[test]
+    fn every_provider_enum_appears_in_template_and_readme() {
+        for provider in EMBEDDING_PROVIDERS.iter().chain(LLM_PROVIDERS.iter()) {
+            assert!(
+                DEFAULT_CONFIG_TEMPLATE.contains(provider),
+                "config template must document provider `{provider}`"
+            );
+            assert!(
+                README.contains(provider),
+                "README must document provider `{provider}`"
+            );
+        }
+    }
 }

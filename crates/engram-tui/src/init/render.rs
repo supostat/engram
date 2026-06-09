@@ -184,13 +184,14 @@ impl InitWizard {
         let llm_name = LLM_OPTIONS[self.llm_provider];
         let mcp_name = MCP_OPTIONS[self.mcp_client];
 
-        let embedding_model = if embedding_name == "voyage" {
-            "voyage-4"
-        } else {
-            "deterministic"
+        let embedding_model = match embedding_name {
+            "voyage" => "voyage-4",
+            "ollama" => "qwen3-embedding:0.6b",
+            _ => "deterministic",
         };
         let llm_model = match llm_name {
             "openai" => "gpt-4o-mini",
+            "ollama" => "qwen3:4b",
             "local" => "local",
             _ => "disabled",
         };

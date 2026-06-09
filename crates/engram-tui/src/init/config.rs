@@ -22,19 +22,15 @@ impl InitWizard {
         let embedding_name = EMBEDDING_OPTIONS[self.embedding_provider];
         let llm_name = LLM_OPTIONS[self.llm_provider];
 
-        let embedding_model = if embedding_name == "voyage" {
-            "voyage-4"
-        } else {
-            "deterministic"
-        };
-        let embedding_dimension: u32 = if embedding_name == "voyage" {
-            1024
-        } else {
-            128
+        let (embedding_model, embedding_dimension): (&str, u32) = match embedding_name {
+            "voyage" => ("voyage-4", 1024),
+            "ollama" => ("qwen3-embedding:0.6b", 1024),
+            _ => ("deterministic", 128),
         };
 
         let llm_model = match llm_name {
             "openai" => "gpt-4o-mini",
+            "ollama" => "qwen3:4b",
             "local" => "local",
             _ => "none",
         };
@@ -82,5 +78,26 @@ min_score = 0.3
             toml.push_str(&format!("openai_api_key = \"{}\"\n", self.llm_api_key));
         }
         toml
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const OLLAMA_OPTION_INDEX: usize = 1;
+
+    #[test]
+    fn build_toml_emits_ollama_models_for_embedding_and_llm() {
+        let mut wizard = InitWizard::new();
+        wizard.embedding_provider = OLLAMA_OPTION_INDEX;
+        wizard.llm_provider = OLLAMA_OPTION_INDEX;
+
+        let toml = wizard.build_toml();
+
+        assert!(toml.contains("provider = \"ollama\""));
+        assert!(toml.contains("model = \"qwen3-embedding:0.6b\""));
+        assert!(toml.contains("dimension = 1024"));
+        assert!(toml.contains("model = \"qwen3:4b\""));
     }
 }

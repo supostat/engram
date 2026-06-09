@@ -111,6 +111,15 @@ fn retry_config_default_values() {
 }
 
 #[test]
+fn retry_config_localhost_values() {
+    let config = RetryConfig::localhost();
+    assert_eq!(config.max_retries, 2);
+    assert_eq!(config.initial_backoff_ms, 50);
+    assert_eq!(config.max_backoff_ms, 500);
+    assert!((config.backoff_multiplier - 2.0).abs() < f64::EPSILON);
+}
+
+#[test]
 fn retry_succeeds_on_first_try() {
     let config = RetryConfig {
         max_retries: 3,
