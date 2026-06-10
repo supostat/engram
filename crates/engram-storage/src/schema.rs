@@ -31,7 +31,8 @@ pub const CREATE_MEMORIES_FTS: &str = r#"
 CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts USING fts5(
     context, action, result,
     content='memories',
-    content_rowid='rowid'
+    content_rowid='rowid',
+    tokenize='porter unicode61'
 )
 "#;
 

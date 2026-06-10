@@ -44,6 +44,73 @@ fn test_log_consolidation() {
 }
 
 #[test]
+fn test_list_consolidation_log_newest_first() {
+    let database = Database::in_memory().unwrap();
+    database
+        .log_consolidation(
+            "c1",
+            "merge",
+            &["m1".to_string(), "m2".to_string()],
+            Some("similar memories"),
+            "consolidation_engine",
+            "2026-01-01T00:00:00Z",
+        )
+        .unwrap();
+    database
+        .log_consolidation(
+            "c2",
+            "delete",
+            &["m3".to_string()],
+            None,
+            "consolidation_engine",
+            "2026-01-02T00:00:00Z",
+        )
+        .unwrap();
+
+    let entries = database.list_consolidation_log(50).unwrap();
+    assert_eq!(entries.len(), 2);
+    // Newest performed_at first.
+    assert_eq!(entries[0].id, "c2");
+    assert_eq!(entries[0].action, "delete");
+    assert_eq!(entries[0].memory_ids_json, r#"["m3"]"#);
+    assert_eq!(entries[0].reason, None);
+    assert_eq!(entries[1].id, "c1");
+    assert_eq!(entries[1].action, "merge");
+    assert_eq!(entries[1].memory_ids_json, r#"["m1","m2"]"#);
+    assert_eq!(entries[1].reason.as_deref(), Some("similar memories"));
+    assert_eq!(entries[1].performed_by, "consolidation_engine");
+}
+
+#[test]
+fn test_list_consolidation_log_respects_limit() {
+    let database = Database::in_memory().unwrap();
+    for index in 0..3 {
+        database
+            .log_consolidation(
+                &format!("c{index}"),
+                "merge",
+                &[format!("m{index}")],
+                None,
+                "consolidation_engine",
+                &format!("2026-01-0{}T00:00:00Z", index + 1),
+            )
+            .unwrap();
+    }
+
+    let entries = database.list_consolidation_log(2).unwrap();
+    assert_eq!(entries.len(), 2);
+    assert_eq!(entries[0].id, "c2");
+    assert_eq!(entries[1].id, "c1");
+}
+
+#[test]
+fn test_list_consolidation_log_empty() {
+    let database = Database::in_memory().unwrap();
+    let entries = database.list_consolidation_log(50).unwrap();
+    assert!(entries.is_empty());
+}
+
+#[test]
 fn test_track_and_judge() {
     let database = Database::in_memory().unwrap();
 

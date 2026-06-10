@@ -6,7 +6,7 @@ export const translations = {
     heroSubtitle: 'AI-память для агентов',
     heroDescription: 'Хранит решения. Учится. Находит релевантное.',
     heroButton: 'Начать',
-    heroStats: ['11 MCP-инструментов', '470+ тестов', '9 крейтов'],
+    heroStats: ['13 MCP-инструментов', '470+ тестов', '9 крейтов'],
     scrollHint: 'Узнать больше',
 
     featuresTitle: 'Возможности',
@@ -58,7 +58,7 @@ export const translations = {
     heroSubtitle: 'AI memory for agents',
     heroDescription: 'Stores decisions. Learns. Finds what matters.',
     heroButton: 'Get Started',
-    heroStats: ['11 MCP tools', '470+ tests', '9 crates'],
+    heroStats: ['13 MCP tools', '470+ tests', '9 crates'],
     scrollHint: 'Learn more',
 
     featuresTitle: 'Features',

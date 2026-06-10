@@ -6,6 +6,7 @@ use engram_core::config::Config;
 use engram_core::dispatch;
 use engram_core::indexes::IndexSet;
 use engram_core::lock_helpers;
+use engram_core::persistence::hash_string_to_u64;
 use engram_core::server::{ServerState, reindex_unindexed_memories};
 use engram_embeddings::Embedder;
 use engram_llm_client::{EmbeddingProvider, TextGenerator};
@@ -104,6 +105,11 @@ fn results_contain(results: &[Value], memory_id: &str) -> bool {
         .any(|result| result["id"].as_str() == Some(memory_id))
 }
 
+fn index_contains(state: &Arc<ServerState>, memory_id: &str) -> bool {
+    let indexes = lock_helpers::read_indexes(state);
+    indexes.contains(hash_string_to_u64(memory_id))
+}
+
 // Happy path: a successful store marks the SQLite row indexed only AFTER the
 // HNSW write is confirmed. The response reports `indexed: true`, the row is
 // indexed=1, and the memory is searchable.
@@ -165,13 +171,22 @@ async fn background_reindex_recovers_unindexed_row() {
             .expect("insert unindexed row");
     }
 
-    let before = search(&recovered, "recover").await;
+    // The row was inserted into SQLite only — it is genuinely absent from the
+    // HNSW (vector) index until reindex runs. Assert HNSW non-membership directly:
+    // the widened FTS recall (OR-of-prefix) can surface the row via the sparse path
+    // on shared literal tokens, so blended search results no longer isolate the
+    // vector path this test guards.
     assert!(
-        !results_contain(&before, &memory_id),
-        "row absent from HNSW must not be searchable before reindex"
+        !index_contains(&recovered, &memory_id),
+        "row absent from HNSW must not be in the vector index before reindex"
     );
 
     reindex_unindexed_memories(&recovered);
+
+    assert!(
+        index_contains(&recovered, &memory_id),
+        "reindex must insert the recovered row into the HNSW index"
+    );
 
     let row_indexed = {
         let database = lock_helpers::lock_db(&recovered);

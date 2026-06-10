@@ -153,7 +153,7 @@ engram status --format text
 
 ## engram consolidate
 
-Управление консолидацией записей. Три подкоманды:
+Управление консолидацией записей. Четыре подкоманды:
 
 ### engram consolidate preview
 
@@ -184,6 +184,19 @@ engram consolidate apply
 |------|-------------|----------|
 | `--stale-days` | из конфигурации (90) | Порог устаревания (дни) |
 | `--min-score` | из конфигурации (0.3) | Минимальный score |
+
+### engram consolidate log
+
+Выводит историю консолидации (журнал операций merge/delete/archive), новейшие первыми.
+
+```bash
+engram consolidate log
+engram consolidate log --limit 20
+```
+
+| Флаг | По умолчанию | Описание |
+|------|-------------|----------|
+| `--limit` | 50 | Максимум записей |
 
 ## engram train
 

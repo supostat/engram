@@ -150,6 +150,134 @@ fn test_fts_search_after_update() {
 }
 
 #[test]
+fn test_fts_porter_stems_plural_to_singular() {
+    let database = Database::in_memory().unwrap();
+    database
+        .insert_memory(&make_memory(
+            "m1",
+            "handle payments gateway",
+            "integrate stripe",
+            "charges processed",
+        ))
+        .unwrap();
+
+    // Query "payment" (singular) recalls a row that stored "payments" (plural):
+    // porter stemming collapses both to the same stem.
+    let singular_query = database.search_fts("payment", 10).unwrap();
+    assert_eq!(singular_query.len(), 1);
+    assert_eq!(singular_query[0].memory.id, "m1");
+
+    // And the reverse direction: query the plural, recall a singular store.
+    database
+        .insert_memory(&make_memory(
+            "m2",
+            "refund a payment",
+            "call refund api",
+            "amount returned",
+        ))
+        .unwrap();
+    let plural_query = database.search_fts("payments", 10).unwrap();
+    let ids: Vec<&str> = plural_query
+        .iter()
+        .map(|result| result.memory.id.as_str())
+        .collect();
+    assert!(ids.contains(&"m1"));
+    assert!(ids.contains(&"m2"));
+}
+
+#[test]
+fn test_fts_compound_identifier_recall() {
+    let database = Database::in_memory().unwrap();
+    database
+        .insert_memory(&make_memory(
+            "m1",
+            "bind react-hook-form to schema",
+            "wire useForm resolver",
+            "validated submit",
+        ))
+        .unwrap();
+    database
+        .insert_memory(&make_memory(
+            "m2",
+            "unrelated database topic",
+            "run migration",
+            "schema applied",
+        ))
+        .unwrap();
+
+    // unicode61 splits react-hook-form into react/hook/form; OR-relaxation plus the
+    // exact hyphenated query both recall the compound-identifier row, and only it.
+    let hyphenated = database.search_fts("react-hook-form", 10).unwrap();
+    let hyphenated_ids: Vec<&str> = hyphenated
+        .iter()
+        .map(|result| result.memory.id.as_str())
+        .collect();
+    assert!(hyphenated_ids.contains(&"m1"));
+    assert!(!hyphenated_ids.contains(&"m2"));
+
+    // Spaced variant of the same fragments recalls the same row.
+    let spaced = database.search_fts("react form", 10).unwrap();
+    assert!(
+        spaced.iter().any(|result| result.memory.id == "m1"),
+        "spaced fragments must recall the compound-identifier row"
+    );
+}
+
+#[test]
+fn test_fts_camelcase_prefix_honesty() {
+    let database = Database::in_memory().unwrap();
+    database
+        .insert_memory(&make_memory(
+            "m1",
+            "call useMutation hook",
+            "post the form",
+            "server updated",
+        ))
+        .unwrap();
+
+    // camelCase is one token to unicode61; the prefix `*` recovers it from a partial.
+    let prefix = database.search_fts("useMut", 10).unwrap();
+    assert_eq!(prefix.len(), 1);
+    assert_eq!(prefix[0].memory.id, "m1");
+
+    // Documented honesty: a sub-word fragment inside the camelCase token does NOT
+    // match — FTS5 prefixes anchor at the token start, not mid-token.
+    let mid_token = database.search_fts("mutation", 10).unwrap();
+    assert!(
+        mid_token.is_empty(),
+        "mid-token fragment of a camelCase identifier must not match"
+    );
+}
+
+#[test]
+fn test_fts_ranking_favors_more_token_matches() {
+    let database = Database::in_memory().unwrap();
+    // m1 contains all three OR fragments; m2 contains only one.
+    database
+        .insert_memory(&make_memory(
+            "m1",
+            "retry queue backoff",
+            "schedule retry queue",
+            "backoff applied",
+        ))
+        .unwrap();
+    database
+        .insert_memory(&make_memory(
+            "m2",
+            "queue overview",
+            "read docs",
+            "noted basics",
+        ))
+        .unwrap();
+
+    let results = database.search_fts("retry queue backoff", 10).unwrap();
+    assert_eq!(results.len(), 2);
+    // The 3-fragment row ranks first (better/lower BM25 rank) under OR.
+    assert_eq!(results[0].memory.id, "m1");
+    assert!(results[0].rank <= results[1].rank);
+}
+
+#[test]
 fn test_fts_search_special_characters() {
     let database = Database::in_memory().unwrap();
     database

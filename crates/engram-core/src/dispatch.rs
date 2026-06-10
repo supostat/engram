@@ -4,6 +4,7 @@ use serde_json::Value;
 
 use crate::config_handler;
 use crate::consolidate_handler;
+use crate::consolidation_log_handler;
 use crate::delete_handler;
 use crate::error::CoreError;
 use crate::export_handler;
@@ -32,6 +33,7 @@ pub async fn route(
         "memory_consolidate_preview" => consolidate_handler::handle_preview(state, params).await,
         "memory_consolidate" => consolidate_handler::handle_analyze(state, params).await,
         "memory_consolidate_apply" => consolidate_handler::handle_apply(state, params).await,
+        "memory_consolidate_log" => consolidation_log_handler::handle(state, params).await,
         "memory_config" => config_handler::handle(state, params).await,
         "memory_export" => export_handler::handle(state, params).await,
         "memory_import" => import_handler::handle(state, params).await,

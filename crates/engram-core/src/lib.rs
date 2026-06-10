@@ -3,6 +3,7 @@ pub mod config;
 pub mod config_handler;
 pub mod config_loader;
 pub mod consolidate_handler;
+pub mod consolidation_log_handler;
 pub mod delete_handler;
 pub mod dispatch;
 pub mod error;

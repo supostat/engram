@@ -127,6 +127,13 @@ export const TOOL_DEFINITIONS = [
     }),
   },
   {
+    name: "memory_consolidate_log",
+    description: "List consolidation history (merge/delete/archive audit trail), newest first",
+    schema: z.object({
+      limit: z.number().int().positive().optional().describe("Max entries"),
+    }),
+  },
+  {
     name: "memory_insights",
     description: "List, generate, or delete derived knowledge insights",
     schema: z.object({

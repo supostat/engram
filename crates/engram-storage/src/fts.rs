@@ -11,16 +11,19 @@ pub struct FtsResult {
 }
 
 fn sanitize_fts_query(text: &str) -> String {
-    let alphanumeric_only: String = text
-        .chars()
-        .filter(|character| character.is_alphanumeric() || character.is_whitespace())
-        .collect();
-
-    alphanumeric_only
+    text.chars()
+        .map(|character| {
+            if character.is_alphanumeric() {
+                character
+            } else {
+                ' '
+            }
+        })
+        .collect::<String>()
         .split_whitespace()
-        .map(|token| format!("\"{token}\""))
+        .map(|token| format!("\"{token}\"*"))
         .collect::<Vec<String>>()
-        .join(" ")
+        .join(" OR ")
 }
 
 impl Database {

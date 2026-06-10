@@ -110,6 +110,14 @@ that confidence — e.g. `0.7` applies only high-confidence merges.
 }
 ```
 
+**memory_consolidate_log** — List consolidation history (merge/delete/archive audit
+trail), newest first. `limit` (default 50) caps the number of entries.
+```json
+{
+  "limit": 50
+}
+```
+
 ### Insights
 
 **memory_insights** — List, generate, or delete derived knowledge.
@@ -175,6 +183,7 @@ Periodically clean up duplicate and stale memories:
 memory_consolidate_preview({})           → see candidates
 memory_consolidate({})                   → get LLM recommendations
 memory_consolidate_apply({})             → apply merges/deletes
+memory_consolidate_log({})               → review the merge/delete audit trail
 ```
 
 ## Search Behavior

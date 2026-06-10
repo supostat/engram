@@ -146,6 +146,11 @@ enum ConsolidateAction {
         #[arg(long)]
         min_score: Option<f64>,
     },
+    /// List consolidation history (merge/delete/archive audit trail), newest first
+    Log {
+        #[arg(long)]
+        limit: Option<usize>,
+    },
 }
 
 #[tokio::main]
@@ -331,6 +336,13 @@ fn build_consolidate_args(action: ConsolidateAction) -> (String, serde_json::Val
             "memory_consolidate_apply".into(),
             consolidation_params(stale_days, min_score),
         ),
+        ConsolidateAction::Log { limit } => {
+            let mut params = json!({});
+            if let Some(value) = limit {
+                params["limit"] = json!(value);
+            }
+            ("memory_consolidate_log".into(), params)
+        }
     }
 }
 

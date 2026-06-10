@@ -153,7 +153,7 @@ engram status --format text
 
 ## engram consolidate
 
-Manages memory consolidation. Three subcommands:
+Manages memory consolidation. Four subcommands:
 
 ### engram consolidate preview
 
@@ -184,6 +184,19 @@ engram consolidate apply
 |------|---------|-------------|
 | `--stale-days` | from config (90) | Stale threshold (days) |
 | `--min-score` | from config (0.3) | Minimum score |
+
+### engram consolidate log
+
+Lists consolidation history (merge/delete/archive audit trail), newest first.
+
+```bash
+engram consolidate log
+engram consolidate log --limit 20
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--limit` | 50 | Maximum entries |
 
 ## engram train
 

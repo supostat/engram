@@ -1,11 +1,11 @@
 ---
 title: MCP Tools
-description: All 11 engram MCP tools reference
+description: All 13 engram MCP tools reference
 ---
 
 # MCP Tools
 
-Engram provides 11 MCP tools through a TypeScript server. The server translates calls into JSON requests to the Rust core via Unix socket.
+Engram provides 13 MCP tools through a TypeScript server. The server translates calls into JSON requests to the Rust core via Unix socket.
 
 ## memory_store
 
@@ -169,6 +169,16 @@ Applies consolidation recommendations: merge, delete, archive.
 {
   "stale_days": 30,
   "min_score": 0.3
+}
+```
+
+## memory_consolidate_log
+
+Lists consolidation history (merge/delete/archive audit trail), newest first.
+
+```json
+{
+  "limit": 50
 }
 ```
 

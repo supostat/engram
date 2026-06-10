@@ -1,11 +1,11 @@
 ---
 title: MCP инструменты
-description: Описание всех 11 MCP-инструментов engram
+description: Описание всех 13 MCP-инструментов engram
 ---
 
 # MCP инструменты
 
-Engram предоставляет 11 MCP-инструментов через TypeScript-сервер. Сервер транслирует вызовы в JSON-запросы к Rust-ядру через Unix-сокет.
+Engram предоставляет 13 MCP-инструментов через TypeScript-сервер. Сервер транслирует вызовы в JSON-запросы к Rust-ядру через Unix-сокет.
 
 ## memory_store
 
@@ -169,6 +169,16 @@ Engram предоставляет 11 MCP-инструментов через Typ
 {
   "stale_days": 30,
   "min_score": 0.3
+}
+```
+
+## memory_consolidate_log
+
+Выводит историю консолидации (журнал операций merge/delete/archive), новейшие первыми.
+
+```json
+{
+  "limit": 50
 }
 ```
 
