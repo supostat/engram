@@ -150,6 +150,8 @@ Finds deduplication candidates without applying changes. Does not call LLM.
 | `stale_days` | number | no | Stale threshold (days) |
 | `min_score` | number | no | Minimum score |
 
+Each entry in the response's `duplicate_groups` carries `match_type`: `"exact"` (byte-identical context/action/result) with the sentinel `similarity: 1.0`, or `"fts"` (BM25 probing) where `similarity` is the mean &#124;bm25&#124; rank of the group members (not cosine). `primary_id` is the deterministic group representative, not necessarily the merge survivor.
+
 ## memory_consolidate
 
 Analyzes candidates with LLM. Returns merge/keep recommendations.
@@ -161,6 +163,8 @@ Analyzes candidates with LLM. Returns merge/keep recommendations.
 }
 ```
 
+The response includes an `errors` array: LLM failures and unloadable groups are collected per member instead of failing the call, and failed members do not count toward `analyzed_count`.
+
 ## memory_consolidate_apply
 
 Applies consolidation recommendations: merge, delete, archive.
@@ -168,9 +172,18 @@ Applies consolidation recommendations: merge, delete, archive.
 ```json
 {
   "stale_days": 30,
-  "min_score": 0.3
+  "min_score": 0.3,
+  "min_confidence": 0.7
 }
 ```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `stale_days` | number | no | Stale threshold (days) |
+| `min_score` | number | no | Minimum score |
+| `min_confidence` | number | no | Skip recommendations below this confidence (0.0–1.0, default 0.0 = apply all) |
+
+The response's `errors` array merges analysis errors (prefixed `analyze ...`) with apply errors.
 
 ## memory_consolidate_log
 

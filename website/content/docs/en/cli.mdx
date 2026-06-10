@@ -178,12 +178,14 @@ Applies recommendations: merge, delete, archive.
 
 ```bash
 engram consolidate apply
+engram consolidate apply --min-confidence 0.7
 ```
 
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--stale-days` | from config (90) | Stale threshold (days) |
 | `--min-score` | from config (0.3) | Minimum score |
+| `--min-confidence` | 0.0 (apply all) | Skip recommendations below this confidence (0.0–1.0) |
 
 ### engram consolidate log
 

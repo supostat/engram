@@ -210,6 +210,63 @@ fn default_hyde_threshold_is_zero() {
 }
 
 #[test]
+fn missing_fts_similarity_floor_in_toml_defaults_to_zero() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let config_path = temp_dir.path().join("engram.toml");
+    let toml_content = r#"
+[database]
+path = "/x/db"
+[embedding]
+provider = "voyage"
+[llm]
+provider = "openai"
+[server]
+socket_path = "/tmp/x.sock"
+reindex_interval_secs = 1800
+[hnsw]
+max_connections = 16
+ef_construction = 200
+ef_search = 40
+dimension = 1024
+[consolidation]
+stale_days = 90
+min_score = 0.3
+"#;
+    std::fs::write(&config_path, toml_content).unwrap();
+    let config = Config::load_from_path(config_path.to_str().unwrap()).unwrap();
+    assert_eq!(config.consolidation.fts_similarity_floor, 0.0);
+}
+
+#[test]
+fn parses_fts_similarity_floor_from_toml() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let config_path = temp_dir.path().join("engram.toml");
+    let toml_content = r#"
+[database]
+path = "/x/db"
+[embedding]
+provider = "voyage"
+[llm]
+provider = "openai"
+[server]
+socket_path = "/tmp/x.sock"
+reindex_interval_secs = 1800
+[hnsw]
+max_connections = 16
+ef_construction = 200
+ef_search = 40
+dimension = 1024
+[consolidation]
+stale_days = 90
+min_score = 0.3
+fts_similarity_floor = 2.5
+"#;
+    std::fs::write(&config_path, toml_content).unwrap();
+    let config = Config::load_from_path(config_path.to_str().unwrap()).unwrap();
+    assert_eq!(config.consolidation.fts_similarity_floor, 2.5);
+}
+
+#[test]
 fn parses_hyde_threshold_from_toml() {
     let temp_dir = tempfile::tempdir().unwrap();
     let config_path = temp_dir.path().join("engram.toml");

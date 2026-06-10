@@ -188,6 +188,7 @@ dimension = 1024
 [consolidation]
 stale_days = 90
 min_score = 0.3
+fts_similarity_floor = 0.0
 
 [trainer]
 trainer_binary = "engram-trainer"
@@ -252,7 +253,7 @@ The Ollama provider needs no API key. After switching an existing database to a 
 ## Testing
 
 ```bash
-cargo test --all              # 661+ Rust tests
+cargo test --all              # 678+ Rust tests
 cd mcp-server && npm test     # 11 vitest unit tests + typecheck
 cd trainer && pytest           # Python tests (pip install -e ".[dev]")
 cargo bench --all             # Criterion benchmarks

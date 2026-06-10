@@ -3,6 +3,8 @@ use std::sync::Arc;
 use serde::Deserialize;
 use serde_json::{Value, json};
 
+use engram_storage::Database;
+
 use crate::error::CoreError;
 use crate::lock_helpers;
 use crate::persistence::hash_string_to_u64;
@@ -30,7 +32,7 @@ pub async fn handle_preview(state: &Arc<ServerState>, params: Value) -> Result<V
     let state_clone = Arc::clone(state);
     let result = tokio::task::spawn_blocking(move || {
         let database = lock_helpers::lock_db(&state_clone);
-        let preview = engram_consolidate::preview(&database, stale_days, min_score)?;
+        let preview = run_preview(&state_clone, &database, stale_days, min_score)?;
         Ok::<_, CoreError>(json!({
             "duplicates": preview.duplicates.len(),
             "stale": preview.stale.len(),
@@ -58,15 +60,17 @@ pub async fn handle_analyze(state: &Arc<ServerState>, params: Value) -> Result<V
     let state_clone = Arc::clone(state);
     let result = tokio::task::spawn_blocking(move || {
         let database = lock_helpers::lock_db(&state_clone);
-        let preview = engram_consolidate::preview(&database, stale_days, min_score)?;
+        let preview = run_preview(&state_clone, &database, stale_days, min_score)?;
         let text_gen_ref = state_clone
             .text_generator
             .as_deref()
             .map(|generator| generator as &dyn engram_llm_client::TextGenerator);
         let analysis = engram_consolidate::analyze(&database, &preview, text_gen_ref)?;
+        let recommendations = serialize_recommendations(&analysis.recommendations);
         Ok::<_, CoreError>(json!({
             "analyzed_count": analysis.analyzed_count,
-            "recommendations": serialize_recommendations(&analysis.recommendations),
+            "recommendations": recommendations,
+            "errors": analysis.errors,
         }))
     })
     .await
@@ -95,20 +99,21 @@ pub async fn handle_apply(state: &Arc<ServerState>, params: Value) -> Result<Val
     validate_min_confidence(min_confidence)?;
     let state_clone = Arc::clone(state);
     let result = tokio::task::spawn_blocking(move || {
-        let apply_result = {
+        let (apply_result, mut errors) = {
             let database = lock_helpers::lock_db(&state_clone);
-            let preview = engram_consolidate::preview(&database, stale_days, min_score)?;
+            let preview = run_preview(&state_clone, &database, stale_days, min_score)?;
             let text_gen_ref = state_clone
                 .text_generator
                 .as_deref()
                 .map(|generator| generator as &dyn engram_llm_client::TextGenerator);
             let analysis = engram_consolidate::analyze(&database, &preview, text_gen_ref)?;
-            engram_consolidate::apply(
+            let apply_result = engram_consolidate::apply(
                 &database,
                 &analysis.recommendations,
                 "server",
                 min_confidence,
-            )?
+            )?;
+            (apply_result, analysis.errors)
         };
         let mut indexes = lock_helpers::write_indexes(&state_clone);
         for id in &apply_result.pruned_ids {
@@ -117,17 +122,33 @@ pub async fn handle_apply(state: &Arc<ServerState>, params: Value) -> Result<Val
                 indexes.delete(hashed).map_err(CoreError::Hnsw)?;
             }
         }
+        errors.extend(apply_result.errors.iter().cloned());
         Ok::<_, CoreError>(json!({
             "merged": apply_result.merged,
             "deleted": apply_result.deleted,
             "archived": apply_result.archived,
             "kept": apply_result.kept,
-            "errors": apply_result.errors,
+            "errors": errors,
         }))
     })
     .await
     .map_err(|error| CoreError::SocketError(error.to_string()))??;
     Ok(result)
+}
+
+fn run_preview(
+    state: &ServerState,
+    database: &Database,
+    stale_days: u32,
+    min_score: f64,
+) -> Result<engram_consolidate::PreviewResult, CoreError> {
+    let preview = engram_consolidate::preview(
+        database,
+        stale_days,
+        min_score,
+        state.config.consolidation.fts_similarity_floor,
+    )?;
+    Ok(preview)
 }
 
 fn serialize_duplicate_groups(groups: &[engram_consolidate::DuplicateGroup]) -> Vec<Value> {
@@ -138,6 +159,7 @@ fn serialize_duplicate_groups(groups: &[engram_consolidate::DuplicateGroup]) -> 
                 "primary_id": group.primary_id,
                 "duplicate_ids": group.duplicate_ids,
                 "similarity": group.similarity,
+                "match_type": group.match_type.as_str(),
             })
         })
         .collect()

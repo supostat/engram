@@ -11,7 +11,10 @@ Consolidation is the process of cleaning the database from duplicates, stale, an
 
 ### 1. Preview — find candidates
 
-Finds pairs of records with cosine similarity > 0.95 and records matching `stale_days` and `min_score` filters. Does not call LLM, does not modify data.
+Finds duplicate groups in two passes, plus records matching the `stale_days` and `min_score` filters. Does not call LLM, does not modify data.
+
+- **Exact pass** groups records whose context/action/result triplets are byte-identical (`match_type: "exact"`).
+- **FTS pass** probes each remaining record's context against the BM25 full-text index and groups the top matches (`match_type: "fts"`).
 
 ```bash
 engram consolidate preview --stale-days 30 --min-score 0.3
@@ -21,6 +24,17 @@ engram consolidate preview --stale-days 30 --min-score 0.3
 // MCP
 memory_consolidate_preview({ "stale_days": 30, "min_score": 0.3 })
 ```
+
+Each duplicate group reports:
+
+| Field | Meaning |
+|-------|---------|
+| `primary_id` | Deterministic group representative (exact: lexicographically smallest id; FTS: the probe record). Not necessarily the merge survivor — analyze picks the survivor independently. |
+| `duplicate_ids` | The remaining group members. |
+| `similarity` | Scale depends on `match_type`: exact groups carry the sentinel `1.0`; FTS groups carry the mean &#124;bm25&#124; rank of the group members (non-negative, unbounded above — not cosine). |
+| `match_type` | `"exact"` or `"fts"`. |
+
+The `consolidation.fts_similarity_floor` setting (default `0.0` = disabled) drops FTS groups whose similarity falls below the floor before analysis. Exact groups are never filtered.
 
 ### 2. Analyze — LLM analysis
 
@@ -35,17 +49,19 @@ engram consolidate analyze
 memory_consolidate({ "stale_days": 30 })
 ```
 
+LLM failures do not abort the batch: each failed member or unloadable group adds an entry to the response's `errors` array, produces no recommendation, and does not count toward `analyzed_count`. Without an LLM configured, a deterministic heuristic picks the survivor (higher score, then usage, then earlier creation).
+
 ### 3. Apply — execute
 
-Applies recommendations: merges, deletes, or archives records.
+Applies recommendations: merges, deletes, or archives records. `min_confidence` (default `0.0` = apply all) skips recommendations below the given confidence. The response's `errors` array merges analysis errors (prefixed `analyze ...`) with apply errors.
 
 ```bash
-engram consolidate apply
+engram consolidate apply --min-confidence 0.7
 ```
 
 ```json
 // MCP
-memory_consolidate_apply({})
+memory_consolidate_apply({ "min_confidence": 0.7 })
 ```
 
 ## Operations
@@ -72,6 +88,7 @@ In addition to consolidation, engram performs deduplication on every `memory_sto
 |-----------|---------|-------------|
 | `stale_days` | 90 (from config) | Records older than this threshold are considered stale |
 | `min_score` | 0.3 (from config) | Records with score below threshold are deletion candidates |
+| `fts_similarity_floor` | 0.0 (from config) | Minimum mean &#124;bm25&#124; rank an FTS duplicate group must reach in preview; 0.0 disables, exact groups are never filtered |
 
 Configured in `engram.toml`:
 
@@ -79,6 +96,7 @@ Configured in `engram.toml`:
 [consolidation]
 stale_days = 90
 min_score = 0.3
+fts_similarity_floor = 0.0
 ```
 
 ## Insights

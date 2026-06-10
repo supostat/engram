@@ -68,6 +68,7 @@ dimension = 1024
 [consolidation]
 stale_days = 90
 min_score = 0.3
+fts_similarity_floor = 0.0
 
 [trainer]
 trainer_binary = "engram-trainer"
@@ -136,6 +137,7 @@ models_path = "~/.engram/models"
 |----------|-------------|----------|
 | `stale_days` | `90` | Порог устаревания записей (дни) |
 | `min_score` | `0.3` | Минимальный score для кандидатов консолидации |
+| `fts_similarity_floor` | `0.0` | Минимальный средний &#124;bm25&#124; rank FTS-группы дубликатов в consolidation preview (та же шкала, что `similarity` у `fts`-групп, не cosine). `0.0` выключает фильтр; exact-группы никогда не фильтруются. Значение должно быть конечным и ≥ 0. |
 
 ### trainer
 

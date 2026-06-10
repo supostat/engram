@@ -90,6 +90,16 @@ Optional `tags` (array of strings) filters results to memories that carry **all*
   "min_score": 0.3
 }
 ```
+Each duplicate group reports `match_type`: `"exact"` (byte-identical
+context/action/result triplets) or `"fts"` (BM25 full-text probing). The
+`similarity` scale depends on `match_type`: exact groups carry the sentinel
+`1.0`; FTS groups carry the mean |bm25| rank of the group members
+(non-negative, unbounded above — NOT cosine). `primary_id` is the
+deterministic group representative (exact: lexicographically smallest id;
+FTS: the probe memory), not necessarily the merge survivor — analyze picks
+the survivor independently. The `consolidation.fts_similarity_floor` config
+(default `0.0` = disabled) drops FTS groups whose similarity falls below the
+floor; exact groups are never filtered.
 
 **memory_consolidate** — Analyze candidates with LLM. Returns merge/keep recommendations.
 ```json
@@ -98,10 +108,19 @@ Optional `tags` (array of strings) filters results to memories that carry **all*
   "min_score": 0.3
 }
 ```
+Error contract: previously any LLM failure hard-failed the whole call. Now
+the call succeeds and returns an `"errors"` array with one entry per failed
+member or unloadable group; failed members produce no recommendation and do
+not count toward `analyzed_count`. Note the apply-side consequence: during a
+total LLM outage `memory_consolidate_apply` still executes stale/garbage
+recommendations and the recommendations of groups whose members succeeded.
 
 **memory_consolidate_apply** — Apply recommendations: merge, delete, or archive.
 `min_confidence` (0.0–1.0, default 0.0 = apply all) skips recommendations below
-that confidence — e.g. `0.7` applies only high-confidence merges.
+that confidence — e.g. `0.7` applies only high-confidence merges. The CLI
+equivalent is `engram consolidate apply --min-confidence 0.7`. The response
+`"errors"` array merges analysis errors (prefixed `analyze ...`) with apply
+errors.
 ```json
 {
   "stale_days": 30,

@@ -129,22 +129,25 @@ enum ConsolidateAction {
     Preview {
         #[arg(long)]
         stale_days: Option<u32>,
-        #[arg(long)]
+        #[arg(long, value_parser = parse_finite_f64)]
         min_score: Option<f64>,
     },
     /// Analyze and generate recommendations
     Analyze {
         #[arg(long)]
         stale_days: Option<u32>,
-        #[arg(long)]
+        #[arg(long, value_parser = parse_finite_f64)]
         min_score: Option<f64>,
     },
     /// Apply consolidation recommendations
     Apply {
         #[arg(long)]
         stale_days: Option<u32>,
-        #[arg(long)]
+        #[arg(long, value_parser = parse_finite_f64)]
         min_score: Option<f64>,
+        /// Skip recommendations below this confidence (0.0-1.0, server default 0.0)
+        #[arg(long, value_parser = parse_finite_f32)]
+        min_confidence: Option<f32>,
     },
     /// List consolidation history (merge/delete/archive audit trail), newest first
     Log {
@@ -332,10 +335,14 @@ fn build_consolidate_args(action: ConsolidateAction) -> (String, serde_json::Val
         ConsolidateAction::Apply {
             stale_days,
             min_score,
-        } => (
-            "memory_consolidate_apply".into(),
-            consolidation_params(stale_days, min_score),
-        ),
+            min_confidence,
+        } => {
+            let mut params = consolidation_params(stale_days, min_score);
+            if let Some(value) = min_confidence {
+                params["min_confidence"] = json!(value);
+            }
+            ("memory_consolidate_apply".into(), params)
+        }
         ConsolidateAction::Log { limit } => {
             let mut params = json!({});
             if let Some(value) = limit {
@@ -363,4 +370,92 @@ fn consolidation_params(stale_days: Option<u32>, min_score: Option<f64>) -> serd
         params["min_score"] = json!(score);
     }
     params
+}
+
+// Non-finite floats serialize to JSON null, which the server reads as an absent
+// parameter and replaces with its default — silently disabling the threshold.
+// Reject them at the CLI boundary; range validation stays server-side.
+fn parse_finite_f32(text: &str) -> Result<f32, String> {
+    let value = text.parse::<f32>().map_err(|error| error.to_string())?;
+    if !value.is_finite() {
+        return Err("must be a finite number".into());
+    }
+    Ok(value)
+}
+
+fn parse_finite_f64(text: &str) -> Result<f64, String> {
+    let value = text.parse::<f64>().map_err(|error| error.to_string())?;
+    if !value.is_finite() {
+        return Err("must be a finite number".into());
+    }
+    Ok(value)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn consolidate_apply_forwards_min_confidence() {
+        let (method, params) = build_consolidate_args(ConsolidateAction::Apply {
+            stale_days: None,
+            min_score: None,
+            min_confidence: Some(0.7),
+        });
+        assert_eq!(method, "memory_consolidate_apply");
+        let forwarded = params["min_confidence"]
+            .as_f64()
+            .expect("min_confidence must be forwarded as a number");
+        // f32 -> JSON widens through f64, so 0.7f32 is not bit-equal to 0.7f64.
+        assert!((forwarded - 0.7).abs() < 1e-6);
+    }
+
+    #[test]
+    fn consolidate_apply_omits_absent_min_confidence() {
+        let (method, params) = build_consolidate_args(ConsolidateAction::Apply {
+            stale_days: None,
+            min_score: None,
+            min_confidence: None,
+        });
+        assert_eq!(method, "memory_consolidate_apply");
+        assert!(
+            params.get("min_confidence").is_none(),
+            "absent flag must leave the key out so the server default applies"
+        );
+    }
+
+    #[test]
+    fn finite_threshold_parsers_accept_decimal_input() {
+        assert_eq!(parse_finite_f32("0.7"), Ok(0.7_f32));
+        assert_eq!(parse_finite_f64("0.7"), Ok(0.7_f64));
+    }
+
+    #[test]
+    fn finite_threshold_parsers_reject_non_finite_input() {
+        for literal in ["nan", "inf", "-inf"] {
+            assert!(
+                parse_finite_f32(literal).is_err(),
+                "f32 parser must reject {literal}"
+            );
+            assert!(
+                parse_finite_f64(literal).is_err(),
+                "f64 parser must reject {literal}"
+            );
+        }
+    }
+
+    #[test]
+    fn cli_rejects_non_finite_consolidation_thresholds() {
+        for arguments in [
+            ["engram", "consolidate", "preview", "--min-score", "nan"],
+            ["engram", "consolidate", "analyze", "--min-score", "inf"],
+            ["engram", "consolidate", "apply", "--min-score", "-inf"],
+            ["engram", "consolidate", "apply", "--min-confidence", "nan"],
+        ] {
+            assert!(
+                EngramCli::try_parse_from(arguments).is_err(),
+                "non-finite threshold must be rejected: {arguments:?}"
+            );
+        }
+    }
 }

@@ -57,6 +57,11 @@ dimension = 1024
 [consolidation]
 stale_days = 90
 min_score = 0.3
+# fts_similarity_floor: minimum mean |bm25| rank an FTS duplicate group must
+# reach to appear in consolidation preview. Same unit as the preview
+# "similarity" of fts groups (NOT cosine). 0.0 disables the floor; exact
+# groups are never filtered.
+fts_similarity_floor = 0.0
 "#;
 
 const PROJECT_LOCAL_CONFIG_TEMPLATE: &str = r#"# Project-local engram config. Every value here is deep-merged over the
@@ -90,6 +95,7 @@ const PROJECT_LOCAL_CONFIG_TEMPLATE: &str = r#"# Project-local engram config. Ev
 # [consolidation]
 # stale_days = 90
 # min_score = 0.3
+# fts_similarity_floor = 0.0
 "#;
 
 #[derive(Debug)]

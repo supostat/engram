@@ -178,12 +178,14 @@ engram consolidate analyze
 
 ```bash
 engram consolidate apply
+engram consolidate apply --min-confidence 0.7
 ```
 
 | Флаг | По умолчанию | Описание |
 |------|-------------|----------|
 | `--stale-days` | из конфигурации (90) | Порог устаревания (дни) |
 | `--min-score` | из конфигурации (0.3) | Минимальный score |
+| `--min-confidence` | 0.0 (применять все) | Пропускать рекомендации с confidence ниже порога (0.0–1.0) |
 
 ### engram consolidate log
 

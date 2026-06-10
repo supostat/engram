@@ -1,7 +1,7 @@
 use engram_consolidate::analyze::{RecommendedAction, analyze};
 use engram_consolidate::apply::apply;
 use engram_consolidate::error::ConsolidateError;
-use engram_consolidate::preview::{DuplicateGroup, PreviewResult, preview};
+use engram_consolidate::preview::{DuplicateGroup, MatchType, PreviewResult, preview};
 use engram_llm_client::{ApiError, TextGenerator};
 use engram_storage::Database;
 use engram_storage::memory::Memory;
@@ -37,6 +37,23 @@ impl TextGenerator for FailingTextGenerator {
 
     fn model_name(&self) -> &str {
         "failing-model"
+    }
+}
+
+struct SelectiveFailingTextGenerator {
+    fail_marker: String,
+}
+
+impl TextGenerator for SelectiveFailingTextGenerator {
+    fn generate(&self, prompt: &str) -> Result<String, ApiError> {
+        if prompt.contains(&self.fail_marker) {
+            return Err(ApiError::LlmApiUnavailable("selective outage".to_string()));
+        }
+        Ok("MERGE".to_string())
+    }
+
+    fn model_name(&self) -> &str {
+        "selective-failing-model"
     }
 }
 
@@ -107,10 +124,15 @@ fn test_preview_finds_duplicates_via_fts() {
         .insert_memory(&make_memory("m2", "rust memory management"))
         .unwrap();
 
-    let result = preview(&database, 365, 0.1).unwrap();
+    let result = preview(&database, 365, 0.1, 0.0).unwrap();
     assert!(
         !result.duplicates.is_empty(),
         "should find duplicate memories with identical context"
+    );
+    assert_eq!(
+        result.duplicates[0].match_type,
+        MatchType::Fts,
+        "context-only overlap is found via FTS, not the exact pass"
     );
 }
 
@@ -120,7 +142,7 @@ fn test_preview_finds_stale_memories() {
     database.insert_memory(&make_stale_memory("s1")).unwrap();
     database.insert_memory(&make_stale_memory("s2")).unwrap();
 
-    let result = preview(&database, 30, 0.1).unwrap();
+    let result = preview(&database, 30, 0.1, 0.0).unwrap();
     assert_eq!(result.stale.len(), 2);
     assert!(result.stale.contains(&"s1".to_string()));
     assert!(result.stale.contains(&"s2".to_string()));
@@ -131,7 +153,7 @@ fn test_preview_finds_garbage_broken_parent() {
     let database = Database::in_memory().unwrap();
     insert_orphan_memory(&database, "orphan1");
 
-    let result = preview(&database, 365, 0.1).unwrap();
+    let result = preview(&database, 365, 0.1, 0.0).unwrap();
     assert_eq!(result.garbage.len(), 1);
     assert_eq!(result.garbage[0], "orphan1");
 }
@@ -144,7 +166,7 @@ fn test_preview_empty_when_no_candidates() {
     healthy.used_count = 5;
     database.insert_memory(&healthy).unwrap();
 
-    let result = preview(&database, 365, 0.1).unwrap();
+    let result = preview(&database, 365, 0.1, 0.0).unwrap();
     assert!(result.duplicates.is_empty());
     assert!(result.stale.is_empty());
     assert!(result.garbage.is_empty());
@@ -165,6 +187,7 @@ fn test_analyze_with_mock_llm_produces_merge() {
             primary_id: "m1".to_string(),
             duplicate_ids: vec!["m2".to_string()],
             similarity: 0.95,
+            match_type: MatchType::Fts,
         }],
         stale: Vec::new(),
         garbage: Vec::new(),
@@ -174,6 +197,7 @@ fn test_analyze_with_mock_llm_produces_merge() {
     let analysis = analyze(&database, &preview_result, Some(&generator)).unwrap();
     assert_eq!(analysis.analyzed_count, 2);
     assert!(!analysis.recommendations.is_empty());
+    assert!(analysis.errors.is_empty());
 
     let first = &analysis.recommendations[0];
     assert!(
@@ -200,6 +224,7 @@ fn test_analyze_without_llm_uses_heuristic() {
             primary_id: "m1".to_string(),
             duplicate_ids: vec!["m2".to_string()],
             similarity: 0.9,
+            match_type: MatchType::Fts,
         }],
         stale: Vec::new(),
         garbage: Vec::new(),
@@ -207,6 +232,7 @@ fn test_analyze_without_llm_uses_heuristic() {
 
     let analysis = analyze(&database, &preview_result, None).unwrap();
     assert_eq!(analysis.analyzed_count, 2);
+    assert!(analysis.errors.is_empty());
 
     let first = &analysis.recommendations[0];
     match &first.action {
@@ -367,7 +393,7 @@ fn test_error_display_codes() {
 }
 
 #[test]
-fn test_analyze_with_llm_failure_returns_error() {
+fn test_analyze_with_llm_failure_collects_error_and_continues() {
     let database = Database::in_memory().unwrap();
     database
         .insert_memory(&make_memory("m1", "rust ownership"))
@@ -381,18 +407,27 @@ fn test_analyze_with_llm_failure_returns_error() {
             primary_id: "m1".to_string(),
             duplicate_ids: vec!["m2".to_string()],
             similarity: 0.95,
+            match_type: MatchType::Fts,
         }],
         stale: Vec::new(),
         garbage: Vec::new(),
     };
 
     let generator = FailingTextGenerator;
-    let result = analyze(&database, &preview_result, Some(&generator));
-    assert!(result.is_err(), "LLM failure should propagate as error");
-    let error = result.unwrap_err();
+    let analysis = analyze(&database, &preview_result, Some(&generator)).unwrap();
     assert!(
-        matches!(error, ConsolidateError::AnalysisFailed(_)),
-        "should be AnalysisFailed, got: {error}"
+        analysis.recommendations.is_empty(),
+        "a failed LLM verdict must not produce a recommendation"
+    );
+    assert_eq!(analysis.errors.len(), 1, "one failed member, one error");
+    assert!(
+        analysis.errors[0].contains("m2"),
+        "error must reference the failed member, got: {}",
+        analysis.errors[0]
+    );
+    assert_eq!(
+        analysis.analyzed_count, 1,
+        "only the survivor counts as analyzed when the member call fails"
     );
 }
 
@@ -440,7 +475,7 @@ fn test_preview_exact_dedup_beyond_fts_top5() {
         database.insert_memory(&make_identical(id, shared)).unwrap();
     }
 
-    let result = preview(&database, 365, 0.1).unwrap();
+    let result = preview(&database, 365, 0.1, 0.0).unwrap();
     let exact_group = result
         .duplicates
         .iter()
@@ -458,6 +493,11 @@ fn test_preview_exact_dedup_beyond_fts_top5() {
         "the primary plus five duplicates make all six members"
     );
     assert_eq!(exact_group.similarity, 1.0, "exact duplicates score 1.0");
+    assert_eq!(
+        exact_group.match_type,
+        MatchType::Exact,
+        "byte-identical triplets come from the exact pass"
+    );
 }
 
 // Insights and superseded rows must never be grouped as duplicates of a live source,
@@ -482,7 +522,7 @@ fn test_preview_excludes_insights_and_superseded() {
     database.insert_memory(&retired).unwrap();
     database.set_superseded_by("retired1", "src1").unwrap();
 
-    let result = preview(&database, 365, 0.1).unwrap();
+    let result = preview(&database, 365, 0.1, 0.0).unwrap();
     let grouped_ids: Vec<String> = result
         .duplicates
         .iter()
@@ -523,6 +563,7 @@ fn test_analyze_single_survivor() {
             primary_id: "ins1".to_string(),
             duplicate_ids: vec!["high1".to_string(), "low1".to_string()],
             similarity: 1.0,
+            match_type: MatchType::Exact,
         }],
         stale: Vec::new(),
         garbage: Vec::new(),
@@ -687,6 +728,7 @@ fn test_analyze_heuristic_tie_breaks_on_used_count() {
             primary_id: "m1".to_string(),
             duplicate_ids: vec!["m2".to_string()],
             similarity: 0.9,
+            match_type: MatchType::Fts,
         }],
         stale: Vec::new(),
         garbage: Vec::new(),
@@ -712,4 +754,179 @@ fn test_analyze_heuristic_tie_breaks_on_used_count() {
         }
         other => panic!("expected Merge, got {other:?}"),
     }
+}
+
+// The reported FTS similarity must average only the ranks of the memories that
+// actually end up in the group. The old code averaged over every FTS match,
+// including already-grouped memories that were filtered out of the member list.
+#[test]
+fn test_preview_fts_similarity_uses_only_group_members() {
+    let database = Database::in_memory().unwrap();
+    database
+        .insert_memory(&make_identical("a1", "alpha beta sigma tau"))
+        .unwrap();
+    database
+        .insert_memory(&make_identical("b1", "alpha beta sigma tau"))
+        .unwrap();
+
+    let mut probe = make_memory("c1", "alpha beta gamma epsilon");
+    probe.created_at = "2025-01-02T00:00:00Z".to_string();
+    probe.updated_at = "2025-01-02T00:00:00Z".to_string();
+    database.insert_memory(&probe).unwrap();
+
+    let mut strong_match = make_memory("d1", "alpha beta gamma epsilon");
+    strong_match.created_at = "2025-01-03T00:00:00Z".to_string();
+    strong_match.updated_at = "2025-01-03T00:00:00Z".to_string();
+    database.insert_memory(&strong_match).unwrap();
+
+    let expected_similarity = database
+        .search_fts(&probe.context, 5)
+        .unwrap()
+        .into_iter()
+        .find(|fts_result| fts_result.memory.id == "d1")
+        .map(|fts_result| fts_result.rank.abs() as f32)
+        .expect("d1 shares every probe token and must appear in FTS results");
+
+    let result = preview(&database, 365, 0.1, 0.0).unwrap();
+    let probe_group = result
+        .duplicates
+        .iter()
+        .find(|group| group.primary_id == "c1")
+        .expect("the probe must form an FTS group");
+    assert_eq!(probe_group.duplicate_ids, vec!["d1".to_string()]);
+    assert_eq!(probe_group.match_type, MatchType::Fts);
+    // Relative tolerance: |bm25| magnitudes shrink with corpus size, so an
+    // absolute epsilon could swallow the difference between member-scoped
+    // and all-matches averaging.
+    assert!(
+        (probe_group.similarity - expected_similarity).abs() < expected_similarity * 1e-3,
+        "similarity must be the mean |bm25| of group members only, \
+         expected {expected_similarity}, got {}",
+        probe_group.similarity
+    );
+}
+
+// The floor filters only FTS groups; exact groups always survive, and a 0.0
+// floor keeps the pre-floor behavior.
+#[test]
+fn test_preview_fts_floor_drops_weak_groups_keeps_exact() {
+    let database = Database::in_memory().unwrap();
+    database
+        .insert_memory(&make_identical("x1", "omicron lambda kappa"))
+        .unwrap();
+    database
+        .insert_memory(&make_identical("x2", "omicron lambda kappa"))
+        .unwrap();
+    database
+        .insert_memory(&make_memory("f1", "zeta theta iota"))
+        .unwrap();
+    database
+        .insert_memory(&make_memory("f2", "zeta theta iota"))
+        .unwrap();
+
+    let filtered = preview(&database, 365, 0.1, 1e6).unwrap();
+    assert_eq!(
+        filtered.duplicates.len(),
+        1,
+        "an unreachable floor must drop the FTS group and keep the exact group"
+    );
+    assert_eq!(filtered.duplicates[0].match_type, MatchType::Exact);
+
+    let unfiltered = preview(&database, 365, 0.1, 0.0).unwrap();
+    assert_eq!(
+        unfiltered.duplicates.len(),
+        2,
+        "a 0.0 floor must keep both the exact and the FTS group"
+    );
+}
+
+#[test]
+fn test_analyze_partial_llm_failure_keeps_other_groups() {
+    let database = Database::in_memory().unwrap();
+    database
+        .insert_memory(&make_memory("ok1", "healthy corpus tokens"))
+        .unwrap();
+    database
+        .insert_memory(&make_memory("ok2", "healthy corpus tokens"))
+        .unwrap();
+    database
+        .insert_memory(&make_memory("p1", "poisoned corpus tokens"))
+        .unwrap();
+    database
+        .insert_memory(&make_memory("p2", "poisontoken corpus tokens"))
+        .unwrap();
+
+    let preview_result = PreviewResult {
+        duplicates: vec![
+            DuplicateGroup {
+                primary_id: "ok1".to_string(),
+                duplicate_ids: vec!["ok2".to_string()],
+                similarity: 0.9,
+                match_type: MatchType::Fts,
+            },
+            DuplicateGroup {
+                primary_id: "p1".to_string(),
+                duplicate_ids: vec!["p2".to_string()],
+                similarity: 0.9,
+                match_type: MatchType::Fts,
+            },
+        ],
+        stale: Vec::new(),
+        garbage: Vec::new(),
+    };
+
+    let generator = SelectiveFailingTextGenerator {
+        fail_marker: "poisontoken".to_string(),
+    };
+    let analysis = analyze(&database, &preview_result, Some(&generator)).unwrap();
+    assert_eq!(
+        analysis.recommendations.len(),
+        1,
+        "the healthy group must still produce its recommendation"
+    );
+    assert!(
+        matches!(
+            &analysis.recommendations[0].action,
+            RecommendedAction::Merge { source_id, target_id }
+                if source_id == "ok1" && target_id == "ok2"
+        ),
+        "expected Merge ok2 -> ok1, got {:?}",
+        analysis.recommendations[0].action
+    );
+    assert_eq!(analysis.errors.len(), 1);
+    assert!(
+        analysis.errors[0].contains("p2"),
+        "error must reference the poisoned member, got: {}",
+        analysis.errors[0]
+    );
+    assert_eq!(
+        analysis.analyzed_count, 3,
+        "two healthy members plus the poisoned group's survivor"
+    );
+}
+
+#[test]
+fn test_analyze_missing_member_collects_error() {
+    let database = Database::in_memory().unwrap();
+
+    let preview_result = PreviewResult {
+        duplicates: vec![DuplicateGroup {
+            primary_id: "ghost-primary".to_string(),
+            duplicate_ids: vec!["ghost-duplicate".to_string()],
+            similarity: 0.9,
+            match_type: MatchType::Fts,
+        }],
+        stale: Vec::new(),
+        garbage: Vec::new(),
+    };
+
+    let analysis = analyze(&database, &preview_result, None).unwrap();
+    assert!(analysis.recommendations.is_empty());
+    assert_eq!(analysis.errors.len(), 1);
+    assert!(
+        analysis.errors[0].starts_with("analyze group ghost-primary:"),
+        "error must name the unloadable group, got: {}",
+        analysis.errors[0]
+    );
+    assert_eq!(analysis.analyzed_count, 0);
 }

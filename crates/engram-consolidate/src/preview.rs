@@ -6,11 +6,37 @@ use crate::error::ConsolidateError;
 
 const FTS_DUPLICATE_LIMIT: usize = 5;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MatchType {
+    Exact,
+    Fts,
+}
+
+impl MatchType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            MatchType::Exact => "exact",
+            MatchType::Fts => "fts",
+        }
+    }
+}
+
+/// A set of memories the preview pass considers duplicates of each other.
+///
+/// `primary_id` is the deterministic group representative — the
+/// lexicographically smallest id for exact groups, the probe memory for FTS
+/// groups. It is NOT necessarily the merge survivor; analyze picks the
+/// survivor independently.
+///
+/// The `similarity` scale is discriminated by `match_type`: exact groups
+/// carry the sentinel `1.0`, FTS groups carry the mean |bm25| rank of the
+/// group members (non-negative, unbounded above, NOT cosine).
 #[derive(Debug, Clone)]
 pub struct DuplicateGroup {
     pub primary_id: String,
     pub duplicate_ids: Vec<String>,
     pub similarity: f32,
+    pub match_type: MatchType,
 }
 
 #[derive(Debug, Clone)]
@@ -24,8 +50,9 @@ pub fn preview(
     database: &Database,
     stale_days: u32,
     min_score: f64,
+    fts_similarity_floor: f32,
 ) -> Result<PreviewResult, ConsolidateError> {
-    let duplicates = find_duplicates(database)?;
+    let duplicates = find_duplicates(database, fts_similarity_floor)?;
     let stale = find_stale(database, stale_days, min_score)?;
     let garbage = find_garbage(database)?;
     Ok(PreviewResult {
@@ -35,7 +62,10 @@ pub fn preview(
     })
 }
 
-fn find_duplicates(database: &Database) -> Result<Vec<DuplicateGroup>, ConsolidateError> {
+fn find_duplicates(
+    database: &Database,
+    fts_similarity_floor: f32,
+) -> Result<Vec<DuplicateGroup>, ConsolidateError> {
     let mut already_grouped: HashSet<String> = HashSet::new();
     let mut groups: Vec<DuplicateGroup> = Vec::new();
 
@@ -52,7 +82,12 @@ fn find_duplicates(database: &Database) -> Result<Vec<DuplicateGroup>, Consolida
         if already_grouped.contains(memory_id) {
             continue;
         }
-        if let Some(group) = try_build_group(database, memory_id, &mut already_grouped)? {
+        if let Some(group) = try_build_group(
+            database,
+            memory_id,
+            &mut already_grouped,
+            fts_similarity_floor,
+        )? {
             groups.push(group);
         }
     }
@@ -93,6 +128,7 @@ fn find_exact_duplicate_groups(
             primary_id,
             duplicate_ids: members.collect(),
             similarity: 1.0,
+            match_type: MatchType::Exact,
         });
     }
     Ok(groups)
@@ -102,28 +138,30 @@ fn try_build_group(
     database: &Database,
     memory_id: &str,
     already_grouped: &mut HashSet<String>,
+    fts_similarity_floor: f32,
 ) -> Result<Option<DuplicateGroup>, ConsolidateError> {
-    let matches = find_fts_duplicates_for(database, memory_id)?;
-    if matches.is_empty() {
-        return Ok(None);
-    }
-    let duplicate_ids: Vec<String> = matches
-        .iter()
+    let members: Vec<(String, f64)> = find_fts_duplicates_for(database, memory_id)?
+        .into_iter()
         .filter(|(id, _)| !already_grouped.contains(id))
-        .map(|(id, _)| id.clone())
         .collect();
-    if duplicate_ids.is_empty() {
+    if members.is_empty() {
         return Ok(None);
     }
-    let average_rank = compute_average_rank(&matches);
+    let average_rank = compute_average_rank(&members);
+    if average_rank < fts_similarity_floor {
+        return Ok(None);
+    }
     already_grouped.insert(memory_id.to_string());
-    for id in &duplicate_ids {
+    let mut duplicate_ids = Vec::with_capacity(members.len());
+    for (id, _) in members {
         already_grouped.insert(id.clone());
+        duplicate_ids.push(id);
     }
     Ok(Some(DuplicateGroup {
         primary_id: memory_id.to_string(),
         duplicate_ids,
         similarity: average_rank,
+        match_type: MatchType::Fts,
     }))
 }
 

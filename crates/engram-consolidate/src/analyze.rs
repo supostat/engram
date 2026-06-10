@@ -34,10 +34,20 @@ pub struct Recommendation {
     pub reasoning: String,
 }
 
+/// `errors` collects per-member analysis failures (LLM call failures,
+/// unloadable groups) without aborting the batch; `analyzed_count` counts
+/// only memories whose analysis actually completed.
 #[derive(Debug, Clone)]
 pub struct AnalysisResult {
     pub recommendations: Vec<Recommendation>,
     pub analyzed_count: usize,
+    pub errors: Vec<String>,
+}
+
+struct GroupAnalysis {
+    recommendations: Vec<Recommendation>,
+    errors: Vec<String>,
+    analyzed_members: usize,
 }
 
 pub fn analyze(
@@ -46,12 +56,14 @@ pub fn analyze(
     text_generator: Option<&dyn TextGenerator>,
 ) -> Result<AnalysisResult, ConsolidateError> {
     let mut recommendations = Vec::new();
+    let mut errors = Vec::new();
     let mut analyzed_count: usize = 0;
 
     for group in &preview_result.duplicates {
-        let group_recommendations = analyze_duplicate_group(database, group, text_generator)?;
-        analyzed_count += 1 + group.duplicate_ids.len();
-        recommendations.extend(group_recommendations);
+        let group_analysis = analyze_duplicate_group(database, group, text_generator);
+        analyzed_count += group_analysis.analyzed_members;
+        recommendations.extend(group_analysis.recommendations);
+        errors.extend(group_analysis.errors);
     }
     for stale_id in &preview_result.stale {
         recommendations.push(build_archive_recommendation(stale_id));
@@ -64,6 +76,7 @@ pub fn analyze(
     Ok(AnalysisResult {
         recommendations,
         analyzed_count,
+        errors,
     })
 }
 
@@ -71,10 +84,20 @@ fn analyze_duplicate_group(
     database: &Database,
     group: &crate::preview::DuplicateGroup,
     text_generator: Option<&dyn TextGenerator>,
-) -> Result<Vec<Recommendation>, ConsolidateError> {
+) -> GroupAnalysis {
+    let members = match load_group_members(database, group) {
+        Ok(members) => members,
+        Err(error) => {
+            return GroupAnalysis {
+                recommendations: Vec::new(),
+                errors: vec![format!("analyze group {}: {error}", group.primary_id)],
+                analyzed_members: 0,
+            };
+        }
+    };
     match text_generator {
-        Some(generator) => analyze_with_llm(database, group, generator),
-        None => Ok(analyze_with_heuristic(database, group)),
+        Some(generator) => analyze_members_with_llm(&members, generator),
+        None => analyze_members_with_heuristic(&members),
     }
 }
 
@@ -110,27 +133,36 @@ fn choose_survivor(members: &[engram_storage::Memory]) -> &engram_storage::Memor
         .expect("a duplicate group always has at least one member")
 }
 
-fn analyze_with_llm(
-    database: &Database,
-    group: &crate::preview::DuplicateGroup,
+fn analyze_members_with_llm(
+    members: &[engram_storage::Memory],
     text_generator: &dyn TextGenerator,
-) -> Result<Vec<Recommendation>, ConsolidateError> {
-    let members = load_group_members(database, group)?;
-    let survivor = choose_survivor(&members);
+) -> GroupAnalysis {
+    let survivor = choose_survivor(members);
     let mut recommendations = Vec::new();
+    let mut errors = Vec::new();
+    // The survivor needs no LLM verdict, so it always counts as analyzed.
+    let mut analyzed_members: usize = 1;
 
-    for member in &members {
+    for member in members {
         if member.id == survivor.id {
             continue;
         }
         let prompt = build_merge_prompt(survivor, member);
-        let response = text_generator
-            .generate(&prompt)
-            .map_err(|error| ConsolidateError::AnalysisFailed(error.to_string()))?;
-        let recommendation = parse_llm_response(&survivor.id, &member.id, &response);
-        recommendations.push(recommendation);
+        match text_generator.generate(&prompt) {
+            Ok(response) => {
+                recommendations.push(parse_llm_response(&survivor.id, &member.id, &response));
+                analyzed_members += 1;
+            }
+            Err(error) => {
+                errors.push(format!("analyze {}->{}: {error}", member.id, survivor.id));
+            }
+        }
     }
-    Ok(recommendations)
+    GroupAnalysis {
+        recommendations,
+        errors,
+        analyzed_members,
+    }
 }
 
 fn build_merge_prompt(
@@ -176,16 +208,9 @@ fn parse_llm_response(survivor_id: &str, member_id: &str, response: &str) -> Rec
     }
 }
 
-fn analyze_with_heuristic(
-    database: &Database,
-    group: &crate::preview::DuplicateGroup,
-) -> Vec<Recommendation> {
-    let members = match load_group_members(database, group) {
-        Ok(members) => members,
-        Err(_) => return Vec::new(),
-    };
-    let survivor = choose_survivor(&members);
-    members
+fn analyze_members_with_heuristic(members: &[engram_storage::Memory]) -> GroupAnalysis {
+    let survivor = choose_survivor(members);
+    let recommendations = members
         .iter()
         .filter(|member| member.id != survivor.id)
         .map(|member| Recommendation {
@@ -196,7 +221,12 @@ fn analyze_with_heuristic(
             confidence: HEURISTIC_MERGE_CONFIDENCE,
             reasoning: "heuristic: survivor has higher score or usage".to_string(),
         })
-        .collect()
+        .collect();
+    GroupAnalysis {
+        recommendations,
+        errors: Vec::new(),
+        analyzed_members: members.len(),
+    }
 }
 
 fn build_archive_recommendation(memory_id: &str) -> Recommendation {

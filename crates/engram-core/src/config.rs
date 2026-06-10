@@ -38,6 +38,7 @@ const DEFAULT_HNSW_EF_CONSTRUCTION: usize = 200;
 const DEFAULT_HNSW_EF_SEARCH: usize = 40;
 const DEFAULT_CONSOLIDATION_STALE_DAYS: u32 = 90;
 const DEFAULT_CONSOLIDATION_MIN_SCORE: f64 = 0.3;
+const DEFAULT_CONSOLIDATION_FTS_SIMILARITY_FLOOR: f32 = 0.0;
 const DEFAULT_DEDUP_THRESHOLD: f32 = 0.95;
 const DEFAULT_TRAINER_BINARY: &str = "engram-trainer";
 const DEFAULT_TRAINER_TIMEOUT_SECS: u64 = 300;
@@ -129,6 +130,12 @@ pub struct HnswConfig {
 pub struct ConsolidationConfig {
     pub stale_days: u32,
     pub min_score: f64,
+    /// Minimum mean |bm25| rank an FTS duplicate group must reach to appear
+    /// in consolidation preview. Same unit as the `similarity` reported for
+    /// `match_type == "fts"` groups (NOT cosine; non-negative, unbounded
+    /// above). `0.0` disables the floor; exact groups are never filtered.
+    #[serde(default)]
+    pub fts_similarity_floor: f32,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -169,6 +176,7 @@ impl Default for ConsolidationConfig {
         Self {
             stale_days: DEFAULT_CONSOLIDATION_STALE_DAYS,
             min_score: DEFAULT_CONSOLIDATION_MIN_SCORE,
+            fts_similarity_floor: DEFAULT_CONSOLIDATION_FTS_SIMILARITY_FLOOR,
         }
     }
 }
@@ -201,6 +209,20 @@ pub fn validate_dedup_threshold(threshold: f32) -> Result<(), CoreError> {
     }
     Err(CoreError::ConfigValidation(format!(
         "deduplication.threshold must be in (0.0, 1.0], got {threshold}"
+    )))
+}
+
+/// Validates the consolidation FTS similarity floor. The floor is compared
+/// against a mean |bm25| rank (non-negative, unbounded above), so any finite
+/// non-negative value is meaningful. NaN/Inf are rejected explicitly — TOML
+/// 1.0 parses `nan` and `inf`, and a NaN floor would silently disable every
+/// comparison.
+pub fn validate_fts_similarity_floor(floor: f32) -> Result<(), CoreError> {
+    if floor.is_finite() && floor >= 0.0 {
+        return Ok(());
+    }
+    Err(CoreError::ConfigValidation(format!(
+        "consolidation.fts_similarity_floor must be finite and >= 0.0, got {floor}"
     )))
 }
 
@@ -705,6 +727,32 @@ mod tests {
     #[test]
     fn validate_dedup_threshold_accepts_tiny_positive() {
         validate_dedup_threshold(0.0001).expect("any positive within range is accepted");
+    }
+
+    #[test]
+    fn validate_fts_similarity_floor_accepts_zero_and_positive() {
+        validate_fts_similarity_floor(0.0).expect("0.0 disables the floor and is valid");
+        validate_fts_similarity_floor(4.5).expect("any finite non-negative floor is valid");
+    }
+
+    #[test]
+    fn validate_fts_similarity_floor_rejects_negative() {
+        let error = validate_fts_similarity_floor(-0.1).expect_err("negative is out of range");
+        assert!(matches!(error, CoreError::ConfigValidation(_)));
+        assert!(error.to_string().contains("-0.1"));
+    }
+
+    #[test]
+    fn validate_fts_similarity_floor_rejects_nan() {
+        let error = validate_fts_similarity_floor(f32::NAN).expect_err("NaN is not finite");
+        assert!(matches!(error, CoreError::ConfigValidation(_)));
+    }
+
+    #[test]
+    fn validate_fts_similarity_floor_rejects_infinity() {
+        let error =
+            validate_fts_similarity_floor(f32::INFINITY).expect_err("infinity is not finite");
+        assert!(matches!(error, CoreError::ConfigValidation(_)));
     }
 
     #[test]

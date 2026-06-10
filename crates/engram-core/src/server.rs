@@ -85,6 +85,7 @@ pub(crate) fn initialize_state(
 ) -> Result<ServerState, CoreError> {
     crate::config::validate_dedup_threshold(config.deduplication.threshold)?;
     crate::config::validate_search_config(&config.search)?;
+    crate::config::validate_fts_similarity_floor(config.consolidation.fts_similarity_floor)?;
     check_legacy_database(project_dir, home_dir)?;
     let database_path = resolve_database_path(project_dir);
     let database = Database::open(&database_path)?;

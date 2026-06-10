@@ -68,6 +68,7 @@ dimension = 1024
 [consolidation]
 stale_days = 90
 min_score = 0.3
+fts_similarity_floor = 0.0
 
 [trainer]
 trainer_binary = "engram-trainer"
@@ -136,6 +137,7 @@ The `ollama` provider runs LLM features (judge, HyDE, consolidation) on a local 
 |-----------|---------|-------------|
 | `stale_days` | `90` | Stale record threshold (days) |
 | `min_score` | `0.3` | Minimum score for consolidation candidates |
+| `fts_similarity_floor` | `0.0` | Minimum mean &#124;bm25&#124; rank an FTS duplicate group must reach in consolidation preview (same unit as the preview `similarity` of `fts` groups, not cosine). `0.0` disables the floor; exact groups are never filtered. Must be finite and ≥ 0. |
 
 ### trainer
 

@@ -50,6 +50,7 @@ fn sanitized_config(config: &crate::config::Config) -> Value {
         "consolidation": {
             "stale_days": config.consolidation.stale_days,
             "min_score": config.consolidation.min_score,
+            "fts_similarity_floor": config.consolidation.fts_similarity_floor,
         },
     })
 }
