@@ -1,6 +1,6 @@
 [package]
 name = "engram-memory"
-version = "0.5.0"
+version = "0.6.0"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
@@ -22,13 +22,13 @@ path = "src/main.rs"
 bench = false
 
 [dependencies]
-engram-consolidate = { path = "../engram-consolidate", version = "0.5.0" }
-engram-storage = { path = "../engram-storage", version = "0.5.0" }
-engram-hnsw = { path = "../engram-hnsw", version = "0.5.0" }
-engram-embeddings = { path = "../engram-embeddings", version = "0.5.0" }
-engram-llm-client = { path = "../engram-llm-client", version = "0.5.0", features = ["local"] }
-engram-judge = { path = "../engram-judge", version = "0.5.0" }
-engram-router = { path = "../engram-router", version = "0.5.0" }
+engram-consolidate = { path = "../engram-consolidate", version = "0.6.0" }
+engram-storage = { path = "../engram-storage", version = "0.6.0" }
+engram-hnsw = { path = "../engram-hnsw", version = "0.6.0" }
+engram-embeddings = { path = "../engram-embeddings", version = "0.6.0" }
+engram-llm-client = { path = "../engram-llm-client", version = "0.6.0", features = ["local"] }
+engram-judge = { path = "../engram-judge", version = "0.6.0" }
+engram-router = { path = "../engram-router", version = "0.6.0" }
 rusqlite = { version = "0.39", features = ["bundled", "vtab"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

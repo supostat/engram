@@ -1,5 +1,66 @@
 # Changelog
 
+## 0.6.0 (2026-06-10)
+
+### Breaking changes
+- None. New response fields are additive; schema migrations (the `routing_log`
+  table, `feedback_tracking.query_id`, the FTS re-tokenize) run automatically
+  on first start.
+
+### New features
+- **`engram delete --id <id>`** and the matching MCP tool `memory_delete` —
+  first-class single-memory deletion: clears `feedback_tracking` references
+  in the same transaction (FK-safe) and prunes the HNSW indexes.
+- **`engram consolidate log [--limit N]`** and MCP `memory_consolidate_log` —
+  the consolidation audit trail is now readable (newest first): every apply
+  records merge/delete/archive entries with ids, reason, and timestamp.
+- **Preview provenance** — `duplicate_groups[].match_type` distinguishes
+  `"exact"` groups (byte-identical context/action/result, similarity `1.0`)
+  from `"fts"` candidates (similarity = mean absolute BM25 rank of the
+  group's actual members). `primary_id` is documented as the deterministic
+  group representative, not the merge survivor.
+- **`consolidation.fts_similarity_floor`** — optional config floor (default
+  `0.0` = disabled, mean-|BM25| units) that drops weak FTS candidate groups
+  before the analyze stage; exact groups are never filtered.
+- **`engram consolidate apply --min-confidence <0.0-1.0>`** — the
+  recommendation confidence gate, previously reachable only over MCP.
+- **Routing decision log** — every search records its routing decision
+  (mode, the four routing levels, `top_k`, shadow top-k reward estimates)
+  into `routing_log`, correlated to feedback via `query_id`, enabling
+  offline routing evaluation. Serving behavior is unchanged.
+
+### Improvements
+- **FTS recall** — the FTS5 table now uses the `porter unicode61` tokenizer
+  and queries are OR-of-prefix instead of implicit-AND, so inflections
+  (`payment`/`payments`) and compound identifiers (`react-hook-form`) match.
+  Existing databases re-tokenize automatically once on first start (daemon
+  and CLI).
+- **Superseded memories are retired from recall** — live search and HNSW
+  rebuilds skip records merged away by consolidation; a merge now actually
+  removes the duplicate from results.
+- **Consolidation correctness** — byte-identical duplicates are found by an
+  FTS-independent exact pass; insights and superseded records are excluded
+  from the dedup pool; the merge survivor is chosen deterministically;
+  apply prunes merged/deleted records from the HNSW indexes.
+- **Analyze survives LLM failures** — per-member errors are collected into
+  an `errors` array on the analyze and apply responses instead of aborting
+  the whole batch on the first failed call.
+- **Trainer insight generation is idempotent** — insights are atomically
+  replaced per run and no longer re-ingested as training input, so repeated
+  `engram train generate` no longer multiplies insights.
+- **`pending_judgments` converges to zero** once every searched memory has
+  been judged at least once.
+
+### Fixes
+- `delete` operations on memories referenced by `feedback_tracking` no longer
+  fail with a foreign-key error.
+- Non-finite CLI float arguments (`nan`, `inf`) on the consolidate flags are
+  rejected at parse time — previously they serialized to JSON `null` and
+  silently bypassed server-side validation, disabling the confidence gate.
+- Documentation no longer claims unimplemented adaptive-routing /
+  self-learning behavior; a guard test pins docs to the wired code.
+- The npm publish workflow authenticates correctly (`NODE_AUTH_TOKEN`).
+
 ## 0.5.0 (2026-06-09)
 
 ### Breaking changes
